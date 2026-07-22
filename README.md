@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo-horizontal.png" alt="CtrlAgent" width="640">
+  <img src="assets/logo.png" alt="CtrlAgent" width="640">
 </p>
 
 # CtrlAgent
@@ -145,8 +145,7 @@ When the native bridge is not supplied or cannot start, CtrlAgent automatically 
 
 ```text
 assets/
-  logo-horizontal.png          CtrlAgent wordmark
-  logo-square.png              CtrlAgent square lockup
+  logo.png                     CtrlAgent logo
 
 native/
   CtrlAgent.GameInputBridge/   GameInput v3 Elite-paddle and rumble bridge

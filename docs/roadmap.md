@@ -1,10 +1,10 @@
-# HapticAgent Roadmap
+# CtrlAgent Roadmap
 
 The project advances through evidence-based gates. Each phase should produce something testable before the next layer is added.
 
 ## Phase 0 — Architecture and core contracts
 
-Status: **In progress**
+Status: **Complete**
 
 Deliverables:
 
@@ -23,6 +23,8 @@ Exit gate:
 
 ## Phase 1 — Native GameInput hardware spike
 
+Status: **Code complete — awaiting real Elite-controller validation**
+
 Deliverables:
 
 - minimal Windows C++ console project using Microsoft.GameInput 3.4;
@@ -40,6 +42,8 @@ Exit gate:
 
 ## Phase 2 — Managed GameInput adapter
 
+Status: **Complete in software — pending hardware sign-off**
+
 Deliverables:
 
 - narrow native bridge or generated managed interop;
@@ -55,6 +59,8 @@ Exit gate:
 - clean startup, cancellation, disconnect, reconnect, and shutdown.
 
 ## Phase 3 — Mapping engine
+
+Status: **In progress** — versioned JSON profiles, press/release/tap/hold/double-press/axis-threshold gestures, collision detection, approval safeguards, and import/export are implemented; layers and modifier layers beyond chords remain.
 
 Deliverables:
 
@@ -72,6 +78,8 @@ Exit gate:
 - approval mappings require deliberate configuration.
 
 ## Phase 4 — Codex adapter
+
+Status: **Implemented — crash recovery restarts the app-server with backoff; end-to-end verification against a real Codex install still pending**
 
 Deliverables:
 

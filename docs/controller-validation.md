@@ -76,7 +76,7 @@ Run this test with a dedicated Xbox Accessories profile. Record whether a paddle
 3. only the assigned standard button;
 4. no reading.
 
-Repeat for every transport. This behavior determines whether HapticAgent can safely treat the paddles as independent controls or needs mapping guidance in its setup wizard.
+Repeat for every transport. This behavior determines whether CtrlAgent can safely treat the paddles as independent controls or needs mapping guidance in its setup wizard.
 
 ## Test 4: simultaneous input
 

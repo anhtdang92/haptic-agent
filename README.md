@@ -1,6 +1,10 @@
-# HapticAgent
+<p align="center">
+  <img src="assets/logo.png" alt="CtrlAgent" width="640">
+</p>
 
-**HapticAgent** is a Windows-first, open-source controller interface for AI coding agents.
+# CtrlAgent
+
+**CtrlAgent** is a Windows-first, open-source controller interface for AI coding agents.
 
 It turns an Xbox controller—especially the Xbox Elite controller—into a two-way agent control surface:
 
@@ -29,6 +33,8 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - Native GameInput v3 bridge for four Elite paddles and four-channel rumble
 - XInput fallback approval chords when independent paddles are unavailable
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
+- Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, collision detection, and validated approval safeguards
+- Crash resilience: Codex app-server restart with backoff, controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses
@@ -50,6 +56,39 @@ Haptic scheduler <--------- Feedback router <- Agent events
 
 Approval inputs do nothing unless an approval request is actually pending.
 
+## Custom profiles
+
+Mappings are configurable through versioned JSON profiles:
+
+```powershell
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --export-profile my-profile.json
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --profile my-profile.json
+```
+
+Each binding names a control, a gesture, and a command:
+
+```json
+{
+  "version": 1,
+  "name": "my-profile",
+  "bindings": [
+    { "control": "a", "gesture": "press", "command": "submitPrompt" },
+    { "control": "x", "gesture": "doublePress", "command": "reviewChanges" },
+    {
+      "control": "paddleLeft1",
+      "gesture": "hold",
+      "holdMilliseconds": 400,
+      "command": "approveOnce",
+      "requiresPendingApproval": true
+    }
+  ]
+}
+```
+
+Supported gestures: `press`, `release`, `tap`, `hold`, `doublePress`, and `axisThreshold` (with `minimumValue`). `modifiers` turns a binding into a chord, and `text` overrides the prompt for `submitPrompt`.
+
+Profiles are validated before they load. Ambiguous combinations (for example `press` and `hold` on the same chord) are rejected, `approveOnce`/`approveForSession`/`decline` bindings must set `requiresPendingApproval`, and approvals must sit on a paddle, a chord, or a hold gesture so a single accidental face-button press can never approve anything.
+
 ## Requirements
 
 - Windows 10 19H1 or newer
@@ -61,15 +100,15 @@ Approval inputs do nothing unless an approval request is actually pending.
 ## Build and test
 
 ```powershell
-dotnet restore HapticAgent.sln
-dotnet build HapticAgent.sln --configuration Release
-dotnet run --project tests/HapticAgent.Tests/HapticAgent.Tests.csproj --configuration Release
+dotnet restore CtrlAgent.sln
+dotnet build CtrlAgent.sln --configuration Release
+dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release
 ```
 
 Build the native bridge from a Visual Studio developer shell:
 
 ```powershell
-msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
+msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
 ```
 
 ## Run with the mock agent
@@ -77,7 +116,7 @@ msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /
 Connect an Xbox controller and run:
 
 ```powershell
-dotnet run --project src/HapticAgent.App/HapticAgent.App.csproj -- --agent mock
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock
 ```
 
 The mock agent can produce working, approval-required, completed, and interrupted states so the full controller-to-agent-to-rumble loop can be tested safely.
@@ -85,7 +124,7 @@ The mock agent can produce working, approval-required, completed, and interrupte
 ## Run with Codex
 
 ```powershell
-dotnet run --project src/HapticAgent.App/HapticAgent.App.csproj -- \
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- \
   --agent codex \
   --cwd C:\path\to\your\repository
 ```
@@ -96,27 +135,32 @@ Useful options:
 --prompt TEXT             Prompt sent by A
 --codex-path PATH         Explicit Codex executable path
 --gameinput-bridge PATH   Explicit native bridge executable path
+--profile PATH            Load a controller profile from a JSON file
+--export-profile PATH     Write the default profile as JSON and exit
 --verbose                 Print analog controller changes
 ```
 
-When the native bridge is not supplied or cannot start, HapticAgent automatically falls back to XInput. Place `HapticAgent.GameInputBridge.exe` beside the managed application, set `HAPTIC_AGENT_GAMEINPUT_BRIDGE`, or pass `--gameinput-bridge` to enable independent paddles and trigger rumble.
+When the native bridge is not supplied or cannot start, CtrlAgent automatically falls back to XInput. Place `CtrlAgent.GameInputBridge.exe` beside the managed application, set `CTRL_AGENT_GAMEINPUT_BRIDGE`, or pass `--gameinput-bridge` to enable independent paddles and trigger rumble.
 
 ## Repository layout
 
 ```text
+assets/
+  logo.png                     CtrlAgent logo
+
 native/
-  HapticAgent.GameInputBridge/   GameInput v3 Elite-paddle and rumble bridge
+  CtrlAgent.GameInputBridge/   GameInput v3 Elite-paddle and rumble bridge
 
 src/
-  HapticAgent.Core/              Contracts, mappings, feedback, and haptics
-  HapticAgent.Platform.Windows/  GameInput bridge client and XInput fallback
-  HapticAgent.Adapters.Mock/     Safe simulated agent
-  HapticAgent.Adapters.Codex/    Codex app-server adapter
-  HapticAgent.App/               End-to-end Windows console host
-  HapticAgent.Demo/              Haptic-pattern demonstration
+  CtrlAgent.Core/              Contracts, mappings, feedback, and haptics
+  CtrlAgent.Platform.Windows/  GameInput bridge client and XInput fallback
+  CtrlAgent.Adapters.Mock/     Safe simulated agent
+  CtrlAgent.Adapters.Codex/    Codex app-server adapter
+  CtrlAgent.App/               End-to-end Windows console host
+  CtrlAgent.Demo/              Haptic-pattern demonstration
 
 tests/
-  HapticAgent.Tests/             Dependency-free automated tests
+  CtrlAgent.Tests/             Dependency-free automated tests
 
 docs/
   architecture.md
@@ -138,8 +182,8 @@ See [the controller validation plan](docs/controller-validation.md).
 
 ## License
 
-HapticAgent is licensed under the [MIT License](LICENSE).
+CtrlAgent is licensed under the [MIT License](LICENSE).
 
 ## Trademark notice
 
-Xbox and Xbox Elite are trademarks of Microsoft. Codex is a trademark of OpenAI. HapticAgent is an independent open-source project and is not affiliated with or endorsed by Microsoft or OpenAI.
+Xbox and Xbox Elite are trademarks of Microsoft. Codex is a trademark of OpenAI. CtrlAgent is an independent open-source project and is not affiliated with or endorsed by Microsoft or OpenAI.

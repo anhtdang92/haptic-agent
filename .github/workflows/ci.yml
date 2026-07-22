@@ -22,19 +22,19 @@ jobs:
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore HapticAgent.sln 2>&1 | Tee-Object managed-restore.log
+          dotnet restore CtrlAgent.sln 2>&1 | Tee-Object managed-restore.log
           exit $LASTEXITCODE
 
       - name: Build
         shell: pwsh
         run: |
-          dotnet build HapticAgent.sln --configuration Release --no-restore 2>&1 | Tee-Object managed-build.log
+          dotnet build CtrlAgent.sln --configuration Release --no-restore 2>&1 | Tee-Object managed-build.log
           exit $LASTEXITCODE
 
       - name: Run tests
         shell: pwsh
         run: |
-          dotnet run --project tests/HapticAgent.Tests/HapticAgent.Tests.csproj --configuration Release --no-build 2>&1 | Tee-Object managed-tests.log
+          dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release --no-build 2>&1 | Tee-Object managed-tests.log
           exit $LASTEXITCODE
 
       - name: Upload managed logs
@@ -55,13 +55,13 @@ jobs:
       - name: Restore GameInput bridge
         shell: pwsh
         run: |
-          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /t:Restore /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-restore.log
+          msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /t:Restore /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-restore.log
           exit $LASTEXITCODE
 
       - name: Build GameInput bridge
         shell: pwsh
         run: |
-          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-build.log
+          msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-build.log
           exit $LASTEXITCODE
 
       - name: Upload native logs

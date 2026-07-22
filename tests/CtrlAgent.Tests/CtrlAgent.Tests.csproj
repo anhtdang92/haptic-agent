@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CtrlAgent.Core\CtrlAgent.Core.csproj" />
+    <ProjectReference Include="..\..\src\CtrlAgent.Adapters.Mock\CtrlAgent.Adapters.Mock.csproj" />
+  </ItemGroup>
+</Project>

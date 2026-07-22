@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\HapticAgent.Core\HapticAgent.Core.csproj" />
-    <ProjectReference Include="..\..\src\HapticAgent.Adapters.Mock\HapticAgent.Adapters.Mock.csproj" />
-  </ItemGroup>
-</Project>

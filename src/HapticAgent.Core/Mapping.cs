@@ -13,6 +13,12 @@ public sealed record ControllerProfile(
     string Name,
     IReadOnlyList<InputBinding> Bindings)
 {
+    private static readonly IReadOnlySet<ControllerControl> LeftShoulder =
+        new HashSet<ControllerControl> { ControllerControl.LeftShoulder };
+
+    private static readonly IReadOnlySet<ControllerControl> RightShoulder =
+        new HashSet<ControllerControl> { ControllerControl.RightShoulder };
+
     public static ControllerProfile Default { get; } = new(
         "default",
         [
@@ -22,15 +28,24 @@ public sealed record ControllerProfile(
             new(ControllerControl.Menu, ControllerInputEventKind.Pressed, AgentCommandKind.NewSession),
             new(ControllerControl.DPadRight, ControllerInputEventKind.Pressed, AgentCommandKind.NextSession),
             new(ControllerControl.DPadLeft, ControllerInputEventKind.Pressed, AgentCommandKind.PreviousSession),
+
+            // Native Elite-paddle bindings used by the GameInput bridge.
             new(ControllerControl.PaddleLeft1, ControllerInputEventKind.Pressed, AgentCommandKind.ApproveOnce, RequiresPendingApproval: true),
             new(ControllerControl.PaddleLeft2, ControllerInputEventKind.Pressed, AgentCommandKind.ApproveForSession, RequiresPendingApproval: true),
             new(ControllerControl.PaddleRight1, ControllerInputEventKind.Pressed, AgentCommandKind.Decline, RequiresPendingApproval: true),
             new(ControllerControl.PaddleRight2, ControllerInputEventKind.Pressed, AgentCommandKind.Cancel, RequiresPendingApproval: true),
+
+            // XInput fallback chords until the native GameInput bridge is selected.
+            new(ControllerControl.A, ControllerInputEventKind.Pressed, AgentCommandKind.ApproveOnce, RightShoulder, RequiresPendingApproval: true),
+            new(ControllerControl.Y, ControllerInputEventKind.Pressed, AgentCommandKind.ApproveForSession, RightShoulder, RequiresPendingApproval: true),
+            new(ControllerControl.X, ControllerInputEventKind.Pressed, AgentCommandKind.Decline, RightShoulder, RequiresPendingApproval: true),
+            new(ControllerControl.B, ControllerInputEventKind.Pressed, AgentCommandKind.Cancel, RightShoulder, RequiresPendingApproval: true),
+
             new(
                 ControllerControl.A,
                 ControllerInputEventKind.Pressed,
                 AgentCommandKind.SubmitPrompt,
-                new HashSet<ControllerControl> { ControllerControl.LeftShoulder },
+                LeftShoulder,
                 Text: "Run the test suite and fix any failures."),
         ]);
 }
@@ -62,39 +77,48 @@ public sealed class MappingEngine
             return [];
         }
 
-        var commands = new List<AgentCommand>();
+        var matches = _profile.Bindings
+            .Where(binding => Matches(binding, inputEvent))
+            .ToArray();
 
-        foreach (var binding in _profile.Bindings)
+        if (matches.Length == 0)
         {
-            if (binding.Control != inputEvent.Control || binding.EventKind != inputEvent.Kind)
-            {
-                continue;
-            }
+            return [];
+        }
 
-            if (inputEvent.Kind == ControllerInputEventKind.ValueChanged &&
-                Math.Abs(inputEvent.Value) < binding.MinimumValue)
-            {
-                continue;
-            }
+        // A chord wins over its unmodified button binding, preventing LB+A or
+        // RB+A from also firing the plain A action.
+        var highestSpecificity = matches.Max(binding => binding.Modifiers?.Count ?? 0);
 
-            if (binding.Modifiers is { Count: > 0 } && !binding.Modifiers.All(_pressed.Contains))
-            {
-                continue;
-            }
-
-            if (binding.RequiresPendingApproval && _pendingApproval is null)
-            {
-                continue;
-            }
-
-            commands.Add(new AgentCommand(
+        return matches
+            .Where(binding => (binding.Modifiers?.Count ?? 0) == highestSpecificity)
+            .Select(binding => new AgentCommand(
                 binding.Command,
                 _pendingApproval?.SessionId,
                 _pendingApproval?.RequestId,
-                binding.Text));
+                binding.Text))
+            .ToArray();
+    }
+
+    private bool Matches(InputBinding binding, ControllerInputEvent inputEvent)
+    {
+        if (binding.Control != inputEvent.Control || binding.EventKind != inputEvent.Kind)
+        {
+            return false;
         }
 
-        return commands;
+        if (inputEvent.Kind == ControllerInputEventKind.ValueChanged &&
+            Math.Abs(inputEvent.Value) < binding.MinimumValue)
+        {
+            return false;
+        }
+
+        if (binding.Modifiers is { Count: > 0 } && !binding.Modifiers.All(_pressed.Contains))
+        {
+            return false;
+        }
+
+        return !binding.RequiresPendingApproval || _pendingApproval is not null;
     }
 
     private void UpdatePressedState(ControllerInputEvent inputEvent)

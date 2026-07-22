@@ -6,6 +6,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticAgent.Core", "src\Hap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticAgent.Demo", "src\HapticAgent.Demo\HapticAgent.Demo.csproj", "{FEF4BCAA-B379-48F2-8A62-18B8F6529056}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticAgent.Platform.Windows", "src\HapticAgent.Platform.Windows\HapticAgent.Platform.Windows.csproj", "{F1E03C8F-0D3C-43C5-99A0-E39F718B7332}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticAgent.Adapters.Mock", "src\HapticAgent.Adapters.Mock\HapticAgent.Adapters.Mock.csproj", "{B21B4569-FD23-459D-B39B-1AA4CAEE4491}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticAgent.Adapters.Codex", "src\HapticAgent.Adapters.Codex\HapticAgent.Adapters.Codex.csproj", "{C3A29ABC-D3FA-4E43-9797-1F040BC74047}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticAgent.App", "src\HapticAgent.App\HapticAgent.App.csproj", "{D4AF6F69-C8A3-472B-B83E-E3B368126F85}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HapticAgent.Tests", "tests\HapticAgent.Tests\HapticAgent.Tests.csproj", "{E5A7581A-30E3-4272-8E56-BE550C03A645}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,5 +30,25 @@ Global
 		{FEF4BCAA-B379-48F2-8A62-18B8F6529056}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FEF4BCAA-B379-48F2-8A62-18B8F6529056}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FEF4BCAA-B379-48F2-8A62-18B8F6529056}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F1E03C8F-0D3C-43C5-99A0-E39F718B7332}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1E03C8F-0D3C-43C5-99A0-E39F718B7332}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1E03C8F-0D3C-43C5-99A0-E39F718B7332}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1E03C8F-0D3C-43C5-99A0-E39F718B7332}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B21B4569-FD23-459D-B39B-1AA4CAEE4491}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B21B4569-FD23-459D-B39B-1AA4CAEE4491}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B21B4569-FD23-459D-B39B-1AA4CAEE4491}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B21B4569-FD23-459D-B39B-1AA4CAEE4491}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3A29ABC-D3FA-4E43-9797-1F040BC74047}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3A29ABC-D3FA-4E43-9797-1F040BC74047}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3A29ABC-D3FA-4E43-9797-1F040BC74047}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3A29ABC-D3FA-4E43-9797-1F040BC74047}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4AF6F69-C8A3-472B-B83E-E3B368126F85}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4AF6F69-C8A3-472B-B83E-E3B368126F85}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4AF6F69-C8A3-472B-B83E-E3B368126F85}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4AF6F69-C8A3-472B-B83E-E3B368126F85}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E5A7581A-30E3-4272-8E56-BE550C03A645}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E5A7581A-30E3-4272-8E56-BE550C03A645}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E5A7581A-30E3-4272-8E56-BE550C03A645}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E5A7581A-30E3-4272-8E56-BE550C03A645}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

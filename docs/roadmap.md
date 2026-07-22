@@ -116,6 +116,8 @@ Exit gate:
 
 ## Phase 6 — Additional adapters
 
+Status: **Claude Code adapter implemented** (pulled forward from this phase) — drives the Claude Code CLI over bidirectional stream-json with controller-answered `can_use_tool` permission prompts. Protocol shapes follow the Agent SDK wire format and still need verification against an installed CLI. Approve-for-session currently degrades to approve-once.
+
 Candidates:
 
 - Claude Code lifecycle hooks;

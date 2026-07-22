@@ -1,3 +1,4 @@
+using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Adapters.Codex;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
@@ -56,6 +57,9 @@ public sealed class HostEngine : IAsyncDisposable
             "codex" => new CodexAppServerAdapter(new AgentAdapterOptions(
                 _options.WorkingDirectory,
                 _options.CodexExecutable)),
+            "claude" => new ClaudeCodeAdapter(new AgentAdapterOptions(
+                _options.WorkingDirectory,
+                _options.ClaudeExecutable)),
             _ => new MockAgentAdapter(),
         };
 

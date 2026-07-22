@@ -40,6 +40,7 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses
+- Claude Code stream-json adapter with prompt turns, interrupt, restart-on-crash, and controller-answered tool-permission prompts
 - Dependency-free automated test harness
 - Windows GitHub Actions builds for managed and native components
 
@@ -98,6 +99,7 @@ Profiles are validated before they load. Ambiguous combinations (for example `pr
 - Visual Studio C++ build tools for the optional native GameInput bridge
 - Microsoft GameInput redistributable for GameInput v3 functionality
 - Codex installed and authenticated when using `--agent codex`
+- Claude Code installed and authenticated when using `--agent claude`
 
 ## Build and test
 
@@ -132,6 +134,16 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock
 ```
 
 The mock agent can produce working, approval-required, completed, and interrupted states so the full controller-to-agent-to-rumble loop can be tested safely.
+
+## Run with Claude Code
+
+```powershell
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- \
+  --agent claude \
+  --cwd C:\path\to\your\repository
+```
+
+The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the paddles (approve maps to allow, decline to deny). Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable. Approve-for-session currently behaves as approve-once.
 
 ## Run with Codex
 
@@ -168,6 +180,7 @@ src/
   CtrlAgent.Platform.Windows/  GameInput bridge client and XInput fallback
   CtrlAgent.Adapters.Mock/     Safe simulated agent
   CtrlAgent.Adapters.Codex/    Codex app-server adapter
+  CtrlAgent.Adapters.ClaudeCode/ Claude Code stream-json adapter
   CtrlAgent.App/               End-to-end Windows console host
   CtrlAgent.Gui/               Avalonia desktop app (status, approvals, log)
   CtrlAgent.Demo/              Haptic-pattern demonstration

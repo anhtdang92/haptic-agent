@@ -1,3 +1,4 @@
+using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Adapters.Codex;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
@@ -96,6 +97,9 @@ internal static class Program
             "codex" => new CodexAppServerAdapter(new AgentAdapterOptions(
                 options.WorkingDirectory,
                 options.CodexExecutable)),
+            "claude" => new ClaudeCodeAdapter(new AgentAdapterOptions(
+                options.WorkingDirectory,
+                options.ClaudeExecutable)),
             _ => throw new InvalidOperationException($"Unsupported agent adapter: {options.Agent}"),
         };
 

@@ -5,6 +5,7 @@ public sealed record GuiOptions(
     string WorkingDirectory,
     string DefaultPrompt,
     string? CodexExecutable,
+    string? ClaudeExecutable,
     string? GameInputBridgeExecutable,
     string? ProfilePath)
 {
@@ -14,6 +15,7 @@ public sealed record GuiOptions(
         var workingDirectory = Environment.CurrentDirectory;
         var defaultPrompt = "Inspect the current repository and continue implementing the highest-priority unfinished task.";
         string? codexExecutable = null;
+        string? claudeExecutable = null;
         string? gameInputBridgeExecutable = null;
         string? profilePath = null;
 
@@ -33,6 +35,9 @@ public sealed record GuiOptions(
                 case "--codex-path":
                     codexExecutable = ReadValue(args, ref index, "--codex-path");
                     break;
+                case "--claude-path":
+                    claudeExecutable = ReadValue(args, ref index, "--claude-path");
+                    break;
                 case "--gameinput-bridge":
                     gameInputBridgeExecutable = Path.GetFullPath(ReadValue(args, ref index, "--gameinput-bridge"));
                     break;
@@ -45,9 +50,10 @@ public sealed record GuiOptions(
         }
 
         if (!agent.Equals("mock", StringComparison.OrdinalIgnoreCase) &&
-            !agent.Equals("codex", StringComparison.OrdinalIgnoreCase))
+            !agent.Equals("codex", StringComparison.OrdinalIgnoreCase) &&
+            !agent.Equals("claude", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("--agent must be either 'mock' or 'codex'.");
+            throw new ArgumentException("--agent must be 'mock', 'codex', or 'claude'.");
         }
 
         return new GuiOptions(
@@ -55,6 +61,7 @@ public sealed record GuiOptions(
             workingDirectory,
             defaultPrompt,
             codexExecutable,
+            claudeExecutable,
             gameInputBridgeExecutable,
             profilePath);
     }

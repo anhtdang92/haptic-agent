@@ -22,6 +22,7 @@ public sealed class App : Application
                 "Inspect the current repository and continue implementing the highest-priority unfinished task.",
                 null,
                 null,
+                null,
                 null);
 
             try

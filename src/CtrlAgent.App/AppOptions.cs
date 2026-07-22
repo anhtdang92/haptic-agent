@@ -5,6 +5,7 @@ internal sealed record AppOptions(
     string WorkingDirectory,
     string DefaultPrompt,
     string? CodexExecutable,
+    string? ClaudeExecutable,
     string? GameInputBridgeExecutable,
     string? ProfilePath,
     string? ExportProfilePath,
@@ -17,6 +18,7 @@ internal sealed record AppOptions(
         var workingDirectory = Environment.CurrentDirectory;
         var defaultPrompt = "Inspect the current repository and continue implementing the highest-priority unfinished task.";
         string? codexExecutable = null;
+        string? claudeExecutable = null;
         string? gameInputBridgeExecutable = null;
         string? profilePath = null;
         string? exportProfilePath = null;
@@ -38,6 +40,9 @@ internal sealed record AppOptions(
                     break;
                 case "--codex-path":
                     codexExecutable = ReadValue(args, ref index, "--codex-path");
+                    break;
+                case "--claude-path":
+                    claudeExecutable = ReadValue(args, ref index, "--claude-path");
                     break;
                 case "--gameinput-bridge":
                     gameInputBridgeExecutable = Path.GetFullPath(
@@ -66,9 +71,10 @@ internal sealed record AppOptions(
         }
 
         if (!agent.Equals("mock", StringComparison.OrdinalIgnoreCase) &&
-            !agent.Equals("codex", StringComparison.OrdinalIgnoreCase))
+            !agent.Equals("codex", StringComparison.OrdinalIgnoreCase) &&
+            !agent.Equals("claude", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("--agent must be either 'mock' or 'codex'.");
+            throw new ArgumentException("--agent must be 'mock', 'codex', or 'claude'.");
         }
 
         if (!Directory.Exists(workingDirectory))
@@ -86,6 +92,7 @@ internal sealed record AppOptions(
             workingDirectory,
             defaultPrompt,
             codexExecutable,
+            claudeExecutable,
             gameInputBridgeExecutable,
             profilePath,
             exportProfilePath,
@@ -99,10 +106,11 @@ internal sealed record AppOptions(
             """
             CtrlAgent console host
 
-              --agent mock|codex      Agent adapter to use (default: mock)
+              --agent mock|codex|claude  Agent adapter to use (default: mock)
               --cwd PATH              Agent working directory (default: current directory)
               --prompt TEXT           Prompt sent by the controller A button
               --codex-path PATH       Optional path to the Codex executable
+              --claude-path PATH      Optional path to the Claude Code executable
               --gameinput-bridge PATH Optional path to CtrlAgent.GameInputBridge.exe
               --profile PATH          Load a controller profile from a JSON file
               --export-profile PATH   Write the default profile as JSON and exit

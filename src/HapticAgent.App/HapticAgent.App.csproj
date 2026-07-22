@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HapticAgent.Core\HapticAgent.Core.csproj" />
+    <ProjectReference Include="..\HapticAgent.Platform.Windows\HapticAgent.Platform.Windows.csproj" />
+    <ProjectReference Include="..\HapticAgent.Adapters.Mock\HapticAgent.Adapters.Mock.csproj" />
+    <ProjectReference Include="..\HapticAgent.Adapters.Codex\HapticAgent.Adapters.Codex.csproj" />
+  </ItemGroup>
+</Project>

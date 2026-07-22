@@ -5,6 +5,7 @@ internal sealed record AppOptions(
     string WorkingDirectory,
     string DefaultPrompt,
     string? CodexExecutable,
+    string? GameInputBridgeExecutable,
     bool Verbose)
 {
     public static AppOptions Parse(string[] args)
@@ -13,6 +14,7 @@ internal sealed record AppOptions(
         var workingDirectory = Environment.CurrentDirectory;
         var defaultPrompt = "Inspect the current repository and continue implementing the highest-priority unfinished task.";
         string? codexExecutable = null;
+        string? gameInputBridgeExecutable = null;
         var verbose = false;
 
         for (var index = 0; index < args.Length; index++)
@@ -30,6 +32,10 @@ internal sealed record AppOptions(
                     break;
                 case "--codex-path":
                     codexExecutable = ReadValue(args, ref index, "--codex-path");
+                    break;
+                case "--gameinput-bridge":
+                    gameInputBridgeExecutable = Path.GetFullPath(
+                        ReadValue(args, ref index, "--gameinput-bridge"));
                     break;
                 case "--verbose":
                     verbose = true;
@@ -55,7 +61,13 @@ internal sealed record AppOptions(
             throw new DirectoryNotFoundException($"Working directory does not exist: {workingDirectory}");
         }
 
-        return new AppOptions(agent.ToLowerInvariant(), workingDirectory, defaultPrompt, codexExecutable, verbose);
+        return new AppOptions(
+            agent.ToLowerInvariant(),
+            workingDirectory,
+            defaultPrompt,
+            codexExecutable,
+            gameInputBridgeExecutable,
+            verbose);
     }
 
     public static void PrintHelp()
@@ -64,12 +76,13 @@ internal sealed record AppOptions(
             """
             HapticAgent console host
 
-              --agent mock|codex   Agent adapter to use (default: mock)
-              --cwd PATH           Agent working directory (default: current directory)
-              --prompt TEXT        Prompt sent by the controller A button
-              --codex-path PATH    Optional path to the Codex executable
-              --verbose            Print analog controller changes
-              --help               Show this help
+              --agent mock|codex      Agent adapter to use (default: mock)
+              --cwd PATH              Agent working directory (default: current directory)
+              --prompt TEXT           Prompt sent by the controller A button
+              --codex-path PATH       Optional path to the Codex executable
+              --gameinput-bridge PATH Optional path to HapticAgent.GameInputBridge.exe
+              --verbose               Print analog controller changes
+              --help                  Show this help
             """);
     }
 

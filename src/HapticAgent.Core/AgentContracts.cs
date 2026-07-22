@@ -1,9 +1,5 @@
 namespace HapticAgent.Core;
 
-/// <summary>
-/// Agent lifecycle states that controller feedback can react to without depending
-/// on any one agent's protocol.
-/// </summary>
 public enum AgentStateKind
 {
     Unknown = 0,
@@ -15,16 +11,14 @@ public enum AgentStateKind
     Error,
 }
 
-/// <summary>
-/// An event emitted by an agent adapter.
-/// </summary>
 public sealed record AgentEvent(
     string AdapterId,
     string SessionId,
     AgentStateKind State,
     DateTimeOffset Timestamp,
     string? Message = null,
-    string? RequestId = null);
+    string? RequestId = null,
+    string? TurnId = null);
 
 public enum AgentCommandKind
 {
@@ -40,21 +34,24 @@ public enum AgentCommandKind
     ReviewChanges,
 }
 
-/// <summary>
-/// A normalized command produced by a controller mapping.
-/// </summary>
 public sealed record AgentCommand(
     AgentCommandKind Kind,
     string? SessionId = null,
     string? RequestId = null,
     string? Text = null);
 
-/// <summary>
-/// Converts agent-specific events and commands at the protocol boundary.
-/// </summary>
+public sealed record AgentAdapterOptions(
+    string WorkingDirectory,
+    string? ExecutablePath = null,
+    IReadOnlyDictionary<string, string?>? Environment = null);
+
 public interface IAgentAdapter : IAsyncDisposable
 {
     string Id { get; }
+
+    bool IsStarted { get; }
+
+    ValueTask StartAsync(CancellationToken cancellationToken = default);
 
     IAsyncEnumerable<AgentEvent> ReadEventsAsync(
         CancellationToken cancellationToken = default);

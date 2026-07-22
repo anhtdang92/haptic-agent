@@ -143,7 +143,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- \
   --cwd C:\path\to\your\repository
 ```
 
-The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the paddles (approve maps to allow, decline to deny). Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable. Approve-for-session currently behaves as approve-once.
+The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the paddles — approve once allows the request, approve-for-session additionally adds a session-wide allow rule for that tool, decline denies. Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable.
 
 ## Run with Codex
 

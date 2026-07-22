@@ -52,7 +52,8 @@ Spawns `claude --print --input-format stream-json --output-format stream-json --
 - Outbound: user turns as `{"type":"user","message":{role,content:[{type:"text",text}]}}`; interrupt as a `control_request` with subtype `interrupt`; permission answers as `control_response` (`allow` echoes the tool input back as `updatedInput`; `deny` carries a message).
 - Inbound (classified by the pure, unit-tested `ClaudeStreamParser`): `system/init` → Idle (captures session id), `assistant` messages → Working (text snippet or "Using tool: X"), `result` → Completed or Error, `control_request` subtype `can_use_tool` → ApprovalRequired (request id + tool name + input stored for the echo), `control_cancel_request` → clears the pending approval.
 - `NewSession` restarts the CLI process (fresh session).
-- Known limits: `ApproveForSession` currently degrades to approve-once (session-wide permission rules not wired); the wire shapes follow the Agent SDK protocol and still need verification against an installed CLI.
+- `ApproveForSession` allows the request **and** adds a session-scoped allow rule for the whole tool (`updatedPermissions`: `addRules`/`allow`/`destination: session`), so that tool stops prompting for the rest of the session. Payload shapes live in the pure `ClaudePermissionResponse` (unit-tested).
+- Known limit: the wire shapes follow the Agent SDK protocol and still need verification against an installed CLI.
 
 ## Resilience pattern (Codex and Claude)
 

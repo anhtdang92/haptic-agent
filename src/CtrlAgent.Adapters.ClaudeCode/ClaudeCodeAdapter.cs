@@ -112,23 +112,21 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 break;
 
             case AgentCommandKind.ApproveOnce:
-                await RespondToPermissionAsync(command.RequestId, allow: true, cancellationToken).ConfigureAwait(false);
+                await RespondToPermissionAsync(command.RequestId, Decision.AllowOnce, cancellationToken).ConfigureAwait(false);
                 break;
 
             case AgentCommandKind.ApproveForSession:
-                // Session-wide rules are not wired yet; approve this request and say so.
-                await RespondToPermissionAsync(command.RequestId, allow: true, cancellationToken).ConfigureAwait(false);
-                Publish(AgentStateKind.Working, "Approved once (session-wide approval is not supported yet).");
+                await RespondToPermissionAsync(command.RequestId, Decision.AllowForSession, cancellationToken).ConfigureAwait(false);
                 break;
 
             case AgentCommandKind.Decline:
-                await RespondToPermissionAsync(command.RequestId, allow: false, cancellationToken).ConfigureAwait(false);
+                await RespondToPermissionAsync(command.RequestId, Decision.Deny, cancellationToken).ConfigureAwait(false);
                 break;
 
             case AgentCommandKind.Cancel:
                 if (!string.IsNullOrWhiteSpace(command.RequestId))
                 {
-                    await RespondToPermissionAsync(command.RequestId, allow: false, cancellationToken).ConfigureAwait(false);
+                    await RespondToPermissionAsync(command.RequestId, Decision.Deny, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -309,7 +307,14 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         await SendLineAsync(payload, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task RespondToPermissionAsync(string? requestId, bool allow, CancellationToken cancellationToken)
+    private enum Decision
+    {
+        AllowOnce,
+        AllowForSession,
+        Deny,
+    }
+
+    private async Task RespondToPermissionAsync(string? requestId, Decision decision, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(requestId) ||
             !_pendingPermissions.TryRemove(requestId, out var pending))
@@ -318,26 +323,25 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
             return;
         }
 
-        object decision = allow
-            ? new { behavior = "allow", updatedInput = pending.Input }
-            : new { behavior = "deny", message = "Declined from the controller." };
-
-        var payload = new
+        var payload = decision switch
         {
-            type = "control_response",
-            response = new
-            {
-                subtype = "success",
-                request_id = requestId,
-                response = decision,
-            },
+            Decision.AllowOnce =>
+                ClaudePermissionResponse.Allow(requestId, pending.ToolName, pending.Input, forSession: false),
+            Decision.AllowForSession =>
+                ClaudePermissionResponse.Allow(requestId, pending.ToolName, pending.Input, forSession: true),
+            _ =>
+                ClaudePermissionResponse.Deny(requestId, "Declined from the controller."),
         };
 
         await SendLineAsync(payload, cancellationToken).ConfigureAwait(false);
-        Publish(
-            AgentStateKind.Working,
-            $"Sent '{(allow ? "allow" : "deny")}' for {pending.ToolName}.",
-            requestId);
+
+        var description = decision switch
+        {
+            Decision.AllowOnce => "allow",
+            Decision.AllowForSession => $"allow {pending.ToolName} for this session",
+            _ => "deny",
+        };
+        Publish(AgentStateKind.Working, $"Sent '{description}' for {pending.ToolName}.", requestId);
     }
 
     private async Task SendLineAsync(object payload, CancellationToken cancellationToken)

@@ -23,6 +23,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
+    ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
 };
@@ -473,6 +474,36 @@ static ClaudeStreamMessage ParseClaudeLine(string json)
 {
     using var document = JsonDocument.Parse(json);
     return ClaudeStreamParser.Parse(document.RootElement);
+}
+
+static Task TestClaudePermissionResponseAsync()
+{
+    using var inputDocument = JsonDocument.Parse("""{"command":"ls"}""");
+    var input = inputDocument.RootElement.Clone();
+
+    var once = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudePermissionResponse.Allow("req-1", "Bash", input, forSession: false))).RootElement;
+    var onceResponse = once.GetProperty("response").GetProperty("response");
+    AssertEqual("allow", onceResponse.GetProperty("behavior").GetString());
+    AssertEqual("ls", onceResponse.GetProperty("updatedInput").GetProperty("command").GetString());
+    Assert(!onceResponse.TryGetProperty("updatedPermissions", out _), "Approve-once must not add session rules.");
+    AssertEqual("req-1", once.GetProperty("response").GetProperty("request_id").GetString());
+
+    var session = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudePermissionResponse.Allow("req-2", "Bash", input, forSession: true))).RootElement;
+    var sessionResponse = session.GetProperty("response").GetProperty("response");
+    var rule = sessionResponse.GetProperty("updatedPermissions")[0];
+    AssertEqual("addRules", rule.GetProperty("type").GetString());
+    AssertEqual("allow", rule.GetProperty("behavior").GetString());
+    AssertEqual("session", rule.GetProperty("destination").GetString());
+    AssertEqual("Bash", rule.GetProperty("rules")[0].GetProperty("toolName").GetString());
+
+    var deny = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudePermissionResponse.Deny("req-3", "Declined."))).RootElement;
+    var denyResponse = deny.GetProperty("response").GetProperty("response");
+    AssertEqual("deny", denyResponse.GetProperty("behavior").GetString());
+    AssertEqual("Declined.", denyResponse.GetProperty("message").GetString());
+    return Task.CompletedTask;
 }
 
 static ValidationReport SampleReport(

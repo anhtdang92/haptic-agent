@@ -52,6 +52,7 @@ public sealed record ControllerProfile(
 
 public sealed class MappingEngine
 {
+    private readonly object _sync = new();
     private readonly ControllerProfile _profile;
     private readonly HashSet<ControllerControl> _pressed = [];
     private PendingApproval? _pendingApproval;
@@ -63,44 +64,52 @@ public sealed class MappingEngine
 
     public void SetPendingApproval(string? sessionId, string? requestId)
     {
-        _pendingApproval = string.IsNullOrWhiteSpace(requestId)
-            ? null
-            : new PendingApproval(sessionId, requestId);
+        lock (_sync)
+        {
+            _pendingApproval = string.IsNullOrWhiteSpace(requestId)
+                ? null
+                : new PendingApproval(sessionId, requestId);
+        }
     }
 
     public IReadOnlyList<AgentCommand> Process(ControllerInputEvent inputEvent)
     {
-        UpdatePressedState(inputEvent);
-
-        if (inputEvent.Kind is ControllerInputEventKind.Connected or ControllerInputEventKind.Disconnected)
+        lock (_sync)
         {
-            return [];
+            UpdatePressedState(inputEvent);
+
+            if (inputEvent.Kind is ControllerInputEventKind.Connected or ControllerInputEventKind.Disconnected)
+            {
+                return [];
+            }
+
+            var structuralMatches = _profile.Bindings
+                .Where(binding => StructurallyMatches(binding, inputEvent))
+                .ToArray();
+
+            if (structuralMatches.Length == 0)
+            {
+                return [];
+            }
+
+            // A chord wins over its unmodified button binding. Eligibility is
+            // checked after specificity so RB+A cannot fall through to plain A
+            // when no approval request is pending.
+            var highestSpecificity = structuralMatches.Max(binding => binding.Modifiers?.Count ?? 0);
+
+            return structuralMatches
+                .Where(binding => (binding.Modifiers?.Count ?? 0) == highestSpecificity)
+                .Where(IsEligible)
+                .Select(binding => new AgentCommand(
+                    binding.Command,
+                    _pendingApproval?.SessionId,
+                    _pendingApproval?.RequestId,
+                    binding.Text))
+                .ToArray();
         }
-
-        var matches = _profile.Bindings
-            .Where(binding => Matches(binding, inputEvent))
-            .ToArray();
-
-        if (matches.Length == 0)
-        {
-            return [];
-        }
-
-        // A chord wins over its unmodified button binding, preventing LB+A or
-        // RB+A from also firing the plain A action.
-        var highestSpecificity = matches.Max(binding => binding.Modifiers?.Count ?? 0);
-
-        return matches
-            .Where(binding => (binding.Modifiers?.Count ?? 0) == highestSpecificity)
-            .Select(binding => new AgentCommand(
-                binding.Command,
-                _pendingApproval?.SessionId,
-                _pendingApproval?.RequestId,
-                binding.Text))
-            .ToArray();
     }
 
-    private bool Matches(InputBinding binding, ControllerInputEvent inputEvent)
+    private bool StructurallyMatches(InputBinding binding, ControllerInputEvent inputEvent)
     {
         if (binding.Control != inputEvent.Control || binding.EventKind != inputEvent.Kind)
         {
@@ -113,13 +122,11 @@ public sealed class MappingEngine
             return false;
         }
 
-        if (binding.Modifiers is { Count: > 0 } && !binding.Modifiers.All(_pressed.Contains))
-        {
-            return false;
-        }
-
-        return !binding.RequiresPendingApproval || _pendingApproval is not null;
+        return binding.Modifiers is not { Count: > 0 } || binding.Modifiers.All(_pressed.Contains);
     }
+
+    private bool IsEligible(InputBinding binding) =>
+        !binding.RequiresPendingApproval || _pendingApproval is not null;
 
     private void UpdatePressedState(ControllerInputEvent inputEvent)
     {

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Description>Console demonstration of normalized agent events and haptic routing.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HapticAgent.Core\HapticAgent.Core.csproj" />
+  </ItemGroup>
+</Project>

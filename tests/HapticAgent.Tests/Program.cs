@@ -143,7 +143,6 @@ static void Assert(bool condition, string message)
 }
 
 static void AssertEqual<T>(T expected, T actual)
-    where T : notnull
 {
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
     {

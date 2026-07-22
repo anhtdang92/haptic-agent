@@ -20,13 +20,29 @@ jobs:
           dotnet-version: 10.0.302
 
       - name: Restore
-        run: dotnet restore HapticAgent.sln
+        shell: pwsh
+        run: |
+          dotnet restore HapticAgent.sln 2>&1 | Tee-Object managed-restore.log
+          exit $LASTEXITCODE
 
       - name: Build
-        run: dotnet build HapticAgent.sln --configuration Release --no-restore
+        shell: pwsh
+        run: |
+          dotnet build HapticAgent.sln --configuration Release --no-restore 2>&1 | Tee-Object managed-build.log
+          exit $LASTEXITCODE
 
       - name: Run tests
-        run: dotnet run --project tests/HapticAgent.Tests/HapticAgent.Tests.csproj --configuration Release --no-build
+        shell: pwsh
+        run: |
+          dotnet run --project tests/HapticAgent.Tests/HapticAgent.Tests.csproj --configuration Release --no-build 2>&1 | Tee-Object managed-tests.log
+          exit $LASTEXITCODE
+
+      - name: Upload managed logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-build-logs
+          path: managed-*.log
 
   native-gameinput:
     runs-on: windows-latest
@@ -37,9 +53,14 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Restore and build GameInput bridge
-        run: >-
-          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj
-          /restore
-          /m
-          /p:Configuration=Release
-          /p:Platform=x64
+        shell: pwsh
+        run: |
+          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-build.log
+          exit $LASTEXITCODE
+
+      - name: Upload native logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-build-logs
+          path: native-build.log

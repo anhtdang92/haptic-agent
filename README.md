@@ -35,6 +35,7 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
 - Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, collision detection, and validated approval safeguards
 - Crash resilience: Codex app-server restart with backoff, controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
+- Avalonia desktop GUI with live status, approval actions, prompt submission, haptic preview, and event log
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses
@@ -111,6 +112,16 @@ Build the native bridge from a Visual Studio developer shell:
 msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
 ```
 
+## Run the desktop GUI
+
+An Avalonia desktop app provides live controller/agent status, an approval banner with the four approval actions, prompt submission, a haptic-pattern preview, the active profile's bindings, and an event log:
+
+```powershell
+dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
+```
+
+The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--gameinput-bridge`, and `--profile` options as the console host.
+
 ## Run with the mock agent
 
 Connect an Xbox controller and run:
@@ -157,6 +168,7 @@ src/
   CtrlAgent.Adapters.Mock/     Safe simulated agent
   CtrlAgent.Adapters.Codex/    Codex app-server adapter
   CtrlAgent.App/               End-to-end Windows console host
+  CtrlAgent.Gui/               Avalonia desktop app (status, approvals, log)
   CtrlAgent.Demo/              Haptic-pattern demonstration
 
 tests/

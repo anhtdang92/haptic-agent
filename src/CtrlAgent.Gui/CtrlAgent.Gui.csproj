@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>CtrlAgent.Gui</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.18" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CtrlAgent.Core\CtrlAgent.Core.csproj" />
+    <ProjectReference Include="..\CtrlAgent.Platform.Windows\CtrlAgent.Platform.Windows.csproj" />
+    <ProjectReference Include="..\CtrlAgent.Adapters.Mock\CtrlAgent.Adapters.Mock.csproj" />
+    <ProjectReference Include="..\CtrlAgent.Adapters.Codex\CtrlAgent.Adapters.Codex.csproj" />
+  </ItemGroup>
+
+</Project>

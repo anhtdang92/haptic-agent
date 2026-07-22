@@ -98,6 +98,8 @@ Exit gate:
 
 ## Phase 5 — Windows tray application
 
+Status: **In progress** — an Avalonia desktop window (`src/CtrlAgent.Gui`) covers device/agent status, approval actions, prompt submission, haptic preview, active-profile display, and a live event log. Tray icon, mapping editor, notifications, and settings remain. Avalonia was selected over WinUI 3/WPF for testability and future cross-platform frontends.
+
 Deliverables:
 
 - connected-device and agent status;

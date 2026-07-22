@@ -1,4 +1,3 @@
-#define GAMEINPUT_API_VERSION 3
 #include <GameInput.h>
 #include <Windows.h>
 #include <wrl/client.h>
@@ -14,8 +13,19 @@
 #include <string>
 #include <thread>
 
-using Microsoft::WRL::ComPtr;
+#ifndef GAMEINPUT_API_VERSION
+#define GAMEINPUT_API_VERSION 0
+#endif
+
+#if GAMEINPUT_API_VERSION == 1
+using namespace GameInput::v1;
+#elif GAMEINPUT_API_VERSION == 2
+using namespace GameInput::v2;
+#elif GAMEINPUT_API_VERSION == 3
 using namespace GameInput::v3;
+#endif
+
+using Microsoft::WRL::ComPtr;
 using namespace std::chrono_literals;
 
 namespace
@@ -61,7 +71,7 @@ namespace
     void EmitReady()
     {
         std::cout
-            << "{\"type\":\"ready\",\"apiVersion\":3,"
+            << "{\"type\":\"ready\",\"apiVersion\":" << GAMEINPUT_API_VERSION << ","
             << "\"hasFourPaddles\":true,"
             << "\"hasLowFrequencyRumble\":true,"
             << "\"hasHighFrequencyRumble\":true,"
@@ -143,7 +153,7 @@ namespace
         }
 
         const char* number = line.c_str() + start + token.size();
-        return std::sscanf(number, "%f", &value) == 1;
+        return sscanf_s(number, "%f", &value) == 1;
     }
 
     void ReadCommands()

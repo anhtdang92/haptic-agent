@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <Description>Platform-independent controller, agent, mapping, and haptic contracts for HapticAgent.</Description>
-  </PropertyGroup>
-</Project>

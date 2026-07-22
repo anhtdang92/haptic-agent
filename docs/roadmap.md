@@ -1,4 +1,4 @@
-# HapticAgent Roadmap
+# CtrlAgent Roadmap
 
 The project advances through evidence-based gates. Each phase should produce something testable before the next layer is added.
 

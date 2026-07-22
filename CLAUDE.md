@@ -4,29 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-HapticAgent turns an Xbox controller (especially the Elite Series 2) into a two-way control surface for AI coding agents: controller inputs become agent commands (submit, interrupt, approve, decline, switch session), and agent lifecycle events come back as distinct rumble patterns. Windows-first, pre-alpha MVP.
+CtrlAgent turns an Xbox controller (especially the Elite Series 2) into a two-way control surface for AI coding agents: controller inputs become agent commands (submit, interrupt, approve, decline, switch session), and agent lifecycle events come back as distinct rumble patterns. Windows-first, pre-alpha MVP.
 
 ## Build and test
 
 The SDK is pinned to .NET 10 `10.0.302` via `global.json` (rolls forward within .NET 10). All managed projects share `Directory.Build.props`: `net10.0`, C# 14, nullable enabled.
 
 ```powershell
-dotnet restore HapticAgent.sln
-dotnet build HapticAgent.sln --configuration Release
-dotnet run --project tests/HapticAgent.Tests/HapticAgent.Tests.csproj --configuration Release
+dotnet restore CtrlAgent.sln
+dotnet build CtrlAgent.sln --configuration Release
+dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release
 ```
 
-Tests are a deliberately dependency-free console harness (no xUnit/NUnit): `tests/HapticAgent.Tests/Program.cs` holds a `(Name, Func<Task>)` array, prints `PASS`/`FAIL` per test, and exits nonzero on any failure. There is no filter mechanism — to run a single test, temporarily trim the array; to add a test, append a tuple and a local static function.
+Tests are a deliberately dependency-free console harness (no xUnit/NUnit): `tests/CtrlAgent.Tests/Program.cs` holds a `(Name, Func<Task>)` array, prints `PASS`/`FAIL` per test, and exits nonzero on any failure. There is no filter mechanism — to run a single test, temporarily trim the array; to add a test, append a tuple and a local static function.
 
 The native GameInput bridge is a separate C++ project (not in the .sln) and needs MSBuild from a Visual Studio developer shell:
 
 ```powershell
-msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
+msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
 ```
 
 It pins `Microsoft.GameInput` 3.4.x (`GameInputPackageVersion` in the .vcxproj) and compiles against the package-selected `GAMEINPUT_API_VERSION`. CI (`.github/workflows/ci.yml`) runs both halves on `windows-latest` and uploads build logs as artifacts.
 
-Run the app end-to-end without real agent risk: `dotnet run --project src/HapticAgent.App/HapticAgent.App.csproj -- --agent mock` (or `--agent codex --cwd <repo>`). `src/HapticAgent.Demo` plays the haptic patterns standalone.
+Run the app end-to-end without real agent risk: `dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock` (or `--agent codex --cwd <repo>`). `src/CtrlAgent.Demo` plays the haptic patterns standalone.
 
 ## Architecture
 
@@ -37,11 +37,11 @@ Two directions flow through the same pipeline (see `docs/architecture.md`):
 
 Project boundaries:
 
-- `src/HapticAgent.Core` — all contracts (`IControllerDevice`, `IAgentAdapter`, events, commands), `MappingEngine`, `FeedbackRouter`, `HapticPatternCatalog`, `HapticScheduler`. **Must stay platform-independent: no references to GameInput, XInput, Codex, UI frameworks, or keyboard injection.**
-- `src/HapticAgent.Platform.Windows` — `WindowsControllerProvider` tries the native GameInput bridge first, then falls back to XInput (P/Invoke in `XInputNative.cs`). Bridge path resolution order: `--gameinput-bridge` argument → `HAPTIC_AGENT_GAMEINPUT_BRIDGE` env var → `HapticAgent.GameInputBridge.exe` beside the app.
-- `native/HapticAgent.GameInputBridge` — C++ console exe the managed host spawns; talks newline-delimited JSON over stdio (emits `ready` and input events; accepts `{"type":"rumble", ...}`). This is what exposes the four Elite paddles and trigger rumble — XInput cannot.
-- `src/HapticAgent.Adapters.Mock` / `src/HapticAgent.Adapters.Codex` — `IAgentAdapter` implementations. The Codex adapter spawns `codex app-server` and speaks JSON-RPC-style JSONL over stdio, normalizing thread/turn/approval notifications into `AgentEvent`s.
-- `src/HapticAgent.App` — console host wiring everything together: three concurrent loops (controller input, agent events, console commands) sharing `MappingEngine` and a `HostState` that tracks the pending approval request.
+- `src/CtrlAgent.Core` — all contracts (`IControllerDevice`, `IAgentAdapter`, events, commands), `MappingEngine`, `FeedbackRouter`, `HapticPatternCatalog`, `HapticScheduler`. **Must stay platform-independent: no references to GameInput, XInput, Codex, UI frameworks, or keyboard injection.**
+- `src/CtrlAgent.Platform.Windows` — `WindowsControllerProvider` tries the native GameInput bridge first, then falls back to XInput (P/Invoke in `XInputNative.cs`). Bridge path resolution order: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app.
+- `native/CtrlAgent.GameInputBridge` — C++ console exe the managed host spawns; talks newline-delimited JSON over stdio (emits `ready` and input events; accepts `{"type":"rumble", ...}`). This is what exposes the four Elite paddles and trigger rumble — XInput cannot.
+- `src/CtrlAgent.Adapters.Mock` / `src/CtrlAgent.Adapters.Codex` — `IAgentAdapter` implementations. The Codex adapter spawns `codex app-server` and speaks JSON-RPC-style JSONL over stdio, normalizing thread/turn/approval notifications into `AgentEvent`s.
+- `src/CtrlAgent.App` — console host wiring everything together: three concurrent loops (controller input, agent events, console commands) sharing `MappingEngine` and a `HostState` that tracks the pending approval request.
 
 ### Mapping and approval safety
 

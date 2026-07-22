@@ -1,4 +1,4 @@
-# HapticAgent Architecture
+# CtrlAgent Architecture
 
 Status: **Accepted for the first hardware spike**
 
@@ -16,14 +16,14 @@ Controller adapter -> Mapping engine -> Agent adapter
 Haptic scheduler <- Feedback router <- Agent events
 ```
 
-HapticAgent has two directions:
+CtrlAgent has two directions:
 
 1. **Control path:** physical input becomes a normalized control event, a mapping resolves that event into an agent command, and an agent adapter executes it.
 2. **Feedback path:** an agent adapter emits normalized lifecycle events, the feedback router selects a haptic cue, and the controller adapter plays it.
 
 ## Architectural boundaries
 
-### HapticAgent.Core
+### CtrlAgent.Core
 
 A platform-independent .NET library containing:
 
@@ -35,7 +35,7 @@ A platform-independent .NET library containing:
 
 The core project must not reference GameInput, WinUI, Codex, Claude Code, or keyboard-injection APIs.
 
-### HapticAgent.GameInput
+### CtrlAgent.GameInput
 
 A Windows-specific adapter responsible for:
 
@@ -47,11 +47,11 @@ A Windows-specific adapter responsible for:
 
 Microsoft GameInput is a native API. The initial hardware validation should therefore be a small native C++ console spike. After the API behavior is confirmed, we will expose only the narrow functions needed by the managed host through a stable C ABI or an equivalent generated interop layer.
 
-### HapticAgent.AgentProtocol
+### CtrlAgent.AgentProtocol
 
-Shared contracts for agent adapters. The first implementation will target Codex app-server over its supported local stdio transport. It will normalize Codex-specific notifications and server-initiated approval requests into HapticAgent events.
+Shared contracts for agent adapters. The first implementation will target Codex app-server over its supported local stdio transport. It will normalize Codex-specific notifications and server-initiated approval requests into CtrlAgent events.
 
-### HapticAgent.App
+### CtrlAgent.App
 
 The eventual Windows tray application. It will own configuration, profile selection, device status, the mapping editor, and a compact HUD. We will select the UI framework only after the hardware spike.
 
@@ -106,7 +106,7 @@ MappingEngine
 - Approval mappings should use a rear paddle, hold, or chord and must be clearly visible in the active profile.
 - Session-wide approval is a separate command from one-time approval.
 - Keyboard and mouse injection are fallback adapters, not the primary integration path.
-- HapticAgent does not attempt to bypass anti-cheat, access-control, sandbox, or agent-approval systems.
+- CtrlAgent does not attempt to bypass anti-cheat, access-control, sandbox, or agent-approval systems.
 - Agent adapters must surface the exact session and request associated with an approval before accepting a controller response.
 
 ## Configuration direction

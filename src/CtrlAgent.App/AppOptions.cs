@@ -8,7 +8,8 @@ internal sealed record AppOptions(
     string? GameInputBridgeExecutable,
     string? ProfilePath,
     string? ExportProfilePath,
-    bool Verbose)
+    bool Verbose,
+    bool Validate)
 {
     public static AppOptions Parse(string[] args)
     {
@@ -20,6 +21,7 @@ internal sealed record AppOptions(
         string? profilePath = null;
         string? exportProfilePath = null;
         var verbose = false;
+        var validate = false;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -49,6 +51,9 @@ internal sealed record AppOptions(
                     break;
                 case "--verbose":
                     verbose = true;
+                    break;
+                case "--validate":
+                    validate = true;
                     break;
                 case "--help":
                 case "-h":
@@ -84,7 +89,8 @@ internal sealed record AppOptions(
             gameInputBridgeExecutable,
             profilePath,
             exportProfilePath,
-            verbose);
+            verbose,
+            validate);
     }
 
     public static void PrintHelp()
@@ -100,6 +106,7 @@ internal sealed record AppOptions(
               --gameinput-bridge PATH Optional path to CtrlAgent.GameInputBridge.exe
               --profile PATH          Load a controller profile from a JSON file
               --export-profile PATH   Write the default profile as JSON and exit
+              --validate              Run the guided hardware validation wizard
               --verbose               Print analog controller changes
               --help                  Show this help
             """);

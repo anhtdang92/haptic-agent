@@ -16,6 +16,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
+    ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
+    ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
 };
 
@@ -313,6 +315,91 @@ static async Task TestHapticHubAsync()
 
     Assert(controller.StopCount > 0, "Disposing the scheduler should stop controller haptics.");
 }
+
+static Task TestValidationReportGatesAsync()
+{
+    var report = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Pass,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Pass);
+    Assert(report.IsGo, "All gates passing should be GO.");
+    Assert(report.Recommendation.StartsWith("GO:", StringComparison.Ordinal), "Expected an unqualified GO.");
+
+    var experimental = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Pass,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Skipped);
+    Assert(experimental.IsGo, "Paddles must not block the GO gates.");
+    Assert(
+        experimental.Recommendation.Contains("experimental", StringComparison.OrdinalIgnoreCase),
+        "Skipped paddles should downgrade to experimental.");
+
+    var noGo = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Fail,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Pass);
+    Assert(!noGo.IsGo, "A failing reconnect gate must be NO-GO.");
+    Assert(
+        noGo.Recommendation.Contains("reconnect", StringComparison.OrdinalIgnoreCase),
+        "The NO-GO reason should name the failing gate.");
+    return Task.CompletedTask;
+}
+
+static Task TestValidationReportMarkdownAsync()
+{
+    var report = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Pass,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Pass);
+    var markdown = report.ToMarkdown();
+
+    foreach (var expected in new[]
+    {
+        "## Environment",
+        "## Pass/fail",
+        "## Paddle observations",
+        "## Rumble observations",
+        "## Known anomalies",
+        "## Recommendation",
+        "Elite Test Pad",
+        "| Standard controls | Pass |",
+    })
+    {
+        Assert(markdown.Contains(expected, StringComparison.Ordinal), $"Markdown missing '{expected}'.");
+    }
+
+    AssertEqual(
+        "2026-07-22-elite-series-2-usb.md",
+        ValidationReport.SuggestFileName(new DateTimeOffset(2026, 7, 22, 10, 0, 0, TimeSpan.Zero), "USB"));
+    return Task.CompletedTask;
+}
+
+static ValidationReport SampleReport(
+    ValidationOutcome standard,
+    ValidationOutcome reconnect,
+    ValidationOutcome rumble,
+    ValidationOutcome paddles) =>
+    new(
+        "Elite Test Pad",
+        "gameinput:primary",
+        "usb",
+        "Test OS",
+        "Test Runtime",
+        new ControllerCapabilities(true, true, true, true, true),
+        [
+            new(ValidationReport.StandardControlsCheckId, "Standard controls", standard),
+            new(ValidationReport.ReconnectCheckId, "Disconnect and reconnect", reconnect),
+            new(ValidationReport.RumbleCheckId, "Distinct rumble cues", rumble),
+            new(ValidationReport.PaddlesCheckId, "Four independent paddles", paddles),
+        ],
+        "paddle notes",
+        "rumble notes",
+        string.Empty,
+        DateTimeOffset.UtcNow);
 
 static ControllerInputEvent Press(ControllerControl control) =>
     new("test-controller", control, ControllerInputEventKind.Pressed, 1f, DateTimeOffset.UtcNow);

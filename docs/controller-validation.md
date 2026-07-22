@@ -130,6 +130,10 @@ Pass conditions:
 - no unbounded memory growth;
 - input remains responsive after reconnect.
 
+## Guided wizard
+
+`dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --validate` walks tests 1–5 interactively (plus a shortened 60-second soak), records paddle and rumble observations, and writes the evidence report in the format below with a computed go/no-go recommendation. The full 30-minute soak in test 6 remains manual.
+
 ## Evidence format
 
 Save one report per transport under:

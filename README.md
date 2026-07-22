@@ -36,6 +36,7 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, collision detection, and validated approval safeguards
 - Crash resilience: Codex app-server restart with backoff, controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
 - Avalonia desktop GUI with live status, approval actions, prompt submission, haptic preview, and event log
+- Guided hardware validation wizard (`--validate`) that generates the per-transport evidence reports
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses
@@ -182,7 +183,13 @@ docs/
 
 ## Hardware validation still required
 
-Software builds cannot prove how every Elite firmware and connection mode behaves. The first real-device pass must verify:
+Software builds cannot prove how every Elite firmware and connection mode behaves. A guided wizard walks through the validation plan on a real controller and writes the evidence report to `validation/<date>-elite-series-2-<transport>.md`, including a go/no-go recommendation:
+
+```powershell
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --validate
+```
+
+Run it once per transport (USB, Xbox Wireless Adapter, Bluetooth). The first real-device pass must verify:
 
 - all four paddles over USB, Xbox Wireless, and Bluetooth;
 - low/high and trigger-rumble channels;

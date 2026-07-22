@@ -45,6 +45,17 @@ internal static class Program
             shutdown.Cancel();
         };
 
+        if (options.Validate)
+        {
+            await using var validationProvider = new WindowsControllerProvider(options.GameInputBridgeExecutable);
+            await using var validationController =
+                await WaitForControllerAsync(validationProvider, shutdown.Token).ConfigureAwait(false);
+            return await ValidationWizard.RunAsync(
+                validationController,
+                options.WorkingDirectory,
+                shutdown.Token).ConfigureAwait(false);
+        }
+
         Console.WriteLine("CtrlAgent 0.1 development host");
         Console.WriteLine($"Agent: {options.Agent}");
         Console.WriteLine($"Working directory: {options.WorkingDirectory}");

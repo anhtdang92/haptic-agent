@@ -1,9 +1,5 @@
 namespace HapticAgent.Core;
 
-/// <summary>
-/// Logical controls exposed to profiles. Platform adapters translate their
-/// native input model into these values.
-/// </summary>
 public enum ControllerControl
 {
     None = 0,
@@ -42,10 +38,6 @@ public enum ControllerInputEventKind
     Disconnected,
 }
 
-/// <summary>
-/// A timestamped input change. Digital controls normally use values 0 or 1;
-/// analog controls use the adapter's normalized range.
-/// </summary>
 public sealed record ControllerInputEvent(
     string DeviceId,
     ControllerControl Control,
@@ -60,6 +52,12 @@ public sealed record ControllerCapabilities(
     bool HasLeftTriggerRumble,
     bool HasRightTriggerRumble);
 
+public interface IControllerProvider : IAsyncDisposable
+{
+    ValueTask<IControllerDevice?> GetPrimaryControllerAsync(
+        CancellationToken cancellationToken = default);
+}
+
 public interface IControllerDevice : IAsyncDisposable
 {
     string Id { get; }
@@ -67,6 +65,8 @@ public interface IControllerDevice : IAsyncDisposable
     string DisplayName { get; }
 
     ControllerCapabilities Capabilities { get; }
+
+    bool IsConnected { get; }
 
     IAsyncEnumerable<ControllerInputEvent> ReadEventsAsync(
         CancellationToken cancellationToken = default);

@@ -58,12 +58,6 @@ jobs:
           msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /t:Restore /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-restore.log
           exit $LASTEXITCODE
 
-      - name: Capture GameInput package layout
-        shell: pwsh
-        run: |
-          $root = Join-Path $env:USERPROFILE '.nuget\packages\microsoft.gameinput\3.4.259'
-          Get-ChildItem $root -Recurse | ForEach-Object { $_.FullName.Substring($root.Length + 1) } | Set-Content native-package-files.log
-
       - name: Build GameInput bridge
         shell: pwsh
         run: |

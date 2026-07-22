@@ -11,8 +11,7 @@ internal static class Program
     {
         try
         {
-            var options = AppOptions.Parse(args);
-            return await RunAsync(options).ConfigureAwait(false);
+            return await RunAsync(AppOptions.Parse(args)).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -36,7 +35,7 @@ internal static class Program
         Console.WriteLine("Press Ctrl+C or type 'quit' to exit.");
         Console.WriteLine();
 
-        await using var provider = new XInputControllerProvider();
+        await using var provider = new WindowsControllerProvider(options.GameInputBridgeExecutable);
         await using var controller = await WaitForControllerAsync(provider, shutdown.Token).ConfigureAwait(false);
         await using var adapter = CreateAgentAdapter(options);
         await adapter.StartAsync(shutdown.Token).ConfigureAwait(false);
@@ -44,27 +43,18 @@ internal static class Program
 
         var mapping = new MappingEngine(ControllerProfile.Default);
         var state = new HostState();
-
         PrintControllerHelp(controller);
 
-        var controllerLoop = RunControllerLoopAsync(
-            controller,
-            adapter,
-            mapping,
-            state,
-            options,
-            shutdown.Token);
-        var agentLoop = RunAgentLoopAsync(
-            adapter,
-            mapping,
-            state,
-            haptics,
-            shutdown.Token);
-        var consoleLoop = RunConsoleLoopAsync(adapter, state, options, shutdown);
+        var tasks = new[]
+        {
+            RunControllerLoopAsync(controller, adapter, mapping, state, options, shutdown.Token),
+            RunAgentLoopAsync(adapter, mapping, state, haptics, shutdown.Token),
+            RunConsoleLoopAsync(adapter, state, options, shutdown),
+        };
 
         try
         {
-            await Task.WhenAll(controllerLoop, agentLoop, consoleLoop).ConfigureAwait(false);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
@@ -92,7 +82,7 @@ internal static class Program
         while (!cancellationToken.IsCancellationRequested)
         {
             var controller = await provider.GetPrimaryControllerAsync(cancellationToken).ConfigureAwait(false);
-            if (controller is not null)
+            if (controller is { IsConnected: true })
             {
                 Console.WriteLine($"Connected: {controller.DisplayName}");
                 Console.WriteLine();
@@ -141,21 +131,17 @@ internal static class Program
 
         await foreach (var agentEvent in adapter.ReadEventsAsync(cancellationToken).ConfigureAwait(false))
         {
-            Console.WriteLine(
-                $"[agent]      {agentEvent.State,-18} {agentEvent.Message ?? string.Empty}");
+            Console.WriteLine($"[agent]      {agentEvent.State,-18} {agentEvent.Message ?? string.Empty}");
 
             if (agentEvent.State is AgentStateKind.ApprovalRequired or AgentStateKind.WaitingForInput)
             {
                 state.SetPendingRequest(agentEvent.SessionId, agentEvent.RequestId);
                 mapping.SetPendingApproval(agentEvent.SessionId, agentEvent.RequestId);
             }
-            else if (agentEvent.State is AgentStateKind.Working or AgentStateKind.Completed or AgentStateKind.Error or AgentStateKind.Idle)
+            else if (ShouldClearPendingRequest(agentEvent))
             {
-                if (agentEvent.RequestId is not null || agentEvent.State is AgentStateKind.Completed or AgentStateKind.Error)
-                {
-                    state.ClearPendingRequest();
-                    mapping.SetPendingApproval(null, null);
-                }
+                state.ClearPendingRequest();
+                mapping.SetPendingApproval(null, null);
             }
 
             var pattern = feedback.Route(agentEvent);
@@ -169,6 +155,10 @@ internal static class Program
             }
         }
     }
+
+    private static bool ShouldClearPendingRequest(AgentEvent agentEvent) =>
+        agentEvent.State is AgentStateKind.Completed or AgentStateKind.Error ||
+        (agentEvent.State == AgentStateKind.Working && agentEvent.RequestId is not null);
 
     private static async Task RunConsoleLoopAsync(
         IAgentAdapter adapter,
@@ -198,24 +188,6 @@ internal static class Program
             var verb = split < 0 ? trimmed : trimmed[..split];
             var remainder = split < 0 ? string.Empty : trimmed[(split + 1)..].Trim();
 
-            AgentCommand? command = verb.ToLowerInvariant() switch
-            {
-                "prompt" => new AgentCommand(
-                    AgentCommandKind.SubmitPrompt,
-                    Text: remainder.Length == 0 ? options.DefaultPrompt : remainder),
-                "new" => new AgentCommand(AgentCommandKind.NewSession),
-                "review" => new AgentCommand(AgentCommandKind.ReviewChanges),
-                "interrupt" => new AgentCommand(AgentCommandKind.Interrupt),
-                "approve" => state.CreateApprovalCommand(AgentCommandKind.ApproveOnce),
-                "approve-session" => state.CreateApprovalCommand(AgentCommandKind.ApproveForSession),
-                "decline" => state.CreateApprovalCommand(AgentCommandKind.Decline),
-                "cancel" => state.CreateApprovalCommand(AgentCommandKind.Cancel)
-                    ?? new AgentCommand(AgentCommandKind.Cancel),
-                "help" => null,
-                "quit" or "exit" => null,
-                _ => null,
-            };
-
             if (verb.Equals("quit", StringComparison.OrdinalIgnoreCase) ||
                 verb.Equals("exit", StringComparison.OrdinalIgnoreCase))
             {
@@ -229,6 +201,7 @@ internal static class Program
                 continue;
             }
 
+            var command = CreateConsoleCommand(verb, remainder, state, options.DefaultPrompt);
             if (command is null)
             {
                 Console.WriteLine("Unknown command or no pending approval. Type 'help'.");
@@ -238,6 +211,27 @@ internal static class Program
             await adapter.ExecuteAsync(command, shutdown.Token).ConfigureAwait(false);
         }
     }
+
+    private static AgentCommand? CreateConsoleCommand(
+        string verb,
+        string remainder,
+        HostState state,
+        string defaultPrompt) =>
+        verb.ToLowerInvariant() switch
+        {
+            "prompt" => new AgentCommand(
+                AgentCommandKind.SubmitPrompt,
+                Text: remainder.Length == 0 ? defaultPrompt : remainder),
+            "new" => new AgentCommand(AgentCommandKind.NewSession),
+            "review" => new AgentCommand(AgentCommandKind.ReviewChanges),
+            "interrupt" => new AgentCommand(AgentCommandKind.Interrupt),
+            "approve" => state.CreateApprovalCommand(AgentCommandKind.ApproveOnce),
+            "approve-session" => state.CreateApprovalCommand(AgentCommandKind.ApproveForSession),
+            "decline" => state.CreateApprovalCommand(AgentCommandKind.Decline),
+            "cancel" => state.CreateApprovalCommand(AgentCommandKind.Cancel)
+                ?? new AgentCommand(AgentCommandKind.Cancel),
+            _ => null,
+        };
 
     private static AgentCommand HydrateCommand(
         AgentCommand command,
@@ -249,10 +243,13 @@ internal static class Program
             return command with { Text = defaultPrompt };
         }
 
-        if (command.Kind is AgentCommandKind.ApproveOnce or
+        var isApprovalCommand = command.Kind is
+            AgentCommandKind.ApproveOnce or
             AgentCommandKind.ApproveForSession or
             AgentCommandKind.Decline or
-            AgentCommandKind.Cancel && string.IsNullOrWhiteSpace(command.RequestId))
+            AgentCommandKind.Cancel;
+
+        if (isApprovalCommand && string.IsNullOrWhiteSpace(command.RequestId))
         {
             return state.CreateApprovalCommand(command.Kind) ?? command;
         }

@@ -166,6 +166,15 @@ Useful options:
 
 When the native bridge is not supplied or cannot start, CtrlAgent automatically falls back to XInput. Place `CtrlAgent.GameInputBridge.exe` beside the managed application, set `CTRL_AGENT_GAMEINPUT_BRIDGE`, or pass `--gameinput-bridge` to enable independent paddles and trigger rumble.
 
+## Documentation
+
+- [Architecture](docs/architecture.md) — as-built design, threading model, decision log
+- [Profiles](docs/profiles.md) — profile JSON reference, gestures, validation rules
+- [Agent adapters](docs/adapters.md) — adapter contract, protocols, how to add one
+- [Roadmap](docs/roadmap.md) — phase ledger, prioritized backlog, release targets
+- [Controller validation](docs/controller-validation.md) — hardware test plan and wizard
+- [Contributing](CONTRIBUTING.md) — build, tests, invariants, conventions
+
 ## Repository layout
 
 ```text

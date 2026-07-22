@@ -58,6 +58,10 @@ These invariants are tested and must hold:
 
 `HapticScheduler` serializes playback per controller: `PlayAsync` cancels and drains the previous cue, then returns immediately after scheduling the new one (looping cues like `ApprovalRequired` must not block the agent event loop). Patterns are frame lists (`RumbleFrame`: low/high motor + left/right trigger, clamped 0..1). `AgentStateKind.Idle` stops haptics rather than routing a pattern. The app talks to haptics through `HapticSchedulerHub` (Core), which routes to the scheduler of the currently attached controller — detached = no-op, device-loss exceptions swallowed — so the agent loop survives controller swaps. Device implementations must zero rumble in a `finally` when playback ends or the device is disposed.
 
+## Docs to keep in sync
+
+`docs/architecture.md` (as-built + decision log), `docs/profiles.md` (mapping/gesture reference), `docs/adapters.md` (adapter protocols + authoring guide), `docs/roadmap.md` (backlog with priorities), `CONTRIBUTING.md` (invariants). When changing behavior in those areas, update the matching doc in the same commit.
+
 ## Caveats
 
 - The XInput interop, bridge process, and Codex process management are Windows-specific at runtime; the managed solution compiles on any OS, so CI-on-Windows is the real verification.

@@ -1,5 +1,10 @@
 namespace HapticAgent.Core;
 
+/// <summary>
+/// Owns the currently active haptic cue. Starting a new cue cancels and drains
+/// the previous one before the replacement begins, while returning control to
+/// the caller immediately after the new cue has been scheduled.
+/// </summary>
 public sealed class HapticScheduler : IAsyncDisposable
 {
     private readonly IControllerDevice _controller;
@@ -13,6 +18,10 @@ public sealed class HapticScheduler : IAsyncDisposable
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
     }
 
+    /// <summary>
+    /// Schedules a pattern without waiting for the entire pattern to finish.
+    /// This keeps the agent event loop responsive while a repeating cue plays.
+    /// </summary>
     public async ValueTask PlayAsync(
         HapticPattern pattern,
         CancellationToken cancellationToken = default)
@@ -23,9 +32,11 @@ public sealed class HapticScheduler : IAsyncDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            CancelActivePattern();
-            _activePattern = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _activeTask = RunPatternAsync(pattern, _activePattern.Token);
+            await CancelActivePatternAsync().ConfigureAwait(false);
+
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _activePattern = linked;
+            _activeTask = RunPatternAsync(pattern, linked.Token);
         }
         finally
         {
@@ -37,20 +48,16 @@ public sealed class HapticScheduler : IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        Task? previous;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            previous = _activeTask;
-            CancelActivePattern();
+            await CancelActivePatternAsync().ConfigureAwait(false);
+            await _controller.StopHapticsAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
         }
-
-        await AwaitPatternAsync(previous).ConfigureAwait(false);
-        await _controller.StopHapticsAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -60,21 +67,61 @@ public sealed class HapticScheduler : IAsyncDisposable
             return;
         }
 
-        _disposed = true;
-        var previous = _activeTask;
-        CancelActivePattern();
-        await AwaitPatternAsync(previous).ConfigureAwait(false);
-
+        await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _controller.StopHapticsAsync().ConfigureAwait(false);
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            await CancelActivePatternAsync().ConfigureAwait(false);
+
+            try
+            {
+                await _controller.StopHapticsAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception) when (
+                exception is IOException or InvalidOperationException or ObjectDisposedException)
+            {
+                // Best-effort shutdown when a controller or bridge disappeared.
+            }
         }
-        catch
+        finally
         {
-            // Best-effort shutdown: never leave disposal blocked by a removed device.
+            _gate.Release();
+            _gate.Dispose();
+        }
+    }
+
+    private async Task CancelActivePatternAsync()
+    {
+        var cancellation = _activePattern;
+        var task = _activeTask;
+        _activePattern = null;
+        _activeTask = null;
+
+        if (cancellation is null)
+        {
+            return;
         }
 
-        _gate.Dispose();
+        cancellation.Cancel();
+        try
+        {
+            if (task is not null)
+            {
+                await task.ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            cancellation.Dispose();
+        }
     }
 
     private async Task RunPatternAsync(HapticPattern pattern, CancellationToken cancellationToken)
@@ -85,31 +132,7 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Replaced by a newer feedback cue or explicitly stopped.
-        }
-    }
-
-    private void CancelActivePattern()
-    {
-        _activePattern?.Cancel();
-        _activePattern?.Dispose();
-        _activePattern = null;
-        _activeTask = null;
-    }
-
-    private static async Task AwaitPatternAsync(Task? task)
-    {
-        if (task is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await task.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
+            // Expected when a newer cue replaces this one or haptics are stopped.
         }
     }
 }

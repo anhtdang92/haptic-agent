@@ -56,6 +56,30 @@ public sealed class GameInputBridgeControllerDevice : IControllerDevice
 
     public bool IsConnected => _isConnected;
 
+    /// <summary>
+    /// True when this device can no longer produce events (disposed, or the
+    /// bridge process died). The provider uses this to re-resolve a controller.
+    /// </summary>
+    public bool IsDefunct
+    {
+        get
+        {
+            if (_disposed)
+            {
+                return true;
+            }
+
+            try
+            {
+                return _process.HasExited;
+            }
+            catch (InvalidOperationException)
+            {
+                return true;
+            }
+        }
+    }
+
     public static async ValueTask<GameInputBridgeControllerDevice> StartAsync(
         string executablePath,
         CancellationToken cancellationToken = default)

@@ -15,6 +15,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Double press fires inside its window", TestDoublePressAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
+    ("Haptic hub survives detach and device loss", TestHapticHubAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
 };
 
@@ -282,6 +283,35 @@ static Task TestProfileValidationAsync()
         ]);
     Assert(ControllerProfileValidator.Validate(ambiguous).Count > 0, "Expected Press+Hold mix to be rejected.");
     return Task.CompletedTask;
+}
+
+static async Task TestHapticHubAsync()
+{
+    await using var controller = new BlockingController();
+    var scheduler = new HapticScheduler(controller);
+    var hub = new HapticSchedulerHub();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+    // Detached hub calls are silent no-ops.
+    await hub.PlayAsync(HapticPatternCatalog.Working, timeout.Token).ConfigureAwait(false);
+    await hub.StopAsync(timeout.Token).ConfigureAwait(false);
+
+    hub.Attach(scheduler);
+    await hub.PlayAsync(HapticPatternCatalog.ApprovalRequired, timeout.Token).ConfigureAwait(false);
+    await controller.Started.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    hub.Detach(scheduler);
+    await scheduler.DisposeAsync().ConfigureAwait(false);
+
+    // After detach the hub routes nowhere and must not throw.
+    await hub.PlayAsync(HapticPatternCatalog.Working, timeout.Token).ConfigureAwait(false);
+
+    // Even a stale attach to a disposed scheduler is swallowed as device loss.
+    hub.Attach(scheduler);
+    await hub.PlayAsync(HapticPatternCatalog.Working, timeout.Token).ConfigureAwait(false);
+    await hub.StopAsync(timeout.Token).ConfigureAwait(false);
+
+    Assert(controller.StopCount > 0, "Disposing the scheduler should stop controller haptics.");
 }
 
 static ControllerInputEvent Press(ControllerControl control) =>

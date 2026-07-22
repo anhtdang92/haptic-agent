@@ -20,6 +20,15 @@ public sealed class WindowsControllerProvider : IControllerProvider
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        // A dead bridge (crashed process or disposed device) must not be
+        // handed out again; drop it and allow one fresh bridge attempt.
+        if (_gameInput is { IsDefunct: true })
+        {
+            await _gameInput.DisposeAsync().ConfigureAwait(false);
+            _gameInput = null;
+            _bridgeAttempted = false;
+        }
+
         if (!_bridgeAttempted)
         {
             _bridgeAttempted = true;

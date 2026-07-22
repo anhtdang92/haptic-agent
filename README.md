@@ -34,6 +34,7 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - XInput fallback approval chords when independent paddles are unavailable
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
 - Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, collision detection, and validated approval safeguards
+- Crash resilience: Codex app-server restart with backoff, controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses

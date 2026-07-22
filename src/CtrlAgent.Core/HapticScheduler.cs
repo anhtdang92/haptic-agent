@@ -136,3 +136,85 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
     }
 }
+
+/// <summary>
+/// Routes haptic playback to the currently attached scheduler so consumers
+/// (like the agent event loop) survive controller loss and reconnection.
+/// Calls while no scheduler is attached are silent no-ops, and device-loss
+/// failures are swallowed instead of tearing down the caller.
+/// </summary>
+public sealed class HapticSchedulerHub
+{
+    private readonly object _sync = new();
+    private HapticScheduler? _current;
+
+    public void Attach(HapticScheduler scheduler)
+    {
+        ArgumentNullException.ThrowIfNull(scheduler);
+
+        lock (_sync)
+        {
+            _current = scheduler;
+        }
+    }
+
+    public void Detach(HapticScheduler scheduler)
+    {
+        ArgumentNullException.ThrowIfNull(scheduler);
+
+        lock (_sync)
+        {
+            if (ReferenceEquals(_current, scheduler))
+            {
+                _current = null;
+            }
+        }
+    }
+
+    public async ValueTask PlayAsync(HapticPattern pattern, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+
+        var scheduler = Current();
+        if (scheduler is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await scheduler.PlayAsync(pattern, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (IsDeviceLoss(exception))
+        {
+        }
+    }
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken = default)
+    {
+        var scheduler = Current();
+        if (scheduler is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await scheduler.StopAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (IsDeviceLoss(exception))
+        {
+        }
+    }
+
+    private HapticScheduler? Current()
+    {
+        lock (_sync)
+        {
+            return _current;
+        }
+    }
+
+    private static bool IsDeviceLoss(Exception exception) =>
+        exception is ObjectDisposedException or IOException or InvalidOperationException;
+}

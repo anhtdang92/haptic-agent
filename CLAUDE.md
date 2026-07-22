@@ -40,8 +40,8 @@ Project boundaries:
 - `src/CtrlAgent.Core` — all contracts (`IControllerDevice`, `IAgentAdapter`, events, commands), `MappingEngine`, profile validation/JSON (`Profiles.cs`), `FeedbackRouter`, `HapticPatternCatalog`, `HapticScheduler`. **Must stay platform-independent: no references to GameInput, XInput, Codex, UI frameworks, or keyboard injection** (System.Text.Json is fine — it's BCL).
 - `src/CtrlAgent.Platform.Windows` — `WindowsControllerProvider` tries the native GameInput bridge first, then falls back to XInput (P/Invoke in `XInputNative.cs`). Bridge path resolution order: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app.
 - `native/CtrlAgent.GameInputBridge` — C++ console exe the managed host spawns; talks newline-delimited JSON over stdio (emits `ready` and input events; accepts `{"type":"rumble", ...}`). This is what exposes the four Elite paddles and trigger rumble — XInput cannot.
-- `src/CtrlAgent.Adapters.Mock` / `src/CtrlAgent.Adapters.Codex` — `IAgentAdapter` implementations. The Codex adapter spawns `codex app-server` and speaks JSON-RPC-style JSONL over stdio, normalizing thread/turn/approval notifications into `AgentEvent`s.
-- `src/CtrlAgent.App` — console host wiring everything together: three concurrent loops (controller input, agent events, console commands) sharing `MappingEngine` and a `HostState` that tracks the pending approval request.
+- `src/CtrlAgent.Adapters.Mock` / `src/CtrlAgent.Adapters.Codex` — `IAgentAdapter` implementations. The Codex adapter spawns `codex app-server` and speaks JSON-RPC-style JSONL over stdio, normalizing thread/turn/approval notifications into `AgentEvent`s. On app-server crash it fails in-flight requests, publishes an Error event, and restarts with capped backoff (max 5 attempts); while down, `ExecuteAsync` publishes an Error event instead of throwing.
+- `src/CtrlAgent.App` — console host wiring everything together: three concurrent loops (controller sessions, agent events, console commands) sharing `MappingEngine` and a `HostState` that tracks the pending approval request. The controller-session loop re-acquires a device after disconnect/bridge death (the provider drops a defunct bridge and falls back), and agent commands are executed via a catch-all so a failing adapter never kills a loop.
 
 ### Mapping and approval safety
 
@@ -55,7 +55,7 @@ These invariants are tested and must hold:
 
 ### Haptics
 
-`HapticScheduler` serializes playback per controller: `PlayAsync` cancels and drains the previous cue, then returns immediately after scheduling the new one (looping cues like `ApprovalRequired` must not block the agent event loop). Patterns are frame lists (`RumbleFrame`: low/high motor + left/right trigger, clamped 0..1). `AgentStateKind.Idle` stops haptics rather than routing a pattern.
+`HapticScheduler` serializes playback per controller: `PlayAsync` cancels and drains the previous cue, then returns immediately after scheduling the new one (looping cues like `ApprovalRequired` must not block the agent event loop). Patterns are frame lists (`RumbleFrame`: low/high motor + left/right trigger, clamped 0..1). `AgentStateKind.Idle` stops haptics rather than routing a pattern. The app talks to haptics through `HapticSchedulerHub` (Core), which routes to the scheduler of the currently attached controller — detached = no-op, device-loss exceptions swallowed — so the agent loop survives controller swaps. Device implementations must zero rumble in a `finally` when playback ends or the device is disposed.
 
 ## Caveats
 

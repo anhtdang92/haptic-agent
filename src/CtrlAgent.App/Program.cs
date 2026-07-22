@@ -53,18 +53,16 @@ internal static class Program
         Console.WriteLine();
 
         await using var provider = new WindowsControllerProvider(options.GameInputBridgeExecutable);
-        await using var controller = await WaitForControllerAsync(provider, shutdown.Token).ConfigureAwait(false);
         await using var adapter = CreateAgentAdapter(options);
         await adapter.StartAsync(shutdown.Token).ConfigureAwait(false);
-        await using var haptics = new HapticScheduler(controller);
 
+        var haptics = new HapticSchedulerHub();
         var mapping = new MappingEngine(profile);
         var state = new HostState();
-        PrintControllerHelp(controller, profile);
 
         var tasks = new[]
         {
-            RunControllerLoopAsync(controller, adapter, mapping, state, options, shutdown.Token),
+            RunControllerSessionsAsync(provider, adapter, mapping, state, options, profile, haptics, shutdown.Token),
             RunAgentLoopAsync(adapter, mapping, state, haptics, shutdown.Token),
             RunConsoleLoopAsync(adapter, state, options, shutdown),
         };
@@ -112,6 +110,53 @@ internal static class Program
         throw new OperationCanceledException(cancellationToken);
     }
 
+    private static async Task RunControllerSessionsAsync(
+        IControllerProvider provider,
+        IAgentAdapter adapter,
+        MappingEngine mapping,
+        HostState state,
+        AppOptions options,
+        ControllerProfile profile,
+        HapticSchedulerHub haptics,
+        CancellationToken cancellationToken)
+    {
+        // Controllers come and go (unplugged cable, dead bridge process); each
+        // pass acquires a device, runs it until the stream ends, then cleans up
+        // and waits for the next one instead of taking the host down.
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var controller = await WaitForControllerAsync(provider, cancellationToken).ConfigureAwait(false);
+            var scheduler = new HapticScheduler(controller);
+            haptics.Attach(scheduler);
+            PrintControllerHelp(controller, profile);
+
+            try
+            {
+                await RunControllerLoopAsync(controller, adapter, mapping, state, options, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine($"[controller] Connection lost: {exception.Message}");
+            }
+            finally
+            {
+                haptics.Detach(scheduler);
+                await scheduler.DisposeAsync().ConfigureAwait(false);
+                await controller.DisposeAsync().ConfigureAwait(false);
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                Console.WriteLine("Controller disconnected. Waiting for a controller...");
+            }
+        }
+    }
+
     private static async Task RunControllerLoopAsync(
         IControllerDevice controller,
         IAgentAdapter adapter,
@@ -132,8 +177,27 @@ internal static class Program
             {
                 var hydrated = HydrateCommand(command, state, options.DefaultPrompt);
                 Console.WriteLine($"[command]    {hydrated.Kind}");
-                await adapter.ExecuteAsync(hydrated, cancellationToken).ConfigureAwait(false);
+                await ExecuteSafelyAsync(adapter, hydrated, cancellationToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    private static async Task ExecuteSafelyAsync(
+        IAgentAdapter adapter,
+        AgentCommand command,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await adapter.ExecuteAsync(command, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"[error]      {command.Kind} failed: {exception.Message}");
         }
     }
 
@@ -141,7 +205,7 @@ internal static class Program
         IAgentAdapter adapter,
         MappingEngine mapping,
         HostState state,
-        HapticScheduler haptics,
+        HapticSchedulerHub haptics,
         CancellationToken cancellationToken)
     {
         var feedback = new FeedbackRouter();
@@ -225,7 +289,7 @@ internal static class Program
                 continue;
             }
 
-            await adapter.ExecuteAsync(command, shutdown.Token).ConfigureAwait(false);
+            await ExecuteSafelyAsync(adapter, command, shutdown.Token).ConfigureAwait(false);
         }
     }
 

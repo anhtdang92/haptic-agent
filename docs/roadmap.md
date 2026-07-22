@@ -79,7 +79,7 @@ Exit gate:
 
 ## Phase 4 — Codex adapter
 
-Status: **Implemented — app-server crash recovery still open**
+Status: **Implemented — crash recovery restarts the app-server with backoff; end-to-end verification against a real Codex install still pending**
 
 Deliverables:
 

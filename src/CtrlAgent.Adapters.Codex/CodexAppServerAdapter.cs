@@ -14,7 +14,10 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> _pendingResponses = new();
     private readonly ConcurrentDictionary<string, PendingServerRequest> _pendingServerRequests = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly SemaphoreSlim _startGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+
+    private const int MaxRestartAttempts = 5;
 
     private Process? _process;
     private StreamWriter? _stdin;
@@ -43,6 +46,31 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
             return;
         }
 
+        try
+        {
+            await _startGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (!IsStarted)
+                {
+                    await LaunchAsync(cancellationToken).ConfigureAwait(false);
+                    Publish(AgentStateKind.Idle, "Codex app-server connected.");
+                }
+            }
+            finally
+            {
+                _startGate.Release();
+            }
+        }
+        catch
+        {
+            await DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task LaunchAsync(CancellationToken cancellationToken)
+    {
         var executable = string.IsNullOrWhiteSpace(_options.ExecutablePath)
             ? "codex"
             : _options.ExecutablePath;
@@ -68,47 +96,51 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
             }
         }
 
-        _process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        _process.Exited += HandleProcessExited;
+        var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+        process.Exited += HandleProcessExited;
 
-        if (!_process.Start())
+        if (!process.Start())
         {
+            process.Dispose();
             throw new InvalidOperationException("Failed to start the Codex app-server process.");
         }
 
-        _stdin = _process.StandardInput;
+        var previousProcess = _process;
+        var previousStdin = _stdin;
+        _process = process;
+        _stdin = process.StandardInput;
         _stdin.AutoFlush = true;
-        _stdoutLoop = Task.Run(() => ReadStdoutAsync(_lifetime.Token), CancellationToken.None);
-        _stderrLoop = Task.Run(() => DrainStderrAsync(_lifetime.Token), CancellationToken.None);
+        _stdoutLoop = Task.Run(() => ReadStdoutAsync(process.StandardOutput, _lifetime.Token), CancellationToken.None);
+        _stderrLoop = Task.Run(() => DrainStderrAsync(process.StandardError, _lifetime.Token), CancellationToken.None);
 
         try
         {
-            _ = await SendRequestAsync(
-                "initialize",
-                new
-                {
-                    clientInfo = new
-                    {
-                        name = "haptic-agent",
-                        title = "CtrlAgent",
-                        version = "0.1.0",
-                    },
-                    capabilities = new
-                    {
-                        experimentalApi = false,
-                    },
-                },
-                cancellationToken).ConfigureAwait(false);
-
-            await SendNotificationAsync("initialized", new { }, cancellationToken).ConfigureAwait(false);
-            IsStarted = true;
-            Publish(AgentStateKind.Idle, "Codex app-server connected.");
+            previousStdin?.Dispose();
+            previousProcess?.Dispose();
         }
-        catch
+        catch (InvalidOperationException)
         {
-            await DisposeAsync().ConfigureAwait(false);
-            throw;
         }
+
+        _ = await SendRequestAsync(
+            "initialize",
+            new
+            {
+                clientInfo = new
+                {
+                    name = "haptic-agent",
+                    title = "CtrlAgent",
+                    version = "0.1.0",
+                },
+                capabilities = new
+                {
+                    experimentalApi = false,
+                },
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        await SendNotificationAsync("initialized", new { }, cancellationToken).ConfigureAwait(false);
+        IsStarted = true;
     }
 
     public async IAsyncEnumerable<AgentEvent> ReadEventsAsync(
@@ -128,7 +160,9 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
 
         if (!IsStarted)
         {
-            throw new InvalidOperationException("The Codex adapter must be started first.");
+            // Never crash the host input loop while the app-server restarts.
+            Publish(AgentStateKind.Error, $"Codex app-server is not running; '{command.Kind}' was ignored.");
+            return;
         }
 
         switch (command.Kind)
@@ -223,6 +257,7 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         _stdin?.Dispose();
         _process?.Dispose();
         _writeGate.Dispose();
+        _startGate.Dispose();
         _lifetime.Dispose();
         _events.Writer.TryComplete();
     }
@@ -362,48 +397,55 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         }
     }
 
-    private async Task ReadStdoutAsync(CancellationToken cancellationToken)
+    private async Task ReadStdoutAsync(StreamReader reader, CancellationToken cancellationToken)
     {
-        var reader = _process?.StandardOutput
-            ?? throw new InvalidOperationException("Codex stdout is not available.");
-
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
-            if (line is null)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                break;
-            }
+                var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                if (line is null)
+                {
+                    break;
+                }
 
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
 
-            try
-            {
-                using var document = JsonDocument.Parse(line);
-                HandleIncoming(document.RootElement);
+                try
+                {
+                    using var document = JsonDocument.Parse(line);
+                    HandleIncoming(document.RootElement);
+                }
+                catch (JsonException exception)
+                {
+                    Publish(AgentStateKind.Error, $"Invalid Codex JSON: {exception.Message}");
+                }
             }
-            catch (JsonException exception)
-            {
-                Publish(AgentStateKind.Error, $"Invalid Codex JSON: {exception.Message}");
-            }
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        {
+            // The process died; HandleProcessExited owns recovery.
         }
     }
 
-    private async Task DrainStderrAsync(CancellationToken cancellationToken)
+    private async Task DrainStderrAsync(StreamReader reader, CancellationToken cancellationToken)
     {
-        var reader = _process?.StandardError
-            ?? throw new InvalidOperationException("Codex stderr is not available.");
-
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
-            if (line is null)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                break;
+                var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                if (line is null)
+                {
+                    break;
+                }
             }
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        {
         }
     }
 
@@ -505,14 +547,114 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
 
     private void HandleProcessExited(object? sender, EventArgs eventArgs)
     {
-        if (_disposed)
+        if (_disposed || sender is not Process process || !ReferenceEquals(process, _process))
         {
             return;
         }
 
         IsStarted = false;
-        var exitCode = _process?.ExitCode;
-        Publish(AgentStateKind.Error, $"Codex app-server exited unexpectedly with code {exitCode?.ToString() ?? "unknown"}.");
+        _threadId = null;
+        _turnId = null;
+
+        int? exitCode = null;
+        try
+        {
+            exitCode = process.ExitCode;
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        FailAllPending($"Codex app-server exited with code {exitCode?.ToString() ?? "unknown"}.");
+        Publish(
+            AgentStateKind.Error,
+            $"Codex app-server exited unexpectedly with code {exitCode?.ToString() ?? "unknown"}; attempting restart.");
+
+        _ = Task.Run(RestartAsync);
+    }
+
+    private async Task RestartAsync()
+    {
+        // Only one restart loop at a time; a concurrent StartAsync also holds
+        // this gate.
+        if (!await _startGate.WaitAsync(0).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        CancellationToken lifetime;
+        try
+        {
+            lifetime = _lifetime.Token;
+        }
+        catch (ObjectDisposedException)
+        {
+            _startGate.Release();
+            return;
+        }
+
+        try
+        {
+            for (var attempt = 1; attempt <= MaxRestartAttempts && !_disposed; attempt++)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Min(15, 1 << attempt));
+                try
+                {
+                    await Task.Delay(delay, lifetime).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await LaunchAsync(lifetime).ConfigureAwait(false);
+                    Publish(
+                        AgentStateKind.Idle,
+                        $"Codex app-server restarted after {attempt} attempt(s); the next prompt starts a fresh thread.");
+                    return;
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    Publish(AgentStateKind.Error, $"Codex restart attempt {attempt} failed: {exception.Message}");
+                }
+            }
+
+            if (!_disposed)
+            {
+                Publish(
+                    AgentStateKind.Error,
+                    "Codex app-server could not be restarted; restart CtrlAgent or switch to --agent mock.");
+            }
+        }
+        finally
+        {
+            try
+            {
+                _startGate.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+    }
+
+    private void FailAllPending(string reason)
+    {
+        foreach (var id in _pendingResponses.Keys.ToArray())
+        {
+            if (_pendingResponses.TryRemove(id, out var pending))
+            {
+                pending.TrySetException(new CodexProtocolException(reason));
+            }
+        }
+
+        _pendingServerRequests.Clear();
     }
 
     private void Publish(

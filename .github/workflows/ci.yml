@@ -52,10 +52,22 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore and build GameInput bridge
+      - name: Restore GameInput bridge
         shell: pwsh
         run: |
-          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-build.log
+          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /t:Restore /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-restore.log
+          exit $LASTEXITCODE
+
+      - name: Capture GameInput package layout
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:USERPROFILE '.nuget\packages\microsoft.gameinput\3.4.259'
+          Get-ChildItem $root -Recurse | ForEach-Object { $_.FullName.Substring($root.Length + 1) } | Set-Content native-package-files.log
+
+      - name: Build GameInput bridge
+        shell: pwsh
+        run: |
+          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj /m /p:Configuration=Release /p:Platform=x64 2>&1 | Tee-Object native-build.log
           exit $LASTEXITCODE
 
       - name: Upload native logs
@@ -63,4 +75,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: native-build-logs
-          path: native-build.log
+          path: native-*.log

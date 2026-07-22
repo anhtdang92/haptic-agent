@@ -22,6 +22,22 @@ internal static class Program
 
     private static async Task<int> RunAsync(AppOptions options)
     {
+        if (options.ExportProfilePath is not null)
+        {
+            await File.WriteAllTextAsync(
+                options.ExportProfilePath,
+                ControllerProfileJson.Serialize(ControllerProfile.Default)).ConfigureAwait(false);
+            Console.WriteLine($"Wrote default profile to {options.ExportProfilePath}");
+            return 0;
+        }
+
+        var profile = ControllerProfile.Default;
+        if (options.ProfilePath is not null)
+        {
+            var json = await File.ReadAllTextAsync(options.ProfilePath).ConfigureAwait(false);
+            profile = ControllerProfileJson.Deserialize(json);
+        }
+
         using var shutdown = new CancellationTokenSource();
         Console.CancelKeyPress += (_, eventArgs) =>
         {
@@ -32,6 +48,7 @@ internal static class Program
         Console.WriteLine("CtrlAgent 0.1 development host");
         Console.WriteLine($"Agent: {options.Agent}");
         Console.WriteLine($"Working directory: {options.WorkingDirectory}");
+        Console.WriteLine($"Profile: {profile.Name} ({profile.Bindings.Count} bindings)");
         Console.WriteLine("Press Ctrl+C or type 'quit' to exit.");
         Console.WriteLine();
 
@@ -41,9 +58,9 @@ internal static class Program
         await adapter.StartAsync(shutdown.Token).ConfigureAwait(false);
         await using var haptics = new HapticScheduler(controller);
 
-        var mapping = new MappingEngine(ControllerProfile.Default);
+        var mapping = new MappingEngine(profile);
         var state = new HostState();
-        PrintControllerHelp(controller);
+        PrintControllerHelp(controller, profile);
 
         var tasks = new[]
         {
@@ -257,23 +274,28 @@ internal static class Program
         return command;
     }
 
-    private static void PrintControllerHelp(IControllerDevice controller)
+    private static void PrintControllerHelp(IControllerDevice controller, ControllerProfile profile)
     {
-        Console.WriteLine("Controller mappings:");
-        Console.WriteLine("  A             Submit default prompt");
-        Console.WriteLine("  B             Interrupt active turn");
-        Console.WriteLine("  X             Review changes");
-        Console.WriteLine("  Menu          New session");
-        Console.WriteLine("  LB + A        Run tests and fix failures");
+        Console.WriteLine($"Controller mappings ({profile.Name}):");
 
-        if (controller.Capabilities.HasFourPaddles)
+        foreach (var binding in profile.Bindings)
         {
-            Console.WriteLine("  Paddles       Approve / approve session / decline / cancel");
+            var chord = binding.Modifiers is { Count: > 0 }
+                ? string.Join("+", binding.Modifiers.OrderBy(modifier => modifier)) + "+" + binding.Control
+                : binding.Control.ToString();
+            var gesture = binding.Gesture == InputGesture.Press
+                ? string.Empty
+                : $" [{binding.Gesture}]";
+            var approval = binding.RequiresPendingApproval
+                ? " (needs pending approval)"
+                : string.Empty;
+
+            Console.WriteLine($"  {chord,-32}{binding.Command}{gesture}{approval}");
         }
-        else
+
+        if (!controller.Capabilities.HasFourPaddles)
         {
-            Console.WriteLine("  RB + A/Y/X/B  Approve / approve session / decline / cancel");
-            Console.WriteLine("  Note: XInput cannot expose Elite paddles independently.");
+            Console.WriteLine("  Note: XInput cannot expose Elite paddles independently; paddle bindings are inactive.");
         }
 
         Console.WriteLine();

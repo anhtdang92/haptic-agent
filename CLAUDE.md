@@ -37,7 +37,7 @@ Two directions flow through the same pipeline (see `docs/architecture.md`):
 
 Project boundaries:
 
-- `src/CtrlAgent.Core` — all contracts (`IControllerDevice`, `IAgentAdapter`, events, commands), `MappingEngine`, `FeedbackRouter`, `HapticPatternCatalog`, `HapticScheduler`. **Must stay platform-independent: no references to GameInput, XInput, Codex, UI frameworks, or keyboard injection.**
+- `src/CtrlAgent.Core` — all contracts (`IControllerDevice`, `IAgentAdapter`, events, commands), `MappingEngine`, profile validation/JSON (`Profiles.cs`), `FeedbackRouter`, `HapticPatternCatalog`, `HapticScheduler`. **Must stay platform-independent: no references to GameInput, XInput, Codex, UI frameworks, or keyboard injection** (System.Text.Json is fine — it's BCL).
 - `src/CtrlAgent.Platform.Windows` — `WindowsControllerProvider` tries the native GameInput bridge first, then falls back to XInput (P/Invoke in `XInputNative.cs`). Bridge path resolution order: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app.
 - `native/CtrlAgent.GameInputBridge` — C++ console exe the managed host spawns; talks newline-delimited JSON over stdio (emits `ready` and input events; accepts `{"type":"rumble", ...}`). This is what exposes the four Elite paddles and trigger rumble — XInput cannot.
 - `src/CtrlAgent.Adapters.Mock` / `src/CtrlAgent.Adapters.Codex` — `IAgentAdapter` implementations. The Codex adapter spawns `codex app-server` and speaks JSON-RPC-style JSONL over stdio, normalizing thread/turn/approval notifications into `AgentEvent`s.
@@ -50,6 +50,8 @@ These invariants are tested and must hold:
 - `MappingEngine.Process` picks structural matches, keeps only bindings with the **highest modifier count** (chords beat plain buttons), and only then filters by eligibility. Ordering matters: an ineligible approval chord (e.g. RB+A with no pending approval) must produce *no* command rather than falling through to the plain-button action.
 - Bindings with `RequiresPendingApproval: true` fire only while an approval request is pending (`SetPendingApproval`, driven by the app's agent loop). Approval commands are hydrated with the pending session/request ids.
 - Default profile: paddles map to approve-once / approve-for-session / decline / cancel; RB+A/Y/X/B are the XInput fallback chords. No default mapping may approve a destructive action with a single accidental face-button press.
+- Gestures (`InputGesture`: Press, Release, AxisThreshold, Tap, Hold, DoublePress) resolve **from event timestamps**, never wall-clock reads — tap/hold split on release duration, double-press on press-to-press interval — so tests can drive them with explicit `DateTimeOffset`s. `MappingEngine`'s constructor runs `ControllerProfileValidator` and throws on any error; validation rejects duplicate/ambiguous chords (Press mixed with Tap/Hold/DoublePress, Tap with DoublePress) and enforces approval safety (approve/decline need `requiresPendingApproval`; approvals must sit on a paddle, chord, or hold).
+- Profiles persist as versioned JSON via `ControllerProfileJson` (`--profile` / `--export-profile` in the app); deserialization validates and throws `FormatException` listing every problem.
 
 ### Haptics
 

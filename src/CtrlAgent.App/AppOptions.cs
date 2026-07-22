@@ -6,6 +6,8 @@ internal sealed record AppOptions(
     string DefaultPrompt,
     string? CodexExecutable,
     string? GameInputBridgeExecutable,
+    string? ProfilePath,
+    string? ExportProfilePath,
     bool Verbose)
 {
     public static AppOptions Parse(string[] args)
@@ -15,6 +17,8 @@ internal sealed record AppOptions(
         var defaultPrompt = "Inspect the current repository and continue implementing the highest-priority unfinished task.";
         string? codexExecutable = null;
         string? gameInputBridgeExecutable = null;
+        string? profilePath = null;
+        string? exportProfilePath = null;
         var verbose = false;
 
         for (var index = 0; index < args.Length; index++)
@@ -36,6 +40,12 @@ internal sealed record AppOptions(
                 case "--gameinput-bridge":
                     gameInputBridgeExecutable = Path.GetFullPath(
                         ReadValue(args, ref index, "--gameinput-bridge"));
+                    break;
+                case "--profile":
+                    profilePath = Path.GetFullPath(ReadValue(args, ref index, "--profile"));
+                    break;
+                case "--export-profile":
+                    exportProfilePath = Path.GetFullPath(ReadValue(args, ref index, "--export-profile"));
                     break;
                 case "--verbose":
                     verbose = true;
@@ -61,12 +71,19 @@ internal sealed record AppOptions(
             throw new DirectoryNotFoundException($"Working directory does not exist: {workingDirectory}");
         }
 
+        if (profilePath is not null && !File.Exists(profilePath))
+        {
+            throw new FileNotFoundException($"Profile file does not exist: {profilePath}", profilePath);
+        }
+
         return new AppOptions(
             agent.ToLowerInvariant(),
             workingDirectory,
             defaultPrompt,
             codexExecutable,
             gameInputBridgeExecutable,
+            profilePath,
+            exportProfilePath,
             verbose);
     }
 
@@ -81,6 +98,8 @@ internal sealed record AppOptions(
               --prompt TEXT           Prompt sent by the controller A button
               --codex-path PATH       Optional path to the Codex executable
               --gameinput-bridge PATH Optional path to CtrlAgent.GameInputBridge.exe
+              --profile PATH          Load a controller profile from a JSON file
+              --export-profile PATH   Write the default profile as JSON and exit
               --verbose               Print analog controller changes
               --help                  Show this help
             """);

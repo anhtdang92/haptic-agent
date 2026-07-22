@@ -11,6 +11,10 @@ var tests = new (string Name, Func<Task> Run)[]
     ("LB+A overrides plain A", TestChordPriorityAsync),
     ("Approval chord does not fall through", TestApprovalSafetyAsync),
     ("Pending approval hydrates request id", TestApprovalMappingAsync),
+    ("Tap and hold split on release duration", TestTapVersusHoldAsync),
+    ("Double press fires inside its window", TestDoublePressAsync),
+    ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
+    ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
 };
 
@@ -58,7 +62,7 @@ static Task TestFeedbackRoutingAsync()
         DateTimeOffset.UtcNow));
 
     Assert(pattern is not null, "Expected a haptic pattern.");
-    AssertEqual("completed", pattern.Name);
+    AssertEqual("completed", pattern!.Name);
     return Task.CompletedTask;
 }
 
@@ -153,8 +157,141 @@ static async Task TestMockAdapterAsync()
     Assert(!string.IsNullOrWhiteSpace(enumerator.Current.RequestId), "Expected approval request id.");
 }
 
+static Task TestTapVersusHoldAsync()
+{
+    var profile = new ControllerProfile(
+        "tap-hold",
+        [
+            new(ControllerControl.A, InputGesture.Tap, AgentCommandKind.ReviewChanges),
+            new(ControllerControl.A, InputGesture.Hold, AgentCommandKind.Interrupt),
+        ]);
+    var engine = new MappingEngine(profile);
+    var start = DateTimeOffset.UtcNow;
+
+    _ = engine.Process(At(ControllerControl.A, ControllerInputEventKind.Pressed, start));
+    var tap = engine.Process(At(
+        ControllerControl.A,
+        ControllerInputEventKind.Released,
+        start + TimeSpan.FromMilliseconds(150)));
+
+    AssertEqual(1, tap.Count);
+    AssertEqual(AgentCommandKind.ReviewChanges, tap[0].Kind);
+
+    var second = start + TimeSpan.FromSeconds(2);
+    _ = engine.Process(At(ControllerControl.A, ControllerInputEventKind.Pressed, second));
+    var hold = engine.Process(At(
+        ControllerControl.A,
+        ControllerInputEventKind.Released,
+        second + TimeSpan.FromMilliseconds(600)));
+
+    AssertEqual(1, hold.Count);
+    AssertEqual(AgentCommandKind.Interrupt, hold[0].Kind);
+    return Task.CompletedTask;
+}
+
+static Task TestDoublePressAsync()
+{
+    var profile = new ControllerProfile(
+        "double",
+        [
+            new(ControllerControl.B, InputGesture.DoublePress, AgentCommandKind.NewSession),
+        ]);
+    var engine = new MappingEngine(profile);
+    var start = DateTimeOffset.UtcNow;
+
+    AssertEqual(0, engine.Process(At(ControllerControl.B, ControllerInputEventKind.Pressed, start)).Count);
+    _ = engine.Process(At(ControllerControl.B, ControllerInputEventKind.Released, start + TimeSpan.FromMilliseconds(60)));
+
+    var second = engine.Process(At(
+        ControllerControl.B,
+        ControllerInputEventKind.Pressed,
+        start + TimeSpan.FromMilliseconds(200)));
+    AssertEqual(1, second.Count);
+    AssertEqual(AgentCommandKind.NewSession, second[0].Kind);
+    _ = engine.Process(At(ControllerControl.B, ControllerInputEventKind.Released, start + TimeSpan.FromMilliseconds(260)));
+
+    // The completed double-press resets the sequence, so a third press within
+    // the window starts a new pair instead of firing again.
+    AssertEqual(0, engine.Process(At(
+        ControllerControl.B,
+        ControllerInputEventKind.Pressed,
+        start + TimeSpan.FromMilliseconds(400))).Count);
+
+    // Presses spaced beyond the window never fire.
+    var late = start + TimeSpan.FromSeconds(5);
+    _ = engine.Process(At(ControllerControl.B, ControllerInputEventKind.Released, start + TimeSpan.FromMilliseconds(460)));
+    AssertEqual(0, engine.Process(At(ControllerControl.B, ControllerInputEventKind.Pressed, late)).Count);
+    return Task.CompletedTask;
+}
+
+static Task TestProfileJsonRoundTripAsync()
+{
+    var json = ControllerProfileJson.Serialize(ControllerProfile.Default);
+    var profile = ControllerProfileJson.Deserialize(json);
+
+    AssertEqual(ControllerProfile.Default.Name, profile.Name);
+    AssertEqual(ControllerProfile.Default.Bindings.Count, profile.Bindings.Count);
+
+    var approveChord = profile.Bindings.Single(binding =>
+        binding.Command == AgentCommandKind.ApproveOnce && binding.Modifiers is { Count: > 0 });
+    Assert(approveChord.RequiresPendingApproval, "Approval flag must survive the round-trip.");
+    Assert(
+        approveChord.Modifiers!.Contains(ControllerControl.RightShoulder),
+        "Chord modifier must survive the round-trip.");
+    return Task.CompletedTask;
+}
+
+static Task TestProfileValidationAsync()
+{
+    AssertEqual(0, ControllerProfileValidator.Validate(ControllerProfile.Default).Count);
+
+    // A bare face-button approval is careless even with the pending flag set.
+    var careless = new ControllerProfile(
+        "careless",
+        [
+            new(ControllerControl.A, InputGesture.Press, AgentCommandKind.ApproveOnce, RequiresPendingApproval: true),
+        ]);
+    Assert(ControllerProfileValidator.Validate(careless).Count > 0, "Expected careless approval to be rejected.");
+
+    var threw = false;
+    try
+    {
+        _ = new MappingEngine(careless);
+    }
+    catch (ArgumentException)
+    {
+        threw = true;
+    }
+
+    Assert(threw, "MappingEngine must refuse an invalid profile.");
+
+    // Approval-family bindings must be gated on a pending request.
+    var noPending = new ControllerProfile(
+        "no-pending",
+        [
+            new(ControllerControl.PaddleLeft1, InputGesture.Press, AgentCommandKind.ApproveOnce),
+        ]);
+    Assert(ControllerProfileValidator.Validate(noPending).Count > 0, "Expected missing pending flag to be rejected.");
+
+    // Press combined with Hold on the same chord double-fires one physical action.
+    var ambiguous = new ControllerProfile(
+        "ambiguous",
+        [
+            new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt),
+            new(ControllerControl.A, InputGesture.Hold, AgentCommandKind.Interrupt),
+        ]);
+    Assert(ControllerProfileValidator.Validate(ambiguous).Count > 0, "Expected Press+Hold mix to be rejected.");
+    return Task.CompletedTask;
+}
+
 static ControllerInputEvent Press(ControllerControl control) =>
     new("test-controller", control, ControllerInputEventKind.Pressed, 1f, DateTimeOffset.UtcNow);
+
+static ControllerInputEvent At(
+    ControllerControl control,
+    ControllerInputEventKind kind,
+    DateTimeOffset timestamp) =>
+    new("test-controller", control, kind, kind == ControllerInputEventKind.Released ? 0f : 1f, timestamp);
 
 static void Assert(bool condition, string message)
 {

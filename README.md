@@ -33,6 +33,7 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - Native GameInput v3 bridge for four Elite paddles and four-channel rumble
 - XInput fallback approval chords when independent paddles are unavailable
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
+- Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, collision detection, and validated approval safeguards
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses
@@ -53,6 +54,39 @@ Haptic scheduler <--------- Feedback router <- Agent events
 | RB + A/Y/X/B | XInput fallback for the four approval actions |
 
 Approval inputs do nothing unless an approval request is actually pending.
+
+## Custom profiles
+
+Mappings are configurable through versioned JSON profiles:
+
+```powershell
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --export-profile my-profile.json
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --profile my-profile.json
+```
+
+Each binding names a control, a gesture, and a command:
+
+```json
+{
+  "version": 1,
+  "name": "my-profile",
+  "bindings": [
+    { "control": "a", "gesture": "press", "command": "submitPrompt" },
+    { "control": "x", "gesture": "doublePress", "command": "reviewChanges" },
+    {
+      "control": "paddleLeft1",
+      "gesture": "hold",
+      "holdMilliseconds": 400,
+      "command": "approveOnce",
+      "requiresPendingApproval": true
+    }
+  ]
+}
+```
+
+Supported gestures: `press`, `release`, `tap`, `hold`, `doublePress`, and `axisThreshold` (with `minimumValue`). `modifiers` turns a binding into a chord, and `text` overrides the prompt for `submitPrompt`.
+
+Profiles are validated before they load. Ambiguous combinations (for example `press` and `hold` on the same chord) are rejected, `approveOnce`/`approveForSession`/`decline` bindings must set `requiresPendingApproval`, and approvals must sit on a paddle, a chord, or a hold gesture so a single accidental face-button press can never approve anything.
 
 ## Requirements
 
@@ -100,6 +134,8 @@ Useful options:
 --prompt TEXT             Prompt sent by A
 --codex-path PATH         Explicit Codex executable path
 --gameinput-bridge PATH   Explicit native bridge executable path
+--profile PATH            Load a controller profile from a JSON file
+--export-profile PATH     Write the default profile as JSON and exit
 --verbose                 Print analog controller changes
 ```
 

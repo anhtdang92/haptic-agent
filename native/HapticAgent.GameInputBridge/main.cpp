@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>

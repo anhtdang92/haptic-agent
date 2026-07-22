@@ -6,5 +6,6 @@
     <ProjectReference Include="..\..\src\CtrlAgent.Core\CtrlAgent.Core.csproj" />
     <ProjectReference Include="..\..\src\CtrlAgent.Adapters.Mock\CtrlAgent.Adapters.Mock.csproj" />
     <ProjectReference Include="..\..\src\CtrlAgent.Adapters.ClaudeCode\CtrlAgent.Adapters.ClaudeCode.csproj" />
+    <ProjectReference Include="..\..\src\CtrlAgent.Hosting\CtrlAgent.Hosting.csproj" />
   </ItemGroup>
 </Project>

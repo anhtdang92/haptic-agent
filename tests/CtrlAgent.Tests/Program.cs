@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading.Channels;
 using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
+using CtrlAgent.Hosting;
 
 var tests = new (string Name, Func<Task> Run)[]
 {
@@ -21,6 +23,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
+    ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
 };
 
@@ -319,6 +322,54 @@ static async Task TestHapticHubAsync()
     Assert(controller.StopCount > 0, "Disposing the scheduler should stop controller haptics.");
 }
 
+static async Task TestHostEngineEndToEndAsync()
+{
+    var controller = new ScriptedController();
+    var provider = new SingleControllerProvider(controller);
+
+    // The default prompt mentions "delete" so the mock adapter demands approval.
+    await using var engine = new HostEngine(
+        provider,
+        new MockAgentAdapter(),
+        ControllerProfile.Default,
+        new HostEngineOptions("Please delete the generated file."));
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+    var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var cleared = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    engine.ControllerConnected += _ => connected.TrySetResult();
+    engine.PendingApprovalChanged += message =>
+    {
+        if (message is not null)
+        {
+            pending.TrySetResult();
+        }
+        else if (pending.Task.IsCompleted)
+        {
+            cleared.TrySetResult();
+        }
+    };
+
+    await engine.StartAsync(timeout.Token).ConfigureAwait(false);
+    await connected.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    // A press maps to SubmitPrompt through the default profile.
+    controller.Emit(ControllerControl.A, ControllerInputEventKind.Pressed);
+    controller.Emit(ControllerControl.A, ControllerInputEventKind.Released);
+
+    await pending.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+    Assert(
+        await engine.RespondToApprovalAsync(AgentCommandKind.ApproveOnce).ConfigureAwait(false),
+        "Expected a pending approval to answer.");
+
+    await cleared.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+    Assert(
+        !await engine.RespondToApprovalAsync(AgentCommandKind.ApproveOnce).ConfigureAwait(false),
+        "The pending approval must be cleared after it is answered.");
+}
+
 static Task TestValidationReportGatesAsync()
 {
     var report = SampleReport(
@@ -470,6 +521,74 @@ static void AssertEqual<T>(T expected, T actual)
     {
         throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
     }
+}
+
+internal sealed class ScriptedController : IControllerDevice
+{
+    private readonly Channel<ControllerInputEvent> _events = Channel.CreateUnbounded<ControllerInputEvent>();
+
+    public string Id => "scripted";
+
+    public string DisplayName => "Scripted test controller";
+
+    public ControllerCapabilities Capabilities { get; } = new(
+        HasFourPaddles: true,
+        HasLowFrequencyRumble: true,
+        HasHighFrequencyRumble: true,
+        HasLeftTriggerRumble: true,
+        HasRightTriggerRumble: true);
+
+    public bool IsConnected => true;
+
+    public void Emit(ControllerControl control, ControllerInputEventKind kind) =>
+        _events.Writer.TryWrite(new ControllerInputEvent(
+            Id,
+            control,
+            kind,
+            kind == ControllerInputEventKind.Pressed ? 1f : 0f,
+            DateTimeOffset.UtcNow));
+
+    public async IAsyncEnumerable<ControllerInputEvent> ReadEventsAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var inputEvent in _events.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return inputEvent;
+        }
+    }
+
+    public ValueTask PlayAsync(HapticPattern pattern, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask StopHapticsAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+
+    public ValueTask DisposeAsync()
+    {
+        _events.Writer.TryComplete();
+        return ValueTask.CompletedTask;
+    }
+}
+
+internal sealed class SingleControllerProvider(ScriptedController controller) : IControllerProvider
+{
+    private bool _handedOut;
+
+    public ValueTask<IControllerDevice?> GetPrimaryControllerAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_handedOut)
+        {
+            return ValueTask.FromResult<IControllerDevice?>(null);
+        }
+
+        _handedOut = true;
+        return ValueTask.FromResult<IControllerDevice?>(controller);
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 internal sealed class BlockingController : IControllerDevice

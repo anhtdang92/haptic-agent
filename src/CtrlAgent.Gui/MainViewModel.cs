@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Avalonia.Threading;
 using CtrlAgent.Core;
+using CtrlAgent.Hosting;
 
 namespace CtrlAgent.Gui;
 
@@ -70,8 +71,8 @@ public sealed class MainViewModel : ViewModelBase
         ApproveOnceCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.ApproveOnce)));
         ApproveSessionCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.ApproveForSession)));
         DeclineCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.Decline)));
-        CancelCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.Cancel)));
-        PlayPatternCommand = new RelayCommand(parameter => Fire(e => e.PlayPatternAsync(parameter as string ?? "stop")));
+        CancelCommand = new RelayCommand(_ => Fire(e => e.CancelAsync()));
+        PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
 
         if (engine is null)
         {
@@ -84,14 +85,33 @@ public sealed class MainViewModel : ViewModelBase
             Bindings.Add(DescribeBinding(binding));
         }
 
-        engine.LogEmitted += message => Post(() => AppendLog(message));
+        engine.LogEmitted += message => Post(() => AppendLog($"{DateTimeOffset.Now:HH:mm:ss} {message}"));
         engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
-        engine.AgentStateChanged += state => Post(() => AgentState = state);
+        engine.ControllerConnected += snapshot => Post(() => ControllerStatus =
+            $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : " (XInput fallback)")}");
+        engine.AgentEventReceived += agentEvent => Post(() => AgentState = agentEvent.State.ToString());
         engine.PendingApprovalChanged += message => Post(() =>
         {
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
         });
+    }
+
+    private static Task PreviewPatternAsync(HostEngine engine, string? name)
+    {
+        var pattern = name switch
+        {
+            "working" => HapticPatternCatalog.Working,
+            "approval" => HapticPatternCatalog.ApprovalRequired,
+            "waiting" => HapticPatternCatalog.WaitingForInput,
+            "completed" => HapticPatternCatalog.Completed,
+            "error" => HapticPatternCatalog.Error,
+            _ => null,
+        };
+
+        return pattern is null
+            ? engine.StopHapticsAsync().AsTask()
+            : engine.PlayPatternAsync(pattern).AsTask();
     }
 
     public ObservableCollection<string> Log { get; } = [];

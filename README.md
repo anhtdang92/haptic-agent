@@ -186,6 +186,7 @@ native/
 
 src/
   CtrlAgent.Core/              Contracts, mappings, feedback, and haptics
+  CtrlAgent.Hosting/           Shared HostEngine used by console host and GUI
   CtrlAgent.Platform.Windows/  GameInput bridge client and XInput fallback
   CtrlAgent.Adapters.Mock/     Safe simulated agent
   CtrlAgent.Adapters.Codex/    Codex app-server adapter

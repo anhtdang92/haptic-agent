@@ -1,7 +1,12 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using CtrlAgent.Adapters.ClaudeCode;
+using CtrlAgent.Adapters.Codex;
+using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
+using CtrlAgent.Hosting;
+using CtrlAgent.Platform.Windows;
 
 namespace CtrlAgent.Gui;
 
@@ -31,7 +36,12 @@ public sealed class App : Application
                 var profile = options.ProfilePath is null
                     ? ControllerProfile.Default
                     : ControllerProfileJson.Deserialize(File.ReadAllText(options.ProfilePath));
-                _engine = new HostEngine(options, profile);
+
+                _engine = new HostEngine(
+                    new WindowsControllerProvider(options.GameInputBridgeExecutable),
+                    CreateAgentAdapter(options),
+                    profile,
+                    new HostEngineOptions(options.DefaultPrompt));
             }
             catch (Exception exception)
             {
@@ -70,6 +80,18 @@ public sealed class App : Application
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    private static IAgentAdapter CreateAgentAdapter(GuiOptions options) =>
+        options.Agent switch
+        {
+            "codex" => new CodexAppServerAdapter(new AgentAdapterOptions(
+                options.WorkingDirectory,
+                options.CodexExecutable)),
+            "claude" => new ClaudeCodeAdapter(new AgentAdapterOptions(
+                options.WorkingDirectory,
+                options.ClaudeExecutable)),
+            _ => new MockAgentAdapter(),
+        };
 
     private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs eventArgs)
     {

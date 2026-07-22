@@ -26,7 +26,9 @@ CtrlAgent has two directions through one pipeline:
                     |   CtrlAgent.App      |   |   CtrlAgent.Gui      |
                     |   (console host)     |   |   (Avalonia desktop) |
                     +----------+-----------+   +-----------+----------+
-                               |    hosts (loops + wiring) |
+                               |     CtrlAgent.Hosting     |
+                               |  (shared HostEngine: the  |
+                               |   loops live here once)   |
             +------------------+---------------------------+-----------------+
             |                              |                                 |
 +-----------v-----------+     +------------v-------------+     +-------------v-----------+
@@ -48,7 +50,8 @@ CtrlAgent has two directions through one pipeline:
 Dependency rules:
 
 - **CtrlAgent.Core** is platform-independent and referenced by everything. It must not reference GameInput, XInput, Codex, Claude Code, UI frameworks, or keyboard injection. BCL-only (System.Text.Json is fine).
-- Hosts (App, Gui) are the only projects that reference platform and adapters together.
+- **CtrlAgent.Hosting** references Core only: `HostEngine` takes `IControllerProvider` + `IAgentAdapter` from the host, owns their disposal, runs the controller-session and agent-event loops, and raises events (log, controller status, agent events, pending approval). It is fully testable with fake providers/adapters.
+- Hosts (App, Gui) are the only projects that reference platform and adapters together; they construct concrete providers/adapters and hand them to the engine.
 - Adapters reference Core only. Platform.Windows references Core only.
 
 ## Controller side
@@ -123,7 +126,6 @@ Decisions made since the original blueprint, with rationale:
 ## Still deferred
 
 - Tray process vs long-running service (the GUI is currently a plain window).
-- A shared hosting layer — App and Gui run intentionally-parallel copies of the same loops (flagged in CLAUDE.md; extraction is on the backlog).
 - Profile layers and per-device profile matching.
 - Multi-controller arbitration.
 - Session navigation (multiple Codex threads / Claude session resume).

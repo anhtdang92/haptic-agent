@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CtrlAgent.Core\CtrlAgent.Core.csproj" />
+    <ProjectReference Include="..\CtrlAgent.Hosting\CtrlAgent.Hosting.csproj" />
     <ProjectReference Include="..\CtrlAgent.Platform.Windows\CtrlAgent.Platform.Windows.csproj" />
     <ProjectReference Include="..\CtrlAgent.Adapters.Mock\CtrlAgent.Adapters.Mock.csproj" />
     <ProjectReference Include="..\CtrlAgent.Adapters.Codex\CtrlAgent.Adapters.Codex.csproj" />

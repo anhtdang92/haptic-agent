@@ -42,7 +42,7 @@ These are enforced by tests and/or documented contracts; changes touching them n
 
 - Conventional-commit style subjects (`feat(scope): …`, `fix: …`, `docs: …`, `ci: …`), imperative mood.
 - `Directory.Build.props` applies to all managed projects: net10.0, C# 14, nullable enabled. Keep builds warning-free.
-- The console host (`App/Program.cs`) and GUI (`Gui/HostEngine.cs`) intentionally run parallel loop implementations until a shared hosting layer exists — apply behavioral changes to both.
+- Host-loop behavior (controller sessions, agent events, pending approvals) lives in `CtrlAgent.Hosting.HostEngine` — change it there, not in the App/Gui wiring.
 - Update docs with behavior: `docs/profiles.md` for mapping changes, `docs/adapters.md` for adapter/protocol changes, `docs/architecture.md` decision log for design decisions, `CLAUDE.md` for anything a future coding session must know.
 
 ## Docs map

@@ -2,6 +2,7 @@ using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Adapters.Codex;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
+using CtrlAgent.Hosting;
 using CtrlAgent.Platform.Windows;
 
 namespace CtrlAgent.App;
@@ -63,28 +64,28 @@ internal static class Program
         Console.WriteLine($"Profile: {profile.Name} ({profile.Bindings.Count} bindings)");
         Console.WriteLine("Press Ctrl+C or type 'quit' to exit.");
         Console.WriteLine();
+        Console.WriteLine("Looking for an Xbox controller...");
 
-        await using var provider = new WindowsControllerProvider(options.GameInputBridgeExecutable);
-        await using var adapter = CreateAgentAdapter(options);
-        await adapter.StartAsync(shutdown.Token).ConfigureAwait(false);
+        var engine = new HostEngine(
+            new WindowsControllerProvider(options.GameInputBridgeExecutable),
+            CreateAgentAdapter(options),
+            profile,
+            new HostEngineOptions(options.DefaultPrompt, options.Verbose));
 
-        var haptics = new HapticSchedulerHub();
-        var mapping = new MappingEngine(profile);
-        var state = new HostState();
-
-        var tasks = new[]
-        {
-            RunControllerSessionsAsync(provider, adapter, mapping, state, options, profile, haptics, shutdown.Token),
-            RunAgentLoopAsync(adapter, mapping, state, haptics, shutdown.Token),
-            RunConsoleLoopAsync(adapter, state, options, shutdown),
-        };
+        engine.LogEmitted += Console.WriteLine;
+        engine.ControllerConnected += snapshot => PrintControllerHelp(snapshot, profile);
 
         try
         {
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+            await engine.StartAsync(shutdown.Token).ConfigureAwait(false);
+            await RunConsoleLoopAsync(engine, shutdown).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            await engine.DisposeAsync().ConfigureAwait(false);
         }
 
         return 0;
@@ -125,142 +126,7 @@ internal static class Program
         throw new OperationCanceledException(cancellationToken);
     }
 
-    private static async Task RunControllerSessionsAsync(
-        IControllerProvider provider,
-        IAgentAdapter adapter,
-        MappingEngine mapping,
-        HostState state,
-        AppOptions options,
-        ControllerProfile profile,
-        HapticSchedulerHub haptics,
-        CancellationToken cancellationToken)
-    {
-        // Controllers come and go (unplugged cable, dead bridge process); each
-        // pass acquires a device, runs it until the stream ends, then cleans up
-        // and waits for the next one instead of taking the host down.
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var controller = await WaitForControllerAsync(provider, cancellationToken).ConfigureAwait(false);
-            var scheduler = new HapticScheduler(controller);
-            haptics.Attach(scheduler);
-            PrintControllerHelp(controller, profile);
-
-            try
-            {
-                await RunControllerLoopAsync(controller, adapter, mapping, state, options, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                Console.WriteLine($"[controller] Connection lost: {exception.Message}");
-            }
-            finally
-            {
-                haptics.Detach(scheduler);
-                await scheduler.DisposeAsync().ConfigureAwait(false);
-                await controller.DisposeAsync().ConfigureAwait(false);
-            }
-
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                Console.WriteLine("Controller disconnected. Waiting for a controller...");
-            }
-        }
-    }
-
-    private static async Task RunControllerLoopAsync(
-        IControllerDevice controller,
-        IAgentAdapter adapter,
-        MappingEngine mapping,
-        HostState state,
-        AppOptions options,
-        CancellationToken cancellationToken)
-    {
-        await foreach (var inputEvent in controller.ReadEventsAsync(cancellationToken).ConfigureAwait(false))
-        {
-            if (options.Verbose || inputEvent.Kind != ControllerInputEventKind.ValueChanged)
-            {
-                Console.WriteLine(
-                    $"[controller] {inputEvent.Kind,-12} {inputEvent.Control,-24} {inputEvent.Value,6:F2}");
-            }
-
-            foreach (var command in mapping.Process(inputEvent))
-            {
-                var hydrated = HydrateCommand(command, state, options.DefaultPrompt);
-                Console.WriteLine($"[command]    {hydrated.Kind}");
-                await ExecuteSafelyAsync(adapter, hydrated, cancellationToken).ConfigureAwait(false);
-            }
-        }
-    }
-
-    private static async Task ExecuteSafelyAsync(
-        IAgentAdapter adapter,
-        AgentCommand command,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await adapter.ExecuteAsync(command, cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            Console.WriteLine($"[error]      {command.Kind} failed: {exception.Message}");
-        }
-    }
-
-    private static async Task RunAgentLoopAsync(
-        IAgentAdapter adapter,
-        MappingEngine mapping,
-        HostState state,
-        HapticSchedulerHub haptics,
-        CancellationToken cancellationToken)
-    {
-        var feedback = new FeedbackRouter();
-
-        await foreach (var agentEvent in adapter.ReadEventsAsync(cancellationToken).ConfigureAwait(false))
-        {
-            Console.WriteLine($"[agent]      {agentEvent.State,-18} {agentEvent.Message ?? string.Empty}");
-
-            if (agentEvent.State is AgentStateKind.ApprovalRequired or AgentStateKind.WaitingForInput)
-            {
-                state.SetPendingRequest(agentEvent.SessionId, agentEvent.RequestId);
-                mapping.SetPendingApproval(agentEvent.SessionId, agentEvent.RequestId);
-            }
-            else if (ShouldClearPendingRequest(agentEvent))
-            {
-                state.ClearPendingRequest();
-                mapping.SetPendingApproval(null, null);
-            }
-
-            var pattern = feedback.Route(agentEvent);
-            if (pattern is not null)
-            {
-                await haptics.PlayAsync(pattern, cancellationToken).ConfigureAwait(false);
-            }
-            else if (agentEvent.State == AgentStateKind.Idle)
-            {
-                await haptics.StopAsync(cancellationToken).ConfigureAwait(false);
-            }
-        }
-    }
-
-    private static bool ShouldClearPendingRequest(AgentEvent agentEvent) =>
-        agentEvent.State is AgentStateKind.Completed or AgentStateKind.Error ||
-        (agentEvent.State == AgentStateKind.Working && agentEvent.RequestId is not null);
-
-    private static async Task RunConsoleLoopAsync(
-        IAgentAdapter adapter,
-        HostState state,
-        AppOptions options,
-        CancellationTokenSource shutdown)
+    private static async Task RunConsoleLoopAsync(HostEngine engine, CancellationTokenSource shutdown)
     {
         PrintConsoleHelp();
 
@@ -284,76 +150,57 @@ internal static class Program
             var verb = split < 0 ? trimmed : trimmed[..split];
             var remainder = split < 0 ? string.Empty : trimmed[(split + 1)..].Trim();
 
-            if (verb.Equals("quit", StringComparison.OrdinalIgnoreCase) ||
-                verb.Equals("exit", StringComparison.OrdinalIgnoreCase))
+            switch (verb.ToLowerInvariant())
             {
-                shutdown.Cancel();
-                break;
-            }
+                case "quit":
+                case "exit":
+                    shutdown.Cancel();
+                    return;
 
-            if (verb.Equals("help", StringComparison.OrdinalIgnoreCase))
-            {
-                PrintConsoleHelp();
-                continue;
-            }
+                case "help":
+                    PrintConsoleHelp();
+                    break;
 
-            var command = CreateConsoleCommand(verb, remainder, state, options.DefaultPrompt);
-            if (command is null)
-            {
-                Console.WriteLine("Unknown command or no pending approval. Type 'help'.");
-                continue;
-            }
+                case "prompt":
+                    await engine.SubmitPromptAsync(remainder.Length == 0 ? null : remainder).ConfigureAwait(false);
+                    break;
 
-            await ExecuteSafelyAsync(adapter, command, shutdown.Token).ConfigureAwait(false);
+                case "new":
+                    await engine.NewSessionAsync().ConfigureAwait(false);
+                    break;
+
+                case "review":
+                    await engine.ReviewChangesAsync().ConfigureAwait(false);
+                    break;
+
+                case "interrupt":
+                    await engine.InterruptAsync().ConfigureAwait(false);
+                    break;
+
+                case "approve":
+                    await engine.RespondToApprovalAsync(AgentCommandKind.ApproveOnce).ConfigureAwait(false);
+                    break;
+
+                case "approve-session":
+                    await engine.RespondToApprovalAsync(AgentCommandKind.ApproveForSession).ConfigureAwait(false);
+                    break;
+
+                case "decline":
+                    await engine.RespondToApprovalAsync(AgentCommandKind.Decline).ConfigureAwait(false);
+                    break;
+
+                case "cancel":
+                    await engine.CancelAsync().ConfigureAwait(false);
+                    break;
+
+                default:
+                    Console.WriteLine("Unknown command. Type 'help'.");
+                    break;
+            }
         }
     }
 
-    private static AgentCommand? CreateConsoleCommand(
-        string verb,
-        string remainder,
-        HostState state,
-        string defaultPrompt) =>
-        verb.ToLowerInvariant() switch
-        {
-            "prompt" => new AgentCommand(
-                AgentCommandKind.SubmitPrompt,
-                Text: remainder.Length == 0 ? defaultPrompt : remainder),
-            "new" => new AgentCommand(AgentCommandKind.NewSession),
-            "review" => new AgentCommand(AgentCommandKind.ReviewChanges),
-            "interrupt" => new AgentCommand(AgentCommandKind.Interrupt),
-            "approve" => state.CreateApprovalCommand(AgentCommandKind.ApproveOnce),
-            "approve-session" => state.CreateApprovalCommand(AgentCommandKind.ApproveForSession),
-            "decline" => state.CreateApprovalCommand(AgentCommandKind.Decline),
-            "cancel" => state.CreateApprovalCommand(AgentCommandKind.Cancel)
-                ?? new AgentCommand(AgentCommandKind.Cancel),
-            _ => null,
-        };
-
-    private static AgentCommand HydrateCommand(
-        AgentCommand command,
-        HostState state,
-        string defaultPrompt)
-    {
-        if (command.Kind == AgentCommandKind.SubmitPrompt && string.IsNullOrWhiteSpace(command.Text))
-        {
-            return command with { Text = defaultPrompt };
-        }
-
-        var isApprovalCommand = command.Kind is
-            AgentCommandKind.ApproveOnce or
-            AgentCommandKind.ApproveForSession or
-            AgentCommandKind.Decline or
-            AgentCommandKind.Cancel;
-
-        if (isApprovalCommand && string.IsNullOrWhiteSpace(command.RequestId))
-        {
-            return state.CreateApprovalCommand(command.Kind) ?? command;
-        }
-
-        return command;
-    }
-
-    private static void PrintControllerHelp(IControllerDevice controller, ControllerProfile profile)
+    private static void PrintControllerHelp(ControllerSnapshot controller, ControllerProfile profile)
     {
         Console.WriteLine($"Controller mappings ({profile.Name}):");
 
@@ -387,40 +234,5 @@ internal static class Program
         Console.WriteLine("  approve, approve-session, decline, cancel");
         Console.WriteLine("  help, quit");
         Console.WriteLine();
-    }
-
-    private sealed class HostState
-    {
-        private readonly object _sync = new();
-        private string? _sessionId;
-        private string? _requestId;
-
-        public void SetPendingRequest(string? sessionId, string? requestId)
-        {
-            lock (_sync)
-            {
-                _sessionId = sessionId;
-                _requestId = requestId;
-            }
-        }
-
-        public void ClearPendingRequest()
-        {
-            lock (_sync)
-            {
-                _sessionId = null;
-                _requestId = null;
-            }
-        }
-
-        public AgentCommand? CreateApprovalCommand(AgentCommandKind kind)
-        {
-            lock (_sync)
-            {
-                return string.IsNullOrWhiteSpace(_requestId)
-                    ? null
-                    : new AgentCommand(kind, _sessionId, _requestId);
-            }
-        }
     }
 }

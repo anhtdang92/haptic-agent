@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
 
@@ -16,6 +18,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
+    ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
+    ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
+    ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
 };
 
@@ -313,6 +318,134 @@ static async Task TestHapticHubAsync()
 
     Assert(controller.StopCount > 0, "Disposing the scheduler should stop controller haptics.");
 }
+
+static Task TestValidationReportGatesAsync()
+{
+    var report = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Pass,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Pass);
+    Assert(report.IsGo, "All gates passing should be GO.");
+    Assert(report.Recommendation.StartsWith("GO:", StringComparison.Ordinal), "Expected an unqualified GO.");
+
+    var experimental = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Pass,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Skipped);
+    Assert(experimental.IsGo, "Paddles must not block the GO gates.");
+    Assert(
+        experimental.Recommendation.Contains("experimental", StringComparison.OrdinalIgnoreCase),
+        "Skipped paddles should downgrade to experimental.");
+
+    var noGo = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Fail,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Pass);
+    Assert(!noGo.IsGo, "A failing reconnect gate must be NO-GO.");
+    Assert(
+        noGo.Recommendation.Contains("reconnect", StringComparison.OrdinalIgnoreCase),
+        "The NO-GO reason should name the failing gate.");
+    return Task.CompletedTask;
+}
+
+static Task TestValidationReportMarkdownAsync()
+{
+    var report = SampleReport(
+        standard: ValidationOutcome.Pass,
+        reconnect: ValidationOutcome.Pass,
+        rumble: ValidationOutcome.Pass,
+        paddles: ValidationOutcome.Pass);
+    var markdown = report.ToMarkdown();
+
+    foreach (var expected in new[]
+    {
+        "## Environment",
+        "## Pass/fail",
+        "## Paddle observations",
+        "## Rumble observations",
+        "## Known anomalies",
+        "## Recommendation",
+        "Elite Test Pad",
+        "| Standard controls | Pass |",
+    })
+    {
+        Assert(markdown.Contains(expected, StringComparison.Ordinal), $"Markdown missing '{expected}'.");
+    }
+
+    AssertEqual(
+        "2026-07-22-elite-series-2-usb.md",
+        ValidationReport.SuggestFileName(new DateTimeOffset(2026, 7, 22, 10, 0, 0, TimeSpan.Zero), "USB"));
+    return Task.CompletedTask;
+}
+
+static Task TestClaudeStreamParserAsync()
+{
+    var init = ParseClaudeLine("""{"type":"system","subtype":"init","cwd":"/repo","session_id":"sess-1","tools":[]}""");
+    Assert(init is ClaudeStreamMessage.SessionInit { SessionId: "sess-1" }, "Expected SessionInit.");
+
+    var text = ParseClaudeLine(
+        """{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello there"}]},"session_id":"sess-1"}""");
+    Assert(text is ClaudeStreamMessage.AssistantActivity { Summary: "Hello there" }, "Expected assistant text summary.");
+
+    var tool = ParseClaudeLine(
+        """{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}]},"session_id":"sess-1"}""");
+    Assert(tool is ClaudeStreamMessage.AssistantActivity { Summary: "Using tool: Bash" }, "Expected tool-use summary.");
+
+    var success = ParseClaudeLine(
+        """{"type":"result","subtype":"success","is_error":false,"result":"All done","session_id":"sess-1"}""");
+    Assert(success is ClaudeStreamMessage.TurnResult { IsError: false, Summary: "All done" }, "Expected success result.");
+
+    var failure = ParseClaudeLine(
+        """{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"sess-1"}""");
+    Assert(failure is ClaudeStreamMessage.TurnResult { IsError: true }, "Expected error result.");
+
+    var permission = ParseClaudeLine(
+        """{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"rm x"}}}""");
+    Assert(
+        permission is ClaudeStreamMessage.PermissionRequest { RequestId: "perm-1", ToolName: "Bash" },
+        "Expected permission request.");
+    var request = (ClaudeStreamMessage.PermissionRequest)permission;
+    AssertEqual("rm x", request.Input.GetProperty("command").GetString());
+
+    var canceled = ParseClaudeLine("""{"type":"control_cancel_request","request_id":"perm-1"}""");
+    Assert(canceled is ClaudeStreamMessage.PermissionCanceled { RequestId: "perm-1" }, "Expected cancellation.");
+
+    var noise = ParseClaudeLine("""{"type":"stream_event","event":{}}""");
+    Assert(noise is ClaudeStreamMessage.Ignored, "Unknown message types must be ignored.");
+    return Task.CompletedTask;
+}
+
+static ClaudeStreamMessage ParseClaudeLine(string json)
+{
+    using var document = JsonDocument.Parse(json);
+    return ClaudeStreamParser.Parse(document.RootElement);
+}
+
+static ValidationReport SampleReport(
+    ValidationOutcome standard,
+    ValidationOutcome reconnect,
+    ValidationOutcome rumble,
+    ValidationOutcome paddles) =>
+    new(
+        "Elite Test Pad",
+        "gameinput:primary",
+        "usb",
+        "Test OS",
+        "Test Runtime",
+        new ControllerCapabilities(true, true, true, true, true),
+        [
+            new(ValidationReport.StandardControlsCheckId, "Standard controls", standard),
+            new(ValidationReport.ReconnectCheckId, "Disconnect and reconnect", reconnect),
+            new(ValidationReport.RumbleCheckId, "Distinct rumble cues", rumble),
+            new(ValidationReport.PaddlesCheckId, "Four independent paddles", paddles),
+        ],
+        "paddle notes",
+        "rumble notes",
+        string.Empty,
+        DateTimeOffset.UtcNow);
 
 static ControllerInputEvent Press(ControllerControl control) =>
     new("test-controller", control, ControllerInputEventKind.Pressed, 1f, DateTimeOffset.UtcNow);

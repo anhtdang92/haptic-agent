@@ -98,6 +98,8 @@ Exit gate:
 
 ## Phase 5 — Windows tray application
 
+Status: **In progress** — an Avalonia desktop window (`src/CtrlAgent.Gui`) covers device/agent status, approval actions, prompt submission, haptic preview, active-profile display, and a live event log. Tray icon, mapping editor, notifications, and settings remain. Avalonia was selected over WinUI 3/WPF for testability and future cross-platform frontends.
+
 Deliverables:
 
 - connected-device and agent status;
@@ -113,6 +115,8 @@ Exit gate:
 - a new user can connect a controller, run hardware validation, select a safe starter profile, and use Codex without editing JSON manually.
 
 ## Phase 6 — Additional adapters
+
+Status: **Claude Code adapter implemented** (pulled forward from this phase) — drives the Claude Code CLI over bidirectional stream-json with controller-answered `can_use_tool` permission prompts. Protocol shapes follow the Agent SDK wire format and still need verification against an installed CLI. Approve-for-session currently degrades to approve-once.
 
 Candidates:
 

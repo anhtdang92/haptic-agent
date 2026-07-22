@@ -35,9 +35,12 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
 - Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, collision detection, and validated approval safeguards
 - Crash resilience: Codex app-server restart with backoff, controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
+- Avalonia desktop GUI with live status, approval actions, prompt submission, haptic preview, and event log
+- Guided hardware validation wizard (`--validate`) that generates the per-transport evidence reports
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses
+- Claude Code stream-json adapter with prompt turns, interrupt, restart-on-crash, and controller-answered tool-permission prompts
 - Dependency-free automated test harness
 - Windows GitHub Actions builds for managed and native components
 
@@ -96,6 +99,7 @@ Profiles are validated before they load. Ambiguous combinations (for example `pr
 - Visual Studio C++ build tools for the optional native GameInput bridge
 - Microsoft GameInput redistributable for GameInput v3 functionality
 - Codex installed and authenticated when using `--agent codex`
+- Claude Code installed and authenticated when using `--agent claude`
 
 ## Build and test
 
@@ -111,6 +115,16 @@ Build the native bridge from a Visual Studio developer shell:
 msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
 ```
 
+## Run the desktop GUI
+
+An Avalonia desktop app provides live controller/agent status, an approval banner with the four approval actions, prompt submission, a haptic-pattern preview, the active profile's bindings, and an event log:
+
+```powershell
+dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
+```
+
+The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--gameinput-bridge`, and `--profile` options as the console host.
+
 ## Run with the mock agent
 
 Connect an Xbox controller and run:
@@ -120,6 +134,16 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock
 ```
 
 The mock agent can produce working, approval-required, completed, and interrupted states so the full controller-to-agent-to-rumble loop can be tested safely.
+
+## Run with Claude Code
+
+```powershell
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- \
+  --agent claude \
+  --cwd C:\path\to\your\repository
+```
+
+The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the paddles (approve maps to allow, decline to deny). Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable. Approve-for-session currently behaves as approve-once.
 
 ## Run with Codex
 
@@ -156,7 +180,9 @@ src/
   CtrlAgent.Platform.Windows/  GameInput bridge client and XInput fallback
   CtrlAgent.Adapters.Mock/     Safe simulated agent
   CtrlAgent.Adapters.Codex/    Codex app-server adapter
+  CtrlAgent.Adapters.ClaudeCode/ Claude Code stream-json adapter
   CtrlAgent.App/               End-to-end Windows console host
+  CtrlAgent.Gui/               Avalonia desktop app (status, approvals, log)
   CtrlAgent.Demo/              Haptic-pattern demonstration
 
 tests/
@@ -170,7 +196,13 @@ docs/
 
 ## Hardware validation still required
 
-Software builds cannot prove how every Elite firmware and connection mode behaves. The first real-device pass must verify:
+Software builds cannot prove how every Elite firmware and connection mode behaves. A guided wizard walks through the validation plan on a real controller and writes the evidence report to `validation/<date>-elite-series-2-<transport>.md`, including a go/no-go recommendation:
+
+```powershell
+dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --validate
+```
+
+Run it once per transport (USB, Xbox Wireless Adapter, Bluetooth). The first real-device pass must verify:
 
 - all four paddles over USB, Xbox Wireless, and Bluetooth;
 - low/high and trigger-rumble channels;

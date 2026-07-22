@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  managed:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore
+        run: dotnet restore HapticAgent.sln
+
+      - name: Build
+        run: dotnet build HapticAgent.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet run --project tests/HapticAgent.Tests/HapticAgent.Tests.csproj --configuration Release --no-build
+
+  native-gameinput:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore and build GameInput bridge
+        run: >-
+          msbuild native/HapticAgent.GameInputBridge/HapticAgent.GameInputBridge.vcxproj
+          /restore
+          /m
+          /p:Configuration=Release
+          /p:Platform=x64

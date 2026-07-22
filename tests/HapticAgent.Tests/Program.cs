@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using HapticAgent.Adapters.Mock;
 using HapticAgent.Core;
 
@@ -5,6 +6,7 @@ var tests = new (string Name, Func<Task> Run)[]
 {
     ("Rumble frames clamp motor values", TestRumbleClampingAsync),
     ("Feedback router selects completion cue", TestFeedbackRoutingAsync),
+    ("Looping haptics do not block the event loop", TestNonBlockingHapticSchedulerAsync),
     ("Plain A submits a prompt", TestPlainMappingAsync),
     ("LB+A overrides plain A", TestChordPriorityAsync),
     ("Approval chord does not fall through", TestApprovalSafetyAsync),
@@ -58,6 +60,26 @@ static Task TestFeedbackRoutingAsync()
     Assert(pattern is not null, "Expected a haptic pattern.");
     AssertEqual("completed", pattern.Name);
     return Task.CompletedTask;
+}
+
+static async Task TestNonBlockingHapticSchedulerAsync()
+{
+    await using var controller = new BlockingController();
+    await using var scheduler = new HapticScheduler(controller);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+    await scheduler.PlayAsync(HapticPatternCatalog.ApprovalRequired, timeout.Token)
+        .ConfigureAwait(false);
+    await controller.Started.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    Assert(
+        !controller.Completed.Task.IsCompleted,
+        "A looping cue should still be running after PlayAsync returns.");
+
+    await scheduler.StopAsync(timeout.Token).ConfigureAwait(false);
+    await controller.Completed.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    Assert(controller.StopCount > 0, "Stopping the scheduler should stop controller haptics.");
 }
 
 static Task TestPlainMappingAsync()
@@ -147,5 +169,69 @@ static void AssertEqual<T>(T expected, T actual)
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
     {
         throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
+    }
+}
+
+internal sealed class BlockingController : IControllerDevice
+{
+    private int _stopCount;
+
+    public TaskCompletionSource<bool> Started { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public TaskCompletionSource<bool> Completed { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public string Id => "blocking-controller";
+
+    public string DisplayName => "Blocking test controller";
+
+    public ControllerCapabilities Capabilities { get; } = new(
+        HasFourPaddles: true,
+        HasLowFrequencyRumble: true,
+        HasHighFrequencyRumble: true,
+        HasLeftTriggerRumble: true,
+        HasRightTriggerRumble: true);
+
+    public bool IsConnected => true;
+
+    public int StopCount => Volatile.Read(ref _stopCount);
+
+    public async IAsyncEnumerable<ControllerInputEvent> ReadEventsAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.Yield();
+        cancellationToken.ThrowIfCancellationRequested();
+        yield break;
+    }
+
+    public async ValueTask PlayAsync(
+        HapticPattern pattern,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+        Started.TrySetResult(true);
+
+        try
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            Completed.TrySetResult(true);
+        }
+    }
+
+    public ValueTask StopHapticsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Interlocked.Increment(ref _stopCount);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Completed.TrySetResult(true);
+        return ValueTask.CompletedTask;
     }
 }

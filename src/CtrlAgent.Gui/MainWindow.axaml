@@ -24,25 +24,95 @@
           <GradientStop Color="#F0081226" Offset="1" />
         </LinearGradientBrush>
       </Border.Background>
-      <StackPanel Spacing="10" HorizontalAlignment="Center">
-        <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
-               Height="96"
-               HorizontalAlignment="Center"
-               RenderOptions.BitmapInterpolationMode="HighQuality" />
-        <TextBlock Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
-                   Classes="label"
-                   FontSize="11"
-                   HorizontalAlignment="Center" />
-        <Border Height="2" Width="320" CornerRadius="1" HorizontalAlignment="Center">
-          <Border.Background>
-            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-              <GradientStop Color="#0000D4FF" Offset="0" />
-              <GradientStop Color="#FF00D4FF" Offset="0.5" />
-              <GradientStop Color="#0000D4FF" Offset="1" />
-            </LinearGradientBrush>
-          </Border.Background>
-        </Border>
-      </StackPanel>
+      <Grid ColumnDefinitions="Auto,*">
+
+        <!-- CTRL·BOT: the resident agent companion -->
+        <StackPanel Orientation="Horizontal"
+                    Spacing="12"
+                    VerticalAlignment="Center"
+                    DataContext="{Binding Buddy}"
+                    x:DataType="gui:AgentBuddyViewModel">
+          <Canvas Width="86" Height="100">
+            <!-- Antenna; the tip carries the mood color -->
+            <Border Canvas.Left="41" Canvas.Top="8" Width="4" Height="14" Background="#2E4A78" />
+            <Ellipse Canvas.Left="38" Canvas.Top="0" Width="10" Height="10" Fill="{Binding AccentBrush}" />
+
+            <!-- Head -->
+            <Border Canvas.Left="8" Canvas.Top="22" Width="70" Height="58"
+                    CornerRadius="14"
+                    Background="#0B1322"
+                    BorderBrush="{Binding AccentBrush}"
+                    BorderThickness="2" />
+            <!-- Face screen -->
+            <Border Canvas.Left="15" Canvas.Top="30" Width="56" Height="36"
+                    CornerRadius="8"
+                    Background="#060B14" />
+
+            <!-- Eyes: one variant per mood -->
+            <Canvas IsVisible="{Binding IsIdle}">
+              <Border Canvas.Left="24" Canvas.Top="45" Width="13" Height="5" CornerRadius="2" Background="#2E6E8E" />
+              <Border Canvas.Left="49" Canvas.Top="45" Width="13" Height="5" CornerRadius="2" Background="#2E6E8E" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsWorking}">
+              <Ellipse Canvas.Left="24" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
+              <Ellipse Canvas.Left="49" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsAlert}">
+              <Ellipse Canvas.Left="23" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
+              <Ellipse Canvas.Left="48" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsHappy}">
+              <Path Canvas.Left="24" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
+              <Path Canvas.Left="49" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsError}">
+              <Path Canvas.Left="24" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
+              <Path Canvas.Left="49" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
+            </Canvas>
+
+            <!-- Mouth + chassis -->
+            <Border Canvas.Left="36" Canvas.Top="58" Width="14" Height="3" CornerRadius="1.5" Background="#1C3050" />
+            <Border Canvas.Left="24" Canvas.Top="84" Width="38" Height="12" CornerRadius="6"
+                    Background="#0B1322" BorderBrush="#2E4A78" BorderThickness="1.5" />
+            <TextBlock Canvas.Left="16" Canvas.Top="99" Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5" />
+          </Canvas>
+
+          <!-- Speech bubble: contextual shortcut coaching -->
+          <Border Background="#C0122038"
+                  BorderBrush="#552E4A78"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="12,8"
+                  MaxWidth="260"
+                  VerticalAlignment="Center">
+            <TextBlock Text="{Binding Message}"
+                       TextWrapping="Wrap"
+                       FontSize="12"
+                       Foreground="#CFE1FF" />
+          </Border>
+        </StackPanel>
+
+        <!-- Wordmark -->
+        <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                 Height="78"
+                 HorizontalAlignment="Center"
+                 RenderOptions.BitmapInterpolationMode="HighQuality" />
+          <TextBlock Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
+                     Classes="label"
+                     FontSize="11"
+                     HorizontalAlignment="Center" />
+          <Border Height="2" Width="300" CornerRadius="1" HorizontalAlignment="Center">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                <GradientStop Color="#0000D4FF" Offset="0" />
+                <GradientStop Color="#FF00D4FF" Offset="0.5" />
+                <GradientStop Color="#0000D4FF" Offset="1" />
+              </LinearGradientBrush>
+            </Border.Background>
+          </Border>
+        </StackPanel>
+      </Grid>
     </Border>
 
     <!-- Status row -->

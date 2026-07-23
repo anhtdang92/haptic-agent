@@ -89,6 +89,8 @@ public sealed class MainViewModel : ViewModelBase
             Bindings.Add(DescribeBinding(binding));
         }
 
+        Buddy.SetProfile(engine.Profile);
+
         engine.LogEmitted += message => Post(() => AppendLog($"{DateTimeOffset.Now:HH:mm:ss} {message}"));
         engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
         engine.ControllerConnected += snapshot => Post(() => ControllerStatus =
@@ -98,6 +100,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             AgentState = agentEvent.State.ToString();
             SessionId = agentEvent.SessionId;
+            Buddy.OnAgentEvent(agentEvent);
         });
         engine.PendingApprovalChanged += message => Post(() =>
         {
@@ -112,6 +115,8 @@ public sealed class MainViewModel : ViewModelBase
             {
                 Bindings.Add(DescribeBinding(binding));
             }
+
+            Buddy.SetProfile(applied);
         });
     }
 
@@ -139,6 +144,8 @@ public sealed class MainViewModel : ViewModelBase
     public ObservableCollection<string> Bindings { get; } = [];
 
     public ControllerVisualViewModel ControllerVisual { get; } = new();
+
+    public AgentBuddyViewModel Buddy { get; } = new();
 
     public ICommand SubmitPromptCommand { get; }
 

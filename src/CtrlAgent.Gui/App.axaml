@@ -65,6 +65,15 @@
       <Setter Property="Padding" Value="13,7" />
       <Setter Property="FontSize" Value="13" />
     </Style>
+    <!-- Hover/press states glide instead of snapping -->
+    <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="#1E2E52" />
       <Setter Property="BorderBrush" Value="#9900D4FF" />
@@ -125,12 +134,20 @@
       <Setter Property="BorderBrush" Value="#FF5A78" />
     </Style>
 
-    <!-- Inputs -->
+    <!-- Inputs: keep the glass background in every state, glow cyan on focus -->
     <Style Selector="TextBox">
       <Setter Property="Background" Value="#A00C1424" />
       <Setter Property="Foreground" Value="#E4EEFF" />
       <Setter Property="BorderBrush" Value="#552E4A78" />
       <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#A00C1424" />
+      <Setter Property="BorderBrush" Value="#883D6FA5" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#A00C1424" />
+      <Setter Property="BorderBrush" Value="#CC00D4FF" />
     </Style>
     <Style Selector="ComboBox">
       <Setter Property="Background" Value="#A00C1424" />
@@ -142,6 +159,44 @@
     <!-- Lists sit flush inside cards -->
     <Style Selector="ListBox">
       <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- Live status dots breathe while their subsystem wants attention -->
+    <Style Selector="Ellipse.pulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.4" IterationCount="Infinite">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="0.35" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- Dim helper text for empty panels -->
+    <Style Selector="TextBlock.placeholder">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="#5A7099" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+
+    <!-- Tooltips match the glass cards instead of the stock theme -->
+    <Style Selector="ToolTip">
+      <Setter Property="Background" Value="#F0101A2E" />
+      <Setter Property="Foreground" Value="#CFE1FF" />
+      <Setter Property="BorderBrush" Value="#663D6FA5" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="FontSize" Value="12" />
     </Style>
 
   </Application.Styles>

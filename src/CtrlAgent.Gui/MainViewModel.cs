@@ -73,6 +73,10 @@ public sealed class MainViewModel : ViewModelBase
     private IBrush _controllerDotBrush = DotWarn;
     private IBrush _agentDotBrush = DotOff;
     private IBrush _profileDotBrush = DotOff;
+    private bool _isControllerSearching = true;
+    private bool _isAgentActive;
+    private bool _isLogEmpty = true;
+    private bool _isBindingsEmpty = true;
     private bool _isSetupVisible;
     private string _setupAgent = "mock";
     private string _setupWorkingDirectory = Environment.CurrentDirectory;
@@ -127,6 +131,8 @@ public sealed class MainViewModel : ViewModelBase
             Bindings.Add(BindingRow.From(binding));
         }
 
+        IsBindingsEmpty = Bindings.Count == 0;
+
         Buddy.SetProfile(engine.Profile);
         _approvalControls = ComputeApprovalControls(engine.Profile);
 
@@ -135,12 +141,14 @@ public sealed class MainViewModel : ViewModelBase
         {
             ControllerStatus = status;
             ControllerDotBrush = status.StartsWith("Disconnected", StringComparison.Ordinal) ? DotBad : DotWarn;
+            IsControllerSearching = true;
         });
         engine.ControllerConnected += snapshot => Post(() =>
         {
             ControllerStatus =
                 $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : string.Empty)}";
             ControllerDotBrush = DotGood;
+            IsControllerSearching = false;
             ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
         });
         engine.ControllerInputReceived += inputEvent => Post(() => ControllerVisual.Apply(inputEvent));
@@ -156,6 +164,10 @@ public sealed class MainViewModel : ViewModelBase
                 AgentStateKind.Completed or AgentStateKind.Idle => DotGood,
                 _ => DotOff,
             };
+            IsAgentActive = agentEvent.State is
+                AgentStateKind.Working or
+                AgentStateKind.ApprovalRequired or
+                AgentStateKind.WaitingForInput;
             Buddy.OnAgentEvent(agentEvent);
         });
         engine.PendingApprovalChanged += message => Post(() =>
@@ -174,6 +186,8 @@ public sealed class MainViewModel : ViewModelBase
             {
                 Bindings.Add(BindingRow.From(binding));
             }
+
+            IsBindingsEmpty = Bindings.Count == 0;
 
             Buddy.SetProfile(applied);
             _approvalControls = ComputeApprovalControls(applied);
@@ -323,8 +337,35 @@ public sealed class MainViewModel : ViewModelBase
         set => Set(ref _profileDotBrush, value);
     }
 
+    /// <summary>True until a controller connects; pulses the controller dot.</summary>
+    public bool IsControllerSearching
+    {
+        get => _isControllerSearching;
+        set => Set(ref _isControllerSearching, value);
+    }
+
+    /// <summary>True while the agent works or waits on an approval; pulses the agent dot.</summary>
+    public bool IsAgentActive
+    {
+        get => _isAgentActive;
+        set => Set(ref _isAgentActive, value);
+    }
+
+    public bool IsLogEmpty
+    {
+        get => _isLogEmpty;
+        set => Set(ref _isLogEmpty, value);
+    }
+
+    public bool IsBindingsEmpty
+    {
+        get => _isBindingsEmpty;
+        set => Set(ref _isBindingsEmpty, value);
+    }
+
     public void AppendLog(string message)
     {
+        IsLogEmpty = false;
         Log.Add(LogEntry.Create(message));
         while (Log.Count > MaxLogEntries)
         {

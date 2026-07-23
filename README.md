@@ -12,15 +12,28 @@ It turns a game controller into a two-way agent control surface:
 - Agent lifecycle events return to the controller as distinct haptic patterns.
 - A local mapping engine supports normal buttons, modifier chords, gestures (tap, hold, double-press), and extra rear paddles where the hardware exposes them.
 
-## Supported controllers
+## Support matrix
 
-One controller family today, many planned. The mapping engine, profiles, and haptics are controller-agnostic (`IControllerDevice`); adding a controller means adding a device adapter.
+Both sides of CtrlAgent are pluggable: controllers implement `IControllerDevice`, agent platforms implement `IAgentAdapter`. The goal is all popular controllers driving all popular agentic coding platforms.
+
+**Controllers**
 
 | Controller | Status |
 |---|---|
 | Xbox-family pads (XInput) | Supported — buttons, sticks, triggers, two-motor rumble |
 | Xbox Elite Series 2 (GameInput bridge) | Supported — adds four independent paddles and trigger rumble |
-| DualSense, generic SDL/GameInput devices | Planned |
+| PlayStation 5 DualSense | Planned next — raw HID adapter (buttons, sticks, rumble, lightbar as status) |
+| Other popular pads (SDL/GameInput) | Planned |
+
+**Agent platforms**
+
+| Platform | Status |
+|---|---|
+| Mock (safe testing) | Supported |
+| OpenAI Codex (app-server JSONL) | Implemented — live verification pending |
+| Claude Code (stream-json) | Implemented — live verification pending |
+| Cursor (cursor-agent CLI) | Planned — protocol research needed |
+| Google Antigravity | Planned — integration path under research |
 
 > **Status:** pre-alpha MVP. The managed application, mappings, mock-agent loop, Codex app-server adapter, XInput fallback, tests, and CI are implemented. The native GameInput bridge still requires real Elite-controller validation.
 

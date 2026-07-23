@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-CtrlAgent turns a game controller into a two-way control surface for AI coding agents: controller inputs become agent commands (submit, interrupt, approve, decline, switch session), and agent lifecycle events come back as distinct rumble patterns. Controller support is deliberately pluggable (`IControllerDevice`); today that's Xbox-family pads via XInput plus Elite Series 2 paddles via the GameInput bridge, with more controllers planned — don't frame the product as Xbox-specific. Windows-first, pre-alpha MVP.
+CtrlAgent turns a game controller into a two-way control surface for AI coding agents: controller inputs become agent commands (submit, interrupt, approve, decline, switch session), and agent lifecycle events come back as distinct rumble patterns. Both sides are deliberately pluggable — controllers via `IControllerDevice` (today: Xbox-family/XInput plus Elite Series 2 paddles via the GameInput bridge; next: PS5 DualSense over raw HID), agents via `IAgentAdapter` (today: Codex and Claude Code; planned: Cursor, Google Antigravity). The product direction is all popular controllers × all popular agentic platforms — don't frame it as Xbox- or single-agent-specific. Windows-first, pre-alpha MVP.
 
 ## Build and test
 

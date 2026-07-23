@@ -63,8 +63,8 @@ Haptic scheduler <--------- Feedback router <- Agent events
 - Guided hardware validation wizard (`--validate`) that generates the per-transport evidence reports
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without Codex
-- Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, and approval responses
-- Claude Code stream-json adapter with prompt turns, interrupt, restart-on-crash, and controller-answered tool-permission prompts
+- Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, approval responses, D-pad thread switching, and thread resume after a crash
+- Claude Code stream-json adapter with prompt turns, interrupt, controller-answered tool-permission prompts, and multi-session switching/crash recovery via `--resume`
 - Dependency-free automated test harness
 - Windows GitHub Actions builds for managed and native components
 
@@ -112,7 +112,7 @@ Each binding names a control, a gesture, and a command:
 }
 ```
 
-Supported gestures: `press`, `release`, `tap`, `hold`, `doublePress`, and `axisThreshold` (with `minimumValue`). `modifiers` turns a binding into a chord, and `text` overrides the prompt for `submitPrompt`.
+Supported gestures: `press`, `release`, `tap`, `hold`, `doublePress`, and `axisThreshold` (with `minimumValue`). `modifiers` turns a binding into a chord, and `text` overrides the prompt for `submitPrompt`. Optional `layers` let one profile adapt to hardware — a `requiresPaddles` layer only activates on paddle-equipped controllers, a `withoutPaddles` layer only without them (see [the profile reference](docs/profiles.md)).
 
 Profiles are validated before they load. Ambiguous combinations (for example `press` and `hold` on the same chord) are rejected, `approveOnce`/`approveForSession`/`decline` bindings must set `requiresPendingApproval`, and approvals must sit on a paddle, a chord, or a hold gesture so a single accidental face-button press can never approve anything.
 

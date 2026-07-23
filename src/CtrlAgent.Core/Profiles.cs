@@ -25,25 +25,29 @@ public static class ControllerProfileValidator
             errors.Add("Profile must contain at least one binding.");
         }
 
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var gesturesByChord = new Dictionary<string, HashSet<InputGesture>>(StringComparer.Ordinal);
+        var layerActivations = new Dictionary<string, LayerActivation>(StringComparer.OrdinalIgnoreCase);
+        foreach (var layer in profile.Layers ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(layer.Name))
+            {
+                errors.Add("Layer names must not be empty.");
+                continue;
+            }
+
+            if (!layerActivations.TryAdd(layer.Name, layer.Activation))
+            {
+                errors.Add($"Duplicate layer name '{layer.Name}'.");
+            }
+        }
 
         foreach (var binding in profile.Bindings)
         {
             var chord = Describe(binding);
 
-            if (!seen.Add($"{chord}|{binding.Gesture}"))
+            if (binding.Layer is not null && !layerActivations.ContainsKey(binding.Layer))
             {
-                errors.Add($"Duplicate {binding.Gesture} binding on '{chord}'.");
+                errors.Add($"Binding on '{chord}' references undefined layer '{binding.Layer}'.");
             }
-
-            if (!gesturesByChord.TryGetValue(chord, out var gestures))
-            {
-                gestures = [];
-                gesturesByChord[chord] = gestures;
-            }
-
-            gestures.Add(binding.Gesture);
 
             if (binding.Gesture == InputGesture.AxisThreshold &&
                 (binding.MinimumValue <= 0f || binding.MinimumValue > 1f))
@@ -62,6 +66,65 @@ public static class ControllerProfileValidator
             }
 
             ValidateApprovalSafety(binding, chord, errors);
+        }
+
+        // Collision rules apply only among bindings that can be active at the
+        // same time. A paddles-only layer and a no-paddles layer are mutually
+        // exclusive, so the same chord may appear in both. Check each device
+        // "world" (paddles present / absent) and de-duplicate the messages.
+        var collisionErrors = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var paddlesPresent in (bool[])[true, false])
+        {
+            var active = profile.Bindings
+                .Where(binding => IsActiveInWorld(binding, layerActivations, paddlesPresent))
+                .ToArray();
+            CheckCollisions(active, collisionErrors);
+        }
+
+        errors.AddRange(collisionErrors);
+        return errors;
+    }
+
+    private static bool IsActiveInWorld(
+        InputBinding binding,
+        Dictionary<string, LayerActivation> layerActivations,
+        bool paddlesPresent)
+    {
+        if (binding.Layer is null ||
+            !layerActivations.TryGetValue(binding.Layer, out var activation))
+        {
+            return true;
+        }
+
+        return activation switch
+        {
+            LayerActivation.RequiresPaddles => paddlesPresent,
+            LayerActivation.WithoutPaddles => !paddlesPresent,
+            _ => true,
+        };
+    }
+
+    private static void CheckCollisions(IReadOnlyList<InputBinding> bindings, HashSet<string> errors)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var gesturesByChord = new Dictionary<string, HashSet<InputGesture>>(StringComparer.Ordinal);
+
+        foreach (var binding in bindings)
+        {
+            var chord = Describe(binding);
+
+            if (!seen.Add($"{chord}|{binding.Gesture}"))
+            {
+                errors.Add($"Duplicate {binding.Gesture} binding on '{chord}'.");
+            }
+
+            if (!gesturesByChord.TryGetValue(chord, out var gestures))
+            {
+                gestures = [];
+                gesturesByChord[chord] = gestures;
+            }
+
+            gestures.Add(binding.Gesture);
         }
 
         foreach (var (chord, gestures) in gesturesByChord)
@@ -83,8 +146,6 @@ public static class ControllerProfileValidator
                 errors.Add($"'{chord}' mixes Tap with DoublePress; the first tap would fire both.");
             }
         }
-
-        return errors;
     }
 
     private static void ValidateApprovalSafety(InputBinding binding, string chord, List<string> errors)
@@ -159,8 +220,16 @@ public static class ControllerProfileJson
         {
             Version = CurrentVersion,
             Name = profile.Name,
+            Layers = profile.Layers is { Count: > 0 }
+                ? profile.Layers.Select(layer => new LayerDocument
+                {
+                    Name = layer.Name,
+                    Activation = ToCamel(layer.Activation.ToString()),
+                }).ToList()
+                : null,
             Bindings = profile.Bindings.Select(binding => new BindingDocument
             {
+                Layer = binding.Layer,
                 Control = ToCamel(binding.Control.ToString()),
                 Gesture = ToCamel(binding.Gesture.ToString()),
                 Command = ToCamel(binding.Command.ToString()),
@@ -204,6 +273,23 @@ public static class ControllerProfileJson
             errors.Add($"Unsupported profile version '{document.Version?.ToString() ?? "missing"}'; expected {CurrentVersion}.");
         }
 
+        List<ProfileLayer>? layers = null;
+        if (document.Layers is { Count: > 0 })
+        {
+            layers = [];
+            for (var index = 0; index < document.Layers.Count; index++)
+            {
+                var layerDocument = document.Layers[index];
+                if (!Enum.TryParse<LayerActivation>(layerDocument.Activation, ignoreCase: true, out var activation))
+                {
+                    errors.Add($"Layer {index + 1} has an unknown activation '{layerDocument.Activation}'.");
+                    continue;
+                }
+
+                layers.Add(new ProfileLayer(layerDocument.Name ?? string.Empty, activation));
+            }
+        }
+
         var bindings = new List<InputBinding>();
         var documents = document.Bindings ?? [];
 
@@ -216,7 +302,7 @@ public static class ControllerProfileJson
             }
         }
 
-        var profile = new ControllerProfile(document.Name ?? string.Empty, bindings);
+        var profile = new ControllerProfile(document.Name ?? string.Empty, bindings, layers);
 
         if (errors.Count == 0)
         {
@@ -301,7 +387,8 @@ public static class ControllerProfileJson
             document.Text,
             document.RequiresPendingApproval ?? false,
             document.HoldMilliseconds is { } hold ? TimeSpan.FromMilliseconds(hold) : null,
-            document.DoublePressMilliseconds is { } window ? TimeSpan.FromMilliseconds(window) : null);
+            document.DoublePressMilliseconds is { } window ? TimeSpan.FromMilliseconds(window) : null,
+            document.Layer);
     }
 
     private static string ToCamel(string name) =>
@@ -313,11 +400,22 @@ public static class ControllerProfileJson
 
         public string? Name { get; set; }
 
+        public List<LayerDocument>? Layers { get; set; }
+
         public List<BindingDocument>? Bindings { get; set; }
+    }
+
+    private sealed class LayerDocument
+    {
+        public string? Name { get; set; }
+
+        public string? Activation { get; set; }
     }
 
     private sealed class BindingDocument
     {
+        public string? Layer { get; set; }
+
         public string? Control { get; set; }
 
         public string? Gesture { get; set; }

@@ -10,6 +10,26 @@ public enum InputGesture
     DoublePress,
 }
 
+/// <summary>
+/// Controls when a profile layer's bindings are active. Layers let one profile
+/// serve different hardware: paddle bindings that vanish on a pad without
+/// paddles, and fallback chords that only exist when paddles are missing.
+/// </summary>
+public enum LayerActivation
+{
+    /// <summary>The layer is always active (same as an unlayered binding).</summary>
+    Always = 0,
+
+    /// <summary>Active only while the connected controller reports four paddles.</summary>
+    RequiresPaddles,
+
+    /// <summary>Active only while the connected controller reports no paddles.</summary>
+    WithoutPaddles,
+}
+
+/// <summary>A named group of bindings with a device-capability activation rule.</summary>
+public sealed record ProfileLayer(string Name, LayerActivation Activation);
+
 public sealed record InputBinding(
     ControllerControl Control,
     InputGesture Gesture,
@@ -19,7 +39,8 @@ public sealed record InputBinding(
     string? Text = null,
     bool RequiresPendingApproval = false,
     TimeSpan? HoldDuration = null,
-    TimeSpan? DoublePressWindow = null)
+    TimeSpan? DoublePressWindow = null,
+    string? Layer = null)
 {
     public static readonly TimeSpan DefaultHoldDuration = TimeSpan.FromMilliseconds(400);
 
@@ -32,7 +53,8 @@ public sealed record InputBinding(
 
 public sealed record ControllerProfile(
     string Name,
-    IReadOnlyList<InputBinding> Bindings)
+    IReadOnlyList<InputBinding> Bindings,
+    IReadOnlyList<ProfileLayer>? Layers = null)
 {
     private static readonly IReadOnlySet<ControllerControl> LeftShoulder =
         new HashSet<ControllerControl> { ControllerControl.LeftShoulder };
@@ -75,11 +97,13 @@ public sealed class MappingEngine
 {
     private readonly object _sync = new();
     private readonly ControllerProfile _profile;
+    private readonly Dictionary<string, LayerActivation> _layerActivations;
     private readonly HashSet<ControllerControl> _pressed = [];
     private readonly Dictionary<ControllerControl, DateTimeOffset> _pressStarted = [];
     private readonly Dictionary<ControllerControl, DateTimeOffset> _lastPress = [];
     private readonly Dictionary<ControllerControl, float> _axisValues = [];
     private PendingApproval? _pendingApproval;
+    private ControllerCapabilities? _capabilities;
 
     public MappingEngine(ControllerProfile profile)
     {
@@ -94,6 +118,21 @@ public sealed class MappingEngine
         }
 
         _profile = profile;
+        _layerActivations = (profile.Layers ?? [])
+            .ToDictionary(layer => layer.Name, layer => layer.Activation, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Tells the engine what the connected controller can do, which decides
+    /// which profile layers are active. Until capabilities are known (null),
+    /// every layer is active — the pre-layer behavior.
+    /// </summary>
+    public void SetDeviceCapabilities(ControllerCapabilities? capabilities)
+    {
+        lock (_sync)
+        {
+            _capabilities = capabilities;
+        }
     }
 
     public void SetPendingApproval(string? sessionId, string? requestId)
@@ -160,6 +199,7 @@ public sealed class MappingEngine
             }
 
             var structuralMatches = _profile.Bindings
+                .Where(IsLayerActive)
                 .Where(binding => StructurallyMatches(
                     binding,
                     inputEvent,
@@ -254,6 +294,22 @@ public sealed class MappingEngine
 
     private bool IsEligible(InputBinding binding) =>
         !binding.RequiresPendingApproval || _pendingApproval is not null;
+
+    private bool IsLayerActive(InputBinding binding)
+    {
+        if (binding.Layer is null ||
+            !_layerActivations.TryGetValue(binding.Layer, out var activation))
+        {
+            return true;
+        }
+
+        return activation switch
+        {
+            LayerActivation.RequiresPaddles => _capabilities?.HasFourPaddles ?? true,
+            LayerActivation.WithoutPaddles => !(_capabilities?.HasFourPaddles ?? false),
+            _ => true,
+        };
+    }
 
     private sealed record PendingApproval(string? SessionId, string RequestId);
 }

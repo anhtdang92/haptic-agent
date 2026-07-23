@@ -18,6 +18,10 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 {
   "version": 1,
   "name": "my-profile",
+  "layers": [
+    { "name": "paddles", "activation": "requiresPaddles" },
+    { "name": "fallback", "activation": "withoutPaddles" }
+  ],
   "bindings": [
     { "control": "a", "gesture": "press", "command": "submitPrompt" },
     { "control": "x", "gesture": "doublePress", "command": "reviewChanges" },
@@ -33,13 +37,14 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
       "gesture": "hold",
       "holdMilliseconds": 400,
       "command": "approveOnce",
-      "requiresPendingApproval": true
+      "requiresPendingApproval": true,
+      "layer": "paddles"
     }
   ]
 }
 ```
 
-`version` must be `1`. Names are case-insensitive; unknown fields are ignored; comments and trailing commas are tolerated.
+`version` must be `1`. Names are case-insensitive; unknown fields are ignored; comments and trailing commas are tolerated. `layers` is optional — a profile without it behaves exactly as before.
 
 ## Binding fields
 
@@ -54,6 +59,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 | `requiresPendingApproval` | bool | false | Binding fires only while an approval request is pending; the command is hydrated with the pending session/request ids |
 | `holdMilliseconds` | int | 400 | `tap`/`hold` threshold |
 | `doublePressMilliseconds` | int | 300 | `doublePress` window |
+| `layer` | string | none | Membership in a declared layer; the binding is only active while that layer is (see Layers) |
 
 ## Gestures
 
@@ -70,13 +76,30 @@ Durations are computed from the timestamps stamped on device events, so gesture 
 
 ### Matching pipeline
 
-For each input event: structural matches are collected → only bindings with the **highest modifier count** survive (chords beat plain buttons) → ineligible approval bindings are dropped. The order matters: an approval chord that is structurally matched but ineligible (no pending request) suppresses the plain-button binding underneath it rather than falling through.
+For each input event: bindings in inactive layers are dropped → structural matches are collected → only bindings with the **highest modifier count** survive (chords beat plain buttons) → ineligible approval bindings are dropped. The order matters: an approval chord that is structurally matched but ineligible (no pending request) suppresses the plain-button binding underneath it rather than falling through.
+
+## Layers
+
+A layer is a named group of bindings with a device-capability activation rule, so one profile can serve different hardware — paddle bindings that only exist when the pad has paddles, and fallback chords that only exist when it does not.
+
+| Activation | Layer is active |
+|---|---|
+| `always` | Always (same as an unlayered binding) |
+| `requiresPaddles` | Only while the connected controller reports four paddles |
+| `withoutPaddles` | Only while the connected controller reports no paddles |
+
+Bindings without a `layer` are always active. The host tells the mapping engine the connected device's capabilities on every connect (`MappingEngine.SetDeviceCapabilities`); until a device is known, **every layer is active** — the pre-layer behavior. Collision detection understands exclusivity: the same chord may appear in both a `requiresPaddles` and a `withoutPaddles` layer (they can never be active together), but base bindings overlap every layer.
 
 ## Validation rules
 
 Loading (and `MappingEngine` construction) rejects the profile with a full list of problems if any rule fails:
 
-**Ambiguity**
+**Layers**
+
+- Layer names must be non-empty and unique.
+- A binding's `layer` must reference a declared layer.
+
+**Ambiguity** (checked among bindings that can be active at the same time)
 
 - No duplicate binding (same control + gesture + modifier set).
 - `press` may not be combined with `tap`, `hold`, or `doublePress` on the same chord (one physical action would fire twice). Use `tap` instead of `press`.

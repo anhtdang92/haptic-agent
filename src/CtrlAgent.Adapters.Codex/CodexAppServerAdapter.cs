@@ -28,6 +28,7 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
     private readonly object _threadSync = new();
     private string? _threadId;
     private string? _turnId;
+    private string? _resumeThreadId;
     private bool _disposed;
 
     public CodexAppServerAdapter(AgentAdapterOptions options)
@@ -214,11 +215,11 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
                 break;
 
             case AgentCommandKind.NextSession:
-                SwitchThread(+1);
+                await SwitchThreadAsync(+1, cancellationToken).ConfigureAwait(false);
                 break;
 
             case AgentCommandKind.PreviousSession:
-                SwitchThread(-1);
+                await SwitchThreadAsync(-1, cancellationToken).ConfigureAwait(false);
                 break;
 
             default:
@@ -297,7 +298,7 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         }
     }
 
-    private void SwitchThread(int direction)
+    private async Task SwitchThreadAsync(int direction, CancellationToken cancellationToken)
     {
         string? target = null;
         int position = 0;
@@ -318,6 +319,27 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         if (target is null)
         {
             Publish(AgentStateKind.Idle, "No other Codex thread to switch to; use NewSession to create one.");
+            return;
+        }
+
+        // Threads remembered from before a crash only exist on disk until they
+        // are resumed; resuming an already-live thread is harmless, so always
+        // ask the server to load the target.
+        try
+        {
+            _ = await SendRequestAsync(
+                "thread/resume",
+                new
+                {
+                    threadId = target,
+                    cwd = _options.WorkingDirectory,
+                    approvalPolicy = "unlessTrusted",
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (CodexProtocolException exception)
+        {
+            Publish(AgentStateKind.Error, $"Could not switch to thread {target}: {exception.Message}");
             return;
         }
 
@@ -605,13 +627,11 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         }
 
         IsStarted = false;
+        // Codex persists threads on disk, so the restarted server can resume
+        // the one that was active when the process died.
+        _resumeThreadId = _threadId;
         _threadId = null;
         _turnId = null;
-        lock (_threadSync)
-        {
-            // Threads belonged to the dead server; resuming them is not wired yet.
-            _threadIds.Clear();
-        }
 
         int? exitCode = null;
         try
@@ -667,9 +687,7 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
                 try
                 {
                     await LaunchAsync(lifetime).ConfigureAwait(false);
-                    Publish(
-                        AgentStateKind.Idle,
-                        $"Codex app-server restarted after {attempt} attempt(s); the next prompt starts a fresh thread.");
+                    await ResumeThreadAfterRestartAsync(attempt, lifetime).ConfigureAwait(false);
                     return;
                 }
                 catch (OperationCanceledException)
@@ -698,6 +716,52 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
             catch (ObjectDisposedException)
             {
             }
+        }
+    }
+
+    /// <summary>
+    /// After a crash restart, picks the interrupted conversation back up by
+    /// resuming the previously active thread from Codex's on-disk rollout.
+    /// Falls back to a fresh thread (on the next prompt) when resume fails.
+    /// </summary>
+    private async Task ResumeThreadAfterRestartAsync(int attempt, CancellationToken cancellationToken)
+    {
+        var resumeId = _resumeThreadId;
+        if (string.IsNullOrWhiteSpace(resumeId))
+        {
+            Publish(
+                AgentStateKind.Idle,
+                $"Codex app-server restarted after {attempt} attempt(s); the next prompt starts a fresh thread.");
+            return;
+        }
+
+        try
+        {
+            var response = await SendRequestAsync(
+                "thread/resume",
+                new
+                {
+                    threadId = resumeId,
+                    cwd = _options.WorkingDirectory,
+                    approvalPolicy = "unlessTrusted",
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            var threadId = TryGetString(response, "thread", "id") ?? resumeId;
+            RememberThread(threadId);
+            _threadId = threadId;
+            _resumeThreadId = null;
+            Publish(
+                AgentStateKind.Idle,
+                $"Codex app-server restarted after {attempt} attempt(s) and resumed thread {threadId}.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _resumeThreadId = null;
+            Publish(
+                AgentStateKind.Idle,
+                $"Codex app-server restarted after {attempt} attempt(s); could not resume the previous thread " +
+                $"({exception.Message}). The next prompt starts a fresh one.");
         }
     }
 

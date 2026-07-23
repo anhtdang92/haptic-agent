@@ -21,6 +21,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Axis threshold latches until the axis drops", TestAxisThresholdLatchAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
+    ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
@@ -325,6 +326,75 @@ static Task TestProfileValidationAsync()
             new(ControllerControl.A, InputGesture.Hold, AgentCommandKind.Interrupt),
         ]);
     Assert(ControllerProfileValidator.Validate(ambiguous).Count > 0, "Expected Press+Hold mix to be rejected.");
+    return Task.CompletedTask;
+}
+
+static Task TestProfileLayersAsync()
+{
+    var layered = new ControllerProfile(
+        "layered",
+        [
+            new(
+                ControllerControl.PaddleLeft1,
+                InputGesture.Press,
+                AgentCommandKind.ApproveOnce,
+                RequiresPendingApproval: true,
+                Layer: "paddles"),
+            new(
+                ControllerControl.A,
+                InputGesture.Press,
+                AgentCommandKind.ApproveOnce,
+                new HashSet<ControllerControl> { ControllerControl.RightShoulder },
+                RequiresPendingApproval: true,
+                Layer: "fallback"),
+            new(ControllerControl.B, InputGesture.Press, AgentCommandKind.Interrupt),
+        ],
+        [
+            new ProfileLayer("paddles", LayerActivation.RequiresPaddles),
+            new ProfileLayer("fallback", LayerActivation.WithoutPaddles),
+        ]);
+
+    AssertEqual(0, ControllerProfileValidator.Validate(layered).Count);
+
+    // Layers and memberships survive the JSON round-trip.
+    var roundTripped = ControllerProfileJson.Deserialize(ControllerProfileJson.Serialize(layered));
+    AssertEqual(2, roundTripped.Layers!.Count);
+    AssertEqual(LayerActivation.RequiresPaddles, roundTripped.Layers[0].Activation);
+    AssertEqual("paddles", roundTripped.Bindings[0].Layer);
+
+    // A paddle-equipped device activates the paddle layer and mutes the fallback chord.
+    var withPaddles = new MappingEngine(layered);
+    withPaddles.SetPendingApproval("session", "request");
+    withPaddles.SetDeviceCapabilities(new ControllerCapabilities(true, true, true, true, true));
+    AssertEqual(1, withPaddles.Process(Press(ControllerControl.PaddleLeft1)).Count);
+    _ = withPaddles.Process(Press(ControllerControl.RightShoulder));
+    AssertEqual(0, withPaddles.Process(Press(ControllerControl.A)).Count);
+
+    // A paddle-less device mutes the paddle layer and activates the fallback chord.
+    var withoutPaddles = new MappingEngine(layered);
+    withoutPaddles.SetPendingApproval("session", "request");
+    withoutPaddles.SetDeviceCapabilities(new ControllerCapabilities(false, true, true, false, false));
+    AssertEqual(0, withoutPaddles.Process(Press(ControllerControl.PaddleLeft1)).Count);
+    _ = withoutPaddles.Process(Press(ControllerControl.RightShoulder));
+    var chord = withoutPaddles.Process(Press(ControllerControl.A));
+    AssertEqual(1, chord.Count);
+    AssertEqual(AgentCommandKind.ApproveOnce, chord[0].Kind);
+
+    // Co-active layers still collide; a base binding overlaps every layer.
+    var colliding = new ControllerProfile(
+        "colliding",
+        [
+            new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt),
+            new(ControllerControl.A, InputGesture.Press, AgentCommandKind.Interrupt, Layer: "paddles"),
+        ],
+        [new ProfileLayer("paddles", LayerActivation.RequiresPaddles)]);
+    Assert(ControllerProfileValidator.Validate(colliding).Count > 0, "Expected base/layer collision to be rejected.");
+
+    // Referencing an undeclared layer is an error.
+    var dangling = new ControllerProfile(
+        "dangling",
+        [new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt, Layer: "ghost")]);
+    Assert(ControllerProfileValidator.Validate(dangling).Count > 0, "Expected undefined layer reference to be rejected.");
     return Task.CompletedTask;
 }
 

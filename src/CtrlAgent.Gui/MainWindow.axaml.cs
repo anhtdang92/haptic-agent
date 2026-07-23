@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -7,9 +8,32 @@ namespace CtrlAgent.Gui;
 
 public sealed partial class MainWindow : Window
 {
+    private MainViewModel? _observedViewModel;
+
     public MainWindow()
     {
         InitializeComponent();
+        DataContextChanged += (_, _) => ObserveLog();
+    }
+
+    // Keeps the event stream pinned to the newest entry.
+    private void ObserveLog()
+    {
+        if (DataContext is not MainViewModel viewModel || ReferenceEquals(viewModel, _observedViewModel))
+        {
+            return;
+        }
+
+        _observedViewModel = viewModel;
+        viewModel.Log.CollectionChanged += OnLogChanged;
+    }
+
+    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Action == NotifyCollectionChangedAction.Add && EventStream.ItemCount > 0)
+        {
+            EventStream.ScrollIntoView(EventStream.ItemCount - 1);
+        }
     }
 
     private async void OnBrowseWorkingDirectory(object? sender, RoutedEventArgs eventArgs)

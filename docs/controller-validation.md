@@ -1,6 +1,6 @@
-# Xbox Elite Controller Validation Plan
+# Controller Validation Plan
 
-This spike answers the hardware questions before we build a UI or a real agent integration.
+This plan answers the hardware questions software builds cannot. The primary target is the Xbox Elite Series 2 (tests 1–6 and the guided wizard below); a first-pass DualSense checklist follows at the end.
 
 ## Target hardware
 
@@ -163,3 +163,14 @@ Proceed to the managed controller adapter when:
 - reconnect behavior is recoverable without process restart.
 
 If paddles are not independently available, continue the project with standard controls and rumble, but mark Elite paddle support experimental until a validated raw-report path is available.
+
+## DualSense verification (first pass)
+
+The DualSense adapter reads raw HID reports directly; the byte layout is community-documented and has **not** been verified on real hardware. On a real DualSense (and, separately, a DualSense Edge), over both USB and Bluetooth:
+
+- confirm every button, stick, trigger, and the touchpad click parse correctly (USB input report `0x01`, Bluetooth `0x31`);
+- confirm rumble output and the cyan lightbar apply (output report `0x02` USB / `0x31` Bluetooth with CRC32);
+- on the Edge, confirm the rear paddles and Fn buttons surface as the four paddle controls;
+- confirm disconnect/reconnect recovers without restarting the host, and that rumble always stops on disconnect.
+
+Record results in `validation/<date>-dualsense-<transport>.md` using the same evidence format as the Elite reports. Do not commit serial numbers or Bluetooth addresses.

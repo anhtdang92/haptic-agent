@@ -2,9 +2,9 @@
 
 The project advances through evidence-based gates: each phase produces something testable before the next layer is added. This file carries two views — the phase ledger (what the gates were and where they stand) and the prioritized near-term backlog (what to pick up next).
 
-## Snapshot (2026-07-22)
+## Snapshot (2026-07-23)
 
-Implemented and unit-tested: platform-independent core, mapping engine with gestures and validated JSON profiles, haptic scheduler + hub, XInput fallback, native GameInput bridge (code complete), Mock/Codex/Claude Code adapters with crash restart, console host with reconnect resilience, Avalonia GUI, hardware validation wizard, Windows CI. 16 tests passing.
+Implemented and unit-tested: platform-independent core, mapping engine with gestures, capability-activated profile layers, and validated JSON profiles, haptic scheduler + hub, XInput fallback, native GameInput bridge (code complete), DualSense raw-HID adapter (protocol unit-tested), Mock/Codex/Claude Code adapters with crash restart and session resume, shared `HostEngine` hosting layer, console host with reconnect resilience, Avalonia GUI (tray, overlay HUD, toasts, first-run setup, profile editor, live Elite mirror, CTRL·BOT, motion polish), hardware validation wizard, release packaging on tags, Windows CI. 23 tests passing.
 
 **The critical path is now evidence, not code.** Nothing hardware- or agent-facing has been verified against a real Elite controller, a real Codex install, or a real Claude Code install.
 
@@ -48,9 +48,9 @@ Delivered: versioned JSON profiles, press/release/tap/hold/double-press/axis-thr
 
 Owned app-server process, handshake, thread/turn lifecycle, approval correlation, interrupt/approve/decline commands, crash restart with backoff. Remaining: verification against a real Codex install; schema pinning; session navigation.
 
-### Phase 5 — Windows desktop application — **In progress**
+### Phase 5 — Windows desktop application — **Complete in software, pending visual verification**
 
-Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, mapping editor with live validation and runtime apply, live controller mirror with approval highlights, CTRL·BOT shortcut coaching, settings persistence, the always-on-top overlay HUD, a first-run setup flow (no CLI flags or JSON needed), notification toasts when the windows are hidden (in-app cards with approve/decline on approval — deliberately not WinRT/Action Center toasts: zero dependencies, and the tray app is always running anyway), and a Validate-hardware button that launches the console wizard. **Exit gate items are all delivered in first-pass form**; polish and real-Windows verification remain.
+Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, mapping editor with live validation and runtime apply, live controller mirror with approval highlights, CTRL·BOT shortcut coaching, settings persistence, the always-on-top overlay HUD, a first-run setup flow (no CLI flags or JSON needed), notification toasts when the windows are hidden (in-app cards with approve/decline on approval — deliberately not WinRT/Action Center toasts: zero dependencies, and the tray app is always running anyway), and a Validate-hardware button that launches the console wizard. **Exit gate items are all delivered**, plus the full UI-review polish pass (slim header + utility cluster, single action row, severity-tinted auto-scrolling event stream with a controller-input filter, floating approval banner, status dots, chord-chip binding rows, seamless extended title bar, entrance/pulse/blink animations, overlay parity). Remaining: a visual pass on real Windows — animations, DPI behavior of the extended title bar, and first-render layout.
 
 ### Phase 6 — Additional adapters — **Claude Code delivered (pulled forward)**
 

@@ -63,6 +63,7 @@
         <Button Content="Interrupt" Command="{Binding InterruptCommand}" />
         <Button Content="Review" Command="{Binding ReviewCommand}" />
         <Button Content="New session" Command="{Binding NewSessionCommand}" />
+        <Button Content="Edit profile…" Click="OnEditProfile" />
       </StackPanel>
       <TextBox Text="{Binding PromptText}" Watermark="Prompt to send (empty = default prompt)" />
     </DockPanel>

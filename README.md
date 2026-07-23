@@ -123,7 +123,9 @@ An Avalonia desktop app provides live controller/agent status, an approval banne
 dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
 ```
 
-The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--gameinput-bridge`, and `--profile` options as the console host.
+The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--claude-path`, `--gameinput-bridge`, and `--profile` options as the console host. It lives in the system tray: closing the window hides it, the tray menu restores or exits. The built-in profile editor (Edit profile…) adds, edits, and removes bindings with live validation, applies the profile to the running host without a restart, and saves/loads profile JSON.
+
+Tagged releases (`v*`) publish a self-contained `CtrlAgent-<tag>-win-x64.zip` (console host, GUI, and GameInput bridge — no .NET install required) on the GitHub releases page.
 
 ## Run with the mock agent
 

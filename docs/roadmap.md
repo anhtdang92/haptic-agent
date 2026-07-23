@@ -16,8 +16,8 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 | 2 | Live verification of Codex + Claude Code adapters | Wire shapes follow documented protocols; first real run is the compatibility test | Blocked on installed CLIs |
 | 3 | Shared hosting layer (`CtrlAgent.Hosting`) | App and Gui ran parallel copies of the same loops | **Done** — both hosts run on `HostEngine`, covered by an end-to-end test |
 | 4 | Claude Code approve-for-session | Wire session-wide permission rules (`updatedPermissions`) instead of degrading to approve-once | **Done** — session-scoped tool allow rule, wire shape unit-tested |
-| 5 | GUI phase 2: tray icon, minimize-to-tray, mapping editor with live validation | Phase 5 exit gate needs profile editing without hand-written JSON | Ready to build |
-| 6 | Release packaging: self-contained win-x64 zip (App + Gui + bridge) on tags | Install without a dev environment | Ready to build |
+| 5 | GUI phase 2: tray icon, minimize-to-tray, mapping editor with live validation | Phase 5 exit gate needs profile editing without hand-written JSON | **Done** — tray + hide-on-close + editor with live validation, runtime apply, JSON save/load |
+| 6 | Release packaging: self-contained win-x64 zip (App + Gui + bridge) on tags | Install without a dev environment | **Done** — release workflow on `v*` tags |
 | 7 | Haptic pattern tuning pass | Depends on #1 evidence | Blocked on #1 |
 | 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession are stubs in both adapters | Ready to design |
 | 9 | Profile layers and per-device matching | Deferred from Phase 3 | Design first |
@@ -47,7 +47,7 @@ Owned app-server process, handshake, thread/turn lifecycle, approval correlation
 
 ### Phase 5 — Windows desktop application — **In progress**
 
-Delivered (Avalonia window): device/agent status, approval actions, prompt submission, haptic preview, active-profile display, event log. Remaining for the exit gate ("a new user needs no hand-edited JSON"): tray icon + notifications, mapping editor, validation-wizard integration, startup settings.
+Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, and a mapping editor with live validation, runtime profile apply, and JSON save/load. Remaining for the exit gate: Windows notifications, validation-wizard integration, startup settings.
 
 ### Phase 6 — Additional adapters — **Claude Code delivered (pulled forward)**
 

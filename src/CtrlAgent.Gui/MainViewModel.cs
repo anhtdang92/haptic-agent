@@ -23,6 +23,9 @@ public abstract class ViewModelBase : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         return true;
     }
+
+    protected void Raise(string propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 public sealed class RelayCommand : ICommand
@@ -95,7 +98,18 @@ public sealed class MainViewModel : ViewModelBase
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
         });
+        engine.ProfileApplied += applied => Post(() =>
+        {
+            ProfileName = applied.Name;
+            Bindings.Clear();
+            foreach (var binding in applied.Bindings)
+            {
+                Bindings.Add(DescribeBinding(binding));
+            }
+        });
     }
+
+    internal HostEngine? Engine => _engine;
 
     private static Task PreviewPatternAsync(HostEngine engine, string? name)
     {

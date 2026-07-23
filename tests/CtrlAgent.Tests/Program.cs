@@ -25,6 +25,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
     ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
+    ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
 };
 
@@ -369,6 +370,36 @@ static async Task TestHostEngineEndToEndAsync()
     Assert(
         !await engine.RespondToApprovalAsync(AgentCommandKind.ApproveOnce).ConfigureAwait(false),
         "The pending approval must be cleared after it is answered.");
+}
+
+static async Task TestHostEngineProfileSwapAsync()
+{
+    var controller = new ScriptedController();
+    await using var engine = new HostEngine(
+        new SingleControllerProvider(controller),
+        new MockAgentAdapter(),
+        ControllerProfile.Default,
+        new HostEngineOptions("prompt"));
+
+    var applied = new TaskCompletionSource<ControllerProfile>(TaskCreationOptions.RunContinuationsAsynchronously);
+    engine.ProfileApplied += profile => applied.TrySetResult(profile);
+
+    // An unsafe profile is rejected with errors and the active profile stays.
+    var unsafeProfile = new ControllerProfile(
+        "unsafe",
+        [new(ControllerControl.A, InputGesture.Press, AgentCommandKind.ApproveOnce, RequiresPendingApproval: true)]);
+    Assert(!engine.TryApplyProfile(unsafeProfile, out var errors), "Unsafe profile must be rejected.");
+    Assert(errors.Count > 0, "Rejection must report errors.");
+    AssertEqual("default", engine.Profile.Name);
+
+    // A valid profile swaps in and raises ProfileApplied.
+    var custom = new ControllerProfile(
+        "custom",
+        [new(ControllerControl.B, InputGesture.Press, AgentCommandKind.Interrupt)]);
+    Assert(engine.TryApplyProfile(custom, out _), "Valid profile must apply.");
+    AssertEqual("custom", engine.Profile.Name);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+    AssertEqual("custom", (await applied.Task.WaitAsync(timeout.Token).ConfigureAwait(false)).Name);
 }
 
 static Task TestValidationReportGatesAsync()

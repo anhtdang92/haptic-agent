@@ -19,9 +19,7 @@ public sealed class HostEngine : IAsyncDisposable
 {
     private readonly IControllerProvider _provider;
     private readonly IAgentAdapter _adapter;
-    private readonly ControllerProfile _profile;
     private readonly HostEngineOptions _options;
-    private readonly MappingEngine _mapping;
     private readonly HapticSchedulerHub _haptics = new();
     private readonly FeedbackRouter _feedback = new();
     private readonly CancellationTokenSource _shutdown = new();
@@ -29,6 +27,8 @@ public sealed class HostEngine : IAsyncDisposable
 
     private Task? _controllerTask;
     private Task? _agentTask;
+    private ControllerProfile _profile;
+    private MappingEngine _mapping;
     private string? _pendingSessionId;
     private string? _pendingRequestId;
     private bool _disposed;
@@ -57,6 +57,9 @@ public sealed class HostEngine : IAsyncDisposable
 
     /// <summary>Message of the pending approval request, or null when cleared.</summary>
     public event Action<string?>? PendingApprovalChanged;
+
+    /// <summary>Raised after a new profile is applied at runtime.</summary>
+    public event Action<ControllerProfile>? ProfileApplied;
 
     public ControllerProfile Profile => _profile;
 
@@ -124,6 +127,34 @@ public sealed class HostEngine : IAsyncDisposable
         {
             await ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.Cancel)).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Swaps the active profile at runtime. Returns false (with the problem
+    /// list) when the profile fails validation; the current profile stays
+    /// active. The pending-approval state carries over to the new mapping.
+    /// </summary>
+    public bool TryApplyProfile(ControllerProfile profile, out IReadOnlyList<string> errors)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        errors = ControllerProfileValidator.Validate(profile);
+        if (errors.Count > 0)
+        {
+            return false;
+        }
+
+        var mapping = new MappingEngine(profile);
+        lock (_sync)
+        {
+            mapping.SetPendingApproval(_pendingSessionId, _pendingRequestId);
+            _mapping = mapping;
+            _profile = profile;
+        }
+
+        Log($"Applied profile '{profile.Name}' ({profile.Bindings.Count} bindings).");
+        ProfileApplied?.Invoke(profile);
+        return true;
     }
 
     public ValueTask PlayPatternAsync(HapticPattern pattern, CancellationToken cancellationToken = default) =>
@@ -248,24 +279,28 @@ public sealed class HostEngine : IAsyncDisposable
 
                 if (agentEvent.State is AgentStateKind.ApprovalRequired or AgentStateKind.WaitingForInput)
                 {
+                    MappingEngine mapping;
                     lock (_sync)
                     {
                         _pendingSessionId = agentEvent.SessionId;
                         _pendingRequestId = agentEvent.RequestId;
+                        mapping = _mapping;
                     }
 
-                    _mapping.SetPendingApproval(agentEvent.SessionId, agentEvent.RequestId);
+                    mapping.SetPendingApproval(agentEvent.SessionId, agentEvent.RequestId);
                     PendingApprovalChanged?.Invoke(agentEvent.Message ?? "Approval required.");
                 }
                 else if (ShouldClearPendingRequest(agentEvent))
                 {
+                    MappingEngine mapping;
                     lock (_sync)
                     {
                         _pendingSessionId = null;
                         _pendingRequestId = null;
+                        mapping = _mapping;
                     }
 
-                    _mapping.SetPendingApproval(null, null);
+                    mapping.SetPendingApproval(null, null);
                     PendingApprovalChanged?.Invoke(null);
                 }
 

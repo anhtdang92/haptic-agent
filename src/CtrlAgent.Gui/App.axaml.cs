@@ -19,6 +19,8 @@ public sealed class App : Application
     private MainViewModel? _viewModel;
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlay;
+    private ToastWindow? _toast;
+    private bool _toastIsApproval;
     private bool _exiting;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -134,6 +136,18 @@ public sealed class App : Application
             _viewModel.AgentStatus = options.Agent;
             GuiSettings.TrySave(options);
 
+            engine.AgentEventReceived += agentEvent =>
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => MaybeToast(agentEvent));
+            engine.PendingApprovalChanged += message =>
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    // The approval got answered elsewhere; retire its toast.
+                    if (message is null && _toastIsApproval)
+                    {
+                        _toast?.Close();
+                    }
+                });
+
             var viewModel = _viewModel;
             _ = Task.Run(async () =>
             {
@@ -191,6 +205,73 @@ public sealed class App : Application
         mainWindow.Show();
         mainWindow.WindowState = WindowState.Normal;
         mainWindow.Activate();
+    }
+
+    /// <summary>
+    /// Shows a notification card when nothing else is on screen: main window
+    /// hidden/minimized and no overlay visible.
+    /// </summary>
+    private void MaybeToast(CtrlAgent.Core.AgentEvent agentEvent)
+    {
+        if (_exiting || _viewModel is null)
+        {
+            return;
+        }
+
+        var mainVisible = _mainWindow is { IsVisible: true } && _mainWindow.WindowState != WindowState.Minimized;
+        var overlayVisible = _overlay is { IsVisible: true };
+        if (mainVisible || overlayVisible)
+        {
+            return;
+        }
+
+        switch (agentEvent.State)
+        {
+            case CtrlAgent.Core.AgentStateKind.ApprovalRequired:
+            case CtrlAgent.Core.AgentStateKind.WaitingForInput:
+                ShowToast("APPROVAL REQUIRED", agentEvent.Message ?? "The agent needs permission.", "#FFB020", approval: true);
+                break;
+            case CtrlAgent.Core.AgentStateKind.Completed:
+                ShowToast("TURN COMPLETED", agentEvent.Message ?? "The agent finished.", "#34F5A4", approval: false);
+                break;
+            case CtrlAgent.Core.AgentStateKind.Error:
+                ShowToast("AGENT ERROR", agentEvent.Message ?? "Something went wrong.", "#FF5A78", approval: false);
+                break;
+        }
+    }
+
+    private void ShowToast(string title, string message, string accentHex, bool approval)
+    {
+        _toast?.Close();
+
+        var toast = new ToastWindow();
+        toast.Configure(title, message, accentHex, approval);
+
+        if (approval && _viewModel is { } viewModel)
+        {
+            toast.ApproveRequested += () => viewModel.ApproveOnceCommand.Execute(null);
+            toast.DeclineRequested += () => viewModel.DeclineCommand.Execute(null);
+        }
+
+        toast.OpenRequested += () =>
+        {
+            if (_mainWindow is not null)
+            {
+                ShowMainWindow(_mainWindow);
+            }
+        };
+        toast.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_toast, toast))
+            {
+                _toast = null;
+                _toastIsApproval = false;
+            }
+        };
+
+        _toast = toast;
+        _toastIsApproval = approval;
+        toast.Show();
     }
 
     /// <summary>Shows or hides the always-on-top HUD strip.</summary>
@@ -253,6 +334,8 @@ public sealed class App : Application
     private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs eventArgs)
     {
         _exiting = true;
+        _toast?.Close();
+        _toast = null;
 
         if (_overlay is not null)
         {

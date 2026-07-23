@@ -141,7 +141,7 @@ msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /rest
 
 ## Run the desktop GUI
 
-An Avalonia desktop app provides live controller/agent status, an approval banner with the four approval actions, prompt submission, a haptic-pattern preview, the active profile's bindings, and an event log:
+An Avalonia desktop app provides live controller/agent status, an approval banner with the four approval actions, prompt submission, a haptic-pattern preview, the active profile's bindings, an event log, and notification toasts (with approve/decline) when its windows are hidden:
 
 ```powershell
 dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock

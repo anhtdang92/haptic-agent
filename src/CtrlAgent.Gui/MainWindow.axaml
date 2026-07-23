@@ -192,6 +192,10 @@
       <Button Content="Completed" Command="{Binding PlayPatternCommand}" CommandParameter="completed" />
       <Button Content="Error" Command="{Binding PlayPatternCommand}" CommandParameter="error" />
       <Button Content="Stop" Classes="deny" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
+      <Button Content="Validate hardware…"
+              Margin="12,0,0,0"
+              Click="OnValidateHardware"
+              ToolTip.Tip="Runs the guided controller validation wizard in a console window" />
     </StackPanel>
 
     <!-- Log + live input + bindings -->

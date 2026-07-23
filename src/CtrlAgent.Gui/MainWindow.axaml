@@ -216,104 +216,109 @@
         <Border DockPanel.Dock="Top" Classes="card" Padding="8" Margin="0,0,0,6">
           <StackPanel Spacing="4" DataContext="{Binding ControllerVisual}" x:DataType="gui:ControllerVisualViewModel">
             <TextBlock Text="LIVE INPUT" Classes="label" Margin="4,0,0,2" />
-            <Viewbox Stretch="Uniform" MaxHeight="200">
-              <Canvas Width="380" Height="188">
+            <!-- Elite Series 2 layout: asymmetric Xbox sticks, hybrid d-pad
+                 disc, notched stick rings, guide button, rear paddle blades. -->
+            <Viewbox Stretch="Uniform" MaxHeight="230">
+              <Canvas Width="420" Height="248">
 
                 <!-- Trigger pull bars -->
-                <Border Canvas.Left="70" Canvas.Top="4" Width="70" Height="12"
-                        CornerRadius="6" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
-                  <Border Width="{Binding LeftTriggerWidth}" Height="8" CornerRadius="4"
+                <Border Canvas.Left="100" Canvas.Top="0" Width="70" Height="11"
+                        CornerRadius="5" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
+                  <Border Width="{Binding LeftTriggerWidth}" Height="7" CornerRadius="3"
                           HorizontalAlignment="Left" Margin="1,0,0,0" Background="#00D4FF" />
                 </Border>
-                <Border Canvas.Left="240" Canvas.Top="4" Width="70" Height="12"
-                        CornerRadius="6" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
-                  <Border Width="{Binding RightTriggerWidth}" Height="8" CornerRadius="4"
+                <Border Canvas.Left="250" Canvas.Top="0" Width="70" Height="11"
+                        CornerRadius="5" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
+                  <Border Width="{Binding RightTriggerWidth}" Height="7" CornerRadius="3"
                           HorizontalAlignment="Left" Margin="1,0,0,0" Background="#00D4FF" />
                 </Border>
 
-                <!-- Shoulders -->
-                <Border Canvas.Left="70" Canvas.Top="22" Width="70" Height="14" CornerRadius="7"
-                        Background="{Binding LeftShoulderBrush}" />
-                <Border Canvas.Left="240" Canvas.Top="22" Width="70" Height="14" CornerRadius="7"
-                        Background="{Binding RightShoulderBrush}" />
+                <!-- Bumpers -->
+                <Border Canvas.Left="94" Canvas.Top="16" Width="98" Height="15" CornerRadius="8,8,3,3"
+                        Background="{Binding LeftShoulderBrush}" RenderTransform="rotate(-3deg)" />
+                <Border Canvas.Left="228" Canvas.Top="16" Width="98" Height="15" CornerRadius="8,8,3,3"
+                        Background="{Binding RightShoulderBrush}" RenderTransform="rotate(3deg)" />
 
-                <!-- Body -->
-                <Ellipse Canvas.Left="18" Canvas.Top="58" Width="104" Height="118" Fill="#101A2E" Stroke="#2E4A78" StrokeThickness="1.5" />
-                <Ellipse Canvas.Left="258" Canvas.Top="58" Width="104" Height="118" Fill="#101A2E" Stroke="#2E4A78" StrokeThickness="1.5" />
-                <Border Canvas.Left="62" Canvas.Top="44" Width="256" Height="104" CornerRadius="42"
-                        Background="#101A2E" BorderBrush="#2E4A78" BorderThickness="1.5" />
+                <!-- Grips: flared, angled outward like the real shell -->
+                <Ellipse Canvas.Left="38" Canvas.Top="58" Width="96" Height="152"
+                         Fill="#14171C" Stroke="#3A414D" StrokeThickness="1.5"
+                         RenderTransform="rotate(-18deg)" />
+                <Ellipse Canvas.Left="286" Canvas.Top="58" Width="96" Height="152"
+                         Fill="#14171C" Stroke="#3A414D" StrokeThickness="1.5"
+                         RenderTransform="rotate(18deg)" />
 
-                <!-- D-pad -->
-                <Border Canvas.Left="88" Canvas.Top="66" Width="22" Height="22" CornerRadius="4"
-                        Background="{Binding DPadUpBrush}" />
-                <Border Canvas.Left="88" Canvas.Top="110" Width="22" Height="22" CornerRadius="4"
-                        Background="{Binding DPadDownBrush}" />
-                <Border Canvas.Left="66" Canvas.Top="88" Width="22" Height="22" CornerRadius="4"
-                        Background="{Binding DPadLeftBrush}" />
-                <Border Canvas.Left="110" Canvas.Top="88" Width="22" Height="22" CornerRadius="4"
-                        Background="{Binding DPadRightBrush}" />
-                <Border Canvas.Left="88" Canvas.Top="88" Width="22" Height="22" Background="#182540" />
+                <!-- Body shell -->
+                <Border Canvas.Left="78" Canvas.Top="30" Width="264" Height="120" CornerRadius="46"
+                        BorderBrush="#3A414D" BorderThickness="1.5">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                      <GradientStop Color="#20242B" Offset="0" />
+                      <GradientStop Color="#14171C" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
 
-                <!-- View / Menu -->
-                <Ellipse Canvas.Left="164" Canvas.Top="70" Width="15" Height="15"
-                         Fill="{Binding ViewBrush}" />
-                <Ellipse Canvas.Left="201" Canvas.Top="70" Width="15" Height="15"
-                         Fill="{Binding MenuBrush}" />
+                <!-- Guide button (nexus) -->
+                <Ellipse Canvas.Left="188" Canvas.Top="16" Width="44" Height="44" Fill="#3300D4FF" />
+                <Ellipse Canvas.Left="194" Canvas.Top="22" Width="32" Height="32" Fill="#0E1116" Stroke="#4A5568" StrokeThickness="1.5" />
+                <Ellipse Canvas.Left="200" Canvas.Top="28" Width="20" Height="20" Fill="#D7E9FF" Opacity="0.9" />
 
-                <!-- Face buttons -->
-                <Ellipse Canvas.Left="277" Canvas.Top="58" Width="24" Height="24"
-                         Fill="{Binding YBrush}" />
-                <Ellipse Canvas.Left="253" Canvas.Top="82" Width="24" Height="24"
-                         Fill="{Binding XBrush}" />
-                <Ellipse Canvas.Left="301" Canvas.Top="82" Width="24" Height="24"
-                         Fill="{Binding BBrush}" />
-                <Ellipse Canvas.Left="277" Canvas.Top="106" Width="24" Height="24"
-                         Fill="{Binding ABrush}" />
-                <TextBlock Canvas.Left="285" Canvas.Top="61" Text="{Binding NorthLabel}" FontSize="11" Foreground="#9FB7DF" />
-                <TextBlock Canvas.Left="261" Canvas.Top="85" Text="{Binding WestLabel}" FontSize="11" Foreground="#9FB7DF" />
-                <TextBlock Canvas.Left="309" Canvas.Top="85" Text="{Binding EastLabel}" FontSize="11" Foreground="#9FB7DF" />
-                <TextBlock Canvas.Left="285" Canvas.Top="109" Text="{Binding SouthLabel}" FontSize="11" Foreground="#9FB7DF" />
-
-                <!-- Sticks: ring + knob that tracks deflection -->
-                <Ellipse Canvas.Left="128" Canvas.Top="118" Width="44" Height="44" Fill="#0B1322" Stroke="#2E4A78" StrokeThickness="1.5" />
-                <Ellipse Canvas.Left="137" Canvas.Top="127" Width="26" Height="26"
-                         Fill="{Binding LeftThumbBrush}"
-                         Stroke="#7DD3FC" StrokeThickness="1">
+                <!-- Left stick: high-left, Elite notched ring -->
+                <Ellipse Canvas.Left="118" Canvas.Top="60" Width="58" Height="58"
+                         Fill="#0E1116" Stroke="#4A5568" StrokeThickness="5" StrokeDashArray="1.2,0.6" />
+                <Ellipse Canvas.Left="131" Canvas.Top="73" Width="32" Height="32"
+                         Fill="{Binding LeftThumbBrush}" Stroke="#7DD3FC" StrokeThickness="1">
                   <Ellipse.RenderTransform>
                     <TranslateTransform X="{Binding LeftStickOffsetX}" Y="{Binding LeftStickOffsetY}" />
                   </Ellipse.RenderTransform>
                 </Ellipse>
-                <Ellipse Canvas.Left="208" Canvas.Top="118" Width="44" Height="44" Fill="#0B1322" Stroke="#2E4A78" StrokeThickness="1.5" />
-                <Ellipse Canvas.Left="217" Canvas.Top="127" Width="26" Height="26"
-                         Fill="{Binding RightThumbBrush}"
-                         Stroke="#7DD3FC" StrokeThickness="1">
+
+                <!-- View / Menu / profile switch -->
+                <Ellipse Canvas.Left="184" Canvas.Top="82" Width="14" Height="14" Fill="{Binding ViewBrush}" />
+                <Ellipse Canvas.Left="222" Canvas.Top="82" Width="14" Height="14" Fill="{Binding MenuBrush}" />
+                <Ellipse Canvas.Left="205" Canvas.Top="104" Width="10" Height="10" Fill="#22262E" Stroke="#3A414D" StrokeThickness="1" />
+
+                <!-- Face buttons: Xbox letter colors on dark caps -->
+                <Ellipse Canvas.Left="280" Canvas.Top="52" Width="26" Height="26" Fill="{Binding YBrush}" Stroke="#3A414D" StrokeThickness="1" />
+                <Ellipse Canvas.Left="252" Canvas.Top="79" Width="26" Height="26" Fill="{Binding XBrush}" Stroke="#3A414D" StrokeThickness="1" />
+                <Ellipse Canvas.Left="308" Canvas.Top="79" Width="26" Height="26" Fill="{Binding BBrush}" Stroke="#3A414D" StrokeThickness="1" />
+                <Ellipse Canvas.Left="280" Canvas.Top="106" Width="26" Height="26" Fill="{Binding ABrush}" Stroke="#3A414D" StrokeThickness="1" />
+                <TextBlock Canvas.Left="288" Canvas.Top="56" Text="{Binding NorthLabel}" FontSize="12" FontWeight="Bold" Foreground="#E8C531" />
+                <TextBlock Canvas.Left="260" Canvas.Top="83" Text="{Binding WestLabel}" FontSize="12" FontWeight="Bold" Foreground="#4C8DF5" />
+                <TextBlock Canvas.Left="316" Canvas.Top="83" Text="{Binding EastLabel}" FontSize="12" FontWeight="Bold" Foreground="#E85555" />
+                <TextBlock Canvas.Left="288" Canvas.Top="110" Text="{Binding SouthLabel}" FontSize="12" FontWeight="Bold" Foreground="#6EBE45" />
+
+                <!-- Hybrid d-pad: low-left disc with cross -->
+                <Ellipse Canvas.Left="136" Canvas.Top="120" Width="54" Height="54" Fill="#0E1116" Stroke="#3A414D" StrokeThickness="1.5" />
+                <Border Canvas.Left="155" Canvas.Top="126" Width="16" Height="14" CornerRadius="3" Background="{Binding DPadUpBrush}" />
+                <Border Canvas.Left="155" Canvas.Top="154" Width="16" Height="14" CornerRadius="3" Background="{Binding DPadDownBrush}" />
+                <Border Canvas.Left="141" Canvas.Top="140" Width="14" Height="14" CornerRadius="3" Background="{Binding DPadLeftBrush}" />
+                <Border Canvas.Left="171" Canvas.Top="140" Width="14" Height="14" CornerRadius="3" Background="{Binding DPadRightBrush}" />
+                <Border Canvas.Left="155" Canvas.Top="140" Width="16" Height="14" Background="#181C22" />
+
+                <!-- Right stick: low-center-right, notched ring -->
+                <Ellipse Canvas.Left="226" Canvas.Top="118" Width="58" Height="58"
+                         Fill="#0E1116" Stroke="#4A5568" StrokeThickness="5" StrokeDashArray="1.2,0.6" />
+                <Ellipse Canvas.Left="239" Canvas.Top="131" Width="32" Height="32"
+                         Fill="{Binding RightThumbBrush}" Stroke="#7DD3FC" StrokeThickness="1">
                   <Ellipse.RenderTransform>
                     <TranslateTransform X="{Binding RightStickOffsetX}" Y="{Binding RightStickOffsetY}" />
                   </Ellipse.RenderTransform>
                 </Ellipse>
 
+                <!-- Rear paddles: long/short blade pairs as on the real back -->
+                <Border Canvas.Left="158" Canvas.Top="196" Width="13" Height="42" CornerRadius="6" Background="{Binding PaddleLeft1Brush}" />
+                <Border Canvas.Left="177" Canvas.Top="200" Width="13" Height="32" CornerRadius="6" Background="{Binding PaddleLeft2Brush}" />
+                <Border Canvas.Left="230" Canvas.Top="200" Width="13" Height="32" CornerRadius="6" Background="{Binding PaddleRight2Brush}" />
+                <Border Canvas.Left="249" Canvas.Top="196" Width="13" Height="42" CornerRadius="6" Background="{Binding PaddleRight1Brush}" />
+                <TextBlock Canvas.Left="157" Canvas.Top="238" Text="P1" FontSize="8" Foreground="#5A7099" />
+                <TextBlock Canvas.Left="176" Canvas.Top="238" Text="P2" FontSize="8" Foreground="#5A7099" />
+                <TextBlock Canvas.Left="229" Canvas.Top="238" Text="P4" FontSize="8" Foreground="#5A7099" />
+                <TextBlock Canvas.Left="248" Canvas.Top="238" Text="P3" FontSize="8" Foreground="#5A7099" />
+                <TextBlock Canvas.Left="196" Canvas.Top="214" Text="REAR" FontSize="7" LetterSpacing="2" Foreground="#3D5578" />
+
               </Canvas>
             </Viewbox>
-
-            <!-- Rear paddles -->
-            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-              <Border Width="42" Height="16" CornerRadius="8"
-                      Background="{Binding PaddleLeft1Brush}">
-                <TextBlock Text="P1" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-              </Border>
-              <Border Width="42" Height="16" CornerRadius="8"
-                      Background="{Binding PaddleLeft2Brush}">
-                <TextBlock Text="P2" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-              </Border>
-              <Border Width="42" Height="16" CornerRadius="8"
-                      Background="{Binding PaddleRight1Brush}">
-                <TextBlock Text="P3" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-              </Border>
-              <Border Width="42" Height="16" CornerRadius="8"
-                      Background="{Binding PaddleRight2Brush}">
-                <TextBlock Text="P4" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-              </Border>
-            </StackPanel>
           </StackPanel>
         </Border>
 

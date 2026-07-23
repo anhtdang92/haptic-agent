@@ -6,16 +6,40 @@
         Title="CtrlAgent"
         Icon="avares://CtrlAgent.Gui/Assets/icon.png"
         WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="PreferSystemChrome"
         Width="980"
         Height="760"
         MinWidth="740"
         MinHeight="560">
 
-  <Panel>
-  <DockPanel Margin="16">
+  <Window.Styles>
+    <!-- Approval banner drops in instead of appearing -->
+    <Style Selector="Border.approvalBanner.show">
+      <Style.Animations>
+        <Animation Duration="0:0:0.22" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="-16" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </Window.Styles>
 
-    <!-- Hero: slim single-band header — bot | wordmark | utility cluster -->
+  <Panel>
+  <!-- Client area extends into the title bar; leave room for caption buttons -->
+  <DockPanel Margin="16,38,16,16">
+
+    <!-- Hero: slim single-band header — bot | wordmark | utility cluster.
+         Doubles as the window drag handle now that the title bar is gone. -->
     <Border DockPanel.Dock="Top"
+            Name="HeroBand"
+            PointerPressed="OnHeroPressed"
             CornerRadius="12"
             Padding="16,10"
             Margin="0,0,0,10"
@@ -218,7 +242,14 @@
     <Grid ColumnDefinitions="3*,2*" Margin="0,10,0,0">
       <Border Classes="card" Padding="8" Margin="0,0,6,0">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="EVENT STREAM" Classes="label" Margin="4,0,0,6" />
+          <DockPanel DockPanel.Dock="Top" Margin="4,0,0,6">
+            <ToggleButton DockPanel.Dock="Right"
+                          Classes="chip"
+                          Content="controller input"
+                          IsChecked="{Binding ShowControllerEvents}"
+                          ToolTip.Tip="Show or hide raw controller input lines" />
+            <TextBlock Text="EVENT STREAM" Classes="label" VerticalAlignment="Center" />
+          </DockPanel>
           <Panel>
           <TextBlock Classes="placeholder"
                      Text="No events yet — controller and agent activity will stream here."
@@ -436,10 +467,11 @@
   </DockPanel>
 
   <!-- Approval banner: floats over the content instead of reflowing it -->
-  <Border Classes="alert"
+  <Border Classes="alert approvalBanner"
+          Classes.show="{Binding HasPendingApproval}"
           VerticalAlignment="Top"
           HorizontalAlignment="Center"
-          Margin="16,196,16,0"
+          Margin="16,218,16,0"
           Padding="14,10"
           BoxShadow="0 6 28 0 #66FFB020"
           IsVisible="{Binding HasPendingApproval}">

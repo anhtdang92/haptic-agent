@@ -161,6 +161,25 @@
       <Setter Property="Background" Value="Transparent" />
     </Style>
 
+    <!-- Tiny filter chips (event-stream toggles) -->
+    <Style Selector="ToggleButton.chip">
+      <Setter Property="Background" Value="#80141F36" />
+      <Setter Property="Foreground" Value="#5A7099" />
+      <Setter Property="BorderBrush" Value="#552E4A78" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="FontSize" Value="10" />
+    </Style>
+    <Style Selector="ToggleButton.chip:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#33194B66" />
+      <Setter Property="Foreground" Value="#7DD3FC" />
+      <Setter Property="BorderBrush" Value="#9900D4FF" />
+    </Style>
+    <Style Selector="ToggleButton.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="#9900D4FF" />
+    </Style>
+
     <!-- Live status dots breathe while their subsystem wants attention -->
     <Style Selector="Ellipse.pulse">
       <Style.Animations>

@@ -21,11 +21,15 @@ public sealed class LogEntry
 
     public required IBrush Brush { get; init; }
 
+    /// <summary>Raw controller input lines, so the stream can hide them.</summary>
+    public required bool IsControllerEvent { get; init; }
+
     public static LogEntry Create(string message) => new()
     {
         Timestamp = DateTimeOffset.Now.ToString("HH:mm:ss"),
         Message = message,
         Brush = Classify(message),
+        IsControllerEvent = message.StartsWith("[controller]", StringComparison.Ordinal),
     };
 
     private static IBrush Classify(string message)

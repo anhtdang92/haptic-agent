@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 
@@ -86,6 +87,16 @@ public sealed partial class MainWindow : Window
         catch (Exception exception)
         {
             viewModel.AppendLog($"Could not launch the wizard: {exception.Message}");
+        }
+    }
+
+    // The hero band is the drag handle now that the client area covers the
+    // title bar. Buttons inside it swallow their own pointer events first.
+    private void OnHeroPressed(object? sender, PointerPressedEventArgs eventArgs)
+    {
+        if (eventArgs.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            BeginMoveDrag(eventArgs);
         }
     }
 

@@ -4,6 +4,7 @@
         x:Class="CtrlAgent.Gui.ProfileEditorWindow"
         x:DataType="gui:ProfileEditorViewModel"
         Title="CtrlAgent profile editor"
+        Icon="avares://CtrlAgent.Gui/Assets/icon.png"
         Width="860"
         Height="600"
         MinWidth="700"

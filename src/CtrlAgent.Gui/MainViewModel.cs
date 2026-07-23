@@ -77,6 +77,8 @@ public sealed class MainViewModel : ViewModelBase
     private bool _isAgentActive;
     private bool _isLogEmpty = true;
     private bool _isBindingsEmpty = true;
+    private bool _showControllerEvents = true;
+    private readonly List<LogEntry> _logHistory = [];
     private bool _isSetupVisible;
     private string _setupAgent = "mock";
     private string _setupWorkingDirectory = Environment.CurrentDirectory;
@@ -363,10 +365,43 @@ public sealed class MainViewModel : ViewModelBase
         set => Set(ref _isBindingsEmpty, value);
     }
 
+    /// <summary>Show or hide raw controller input lines in the event stream.</summary>
+    public bool ShowControllerEvents
+    {
+        get => _showControllerEvents;
+        set
+        {
+            if (Set(ref _showControllerEvents, value))
+            {
+                Log.Clear();
+                foreach (var entry in _logHistory)
+                {
+                    if (value || !entry.IsControllerEvent)
+                    {
+                        Log.Add(entry);
+                    }
+                }
+            }
+        }
+    }
+
     public void AppendLog(string message)
     {
         IsLogEmpty = false;
-        Log.Add(LogEntry.Create(message));
+
+        var entry = LogEntry.Create(message);
+        _logHistory.Add(entry);
+        while (_logHistory.Count > MaxLogEntries)
+        {
+            _logHistory.RemoveAt(0);
+        }
+
+        if (!_showControllerEvents && entry.IsControllerEvent)
+        {
+            return;
+        }
+
+        Log.Add(entry);
         while (Log.Count > MaxLogEntries)
         {
             Log.RemoveAt(0);

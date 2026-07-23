@@ -43,7 +43,7 @@ Spawns `codex app-server --stdio` and speaks its JSON-RPC-style JSONL protocol.
 - Client requests used: `initialize`/`initialized` handshake, `thread/start` (with `approvalPolicy: "unlessTrusted"`), `turn/start`, `turn/interrupt`.
 - Server requests (carry an `id`) are approval/input prompts → `ApprovalRequired` or `WaitingForInput` (for `item/tool/requestUserInput`); the raw JSON id is the `RequestId`, echoed back in the response with a decision of `accept`, `acceptForSession`, `decline`, or `cancel`.
 - Notifications normalized: `thread/started` → Idle, `turn/started` → Working, `turn/completed` → Completed/Error/Idle by status, `serverRequest/resolved` → drops the pending entry.
-- `SubmitPrompt` auto-creates a thread if none exists. Session navigation is not implemented yet.
+- `SubmitPrompt` auto-creates a thread if none exists. `NewSession` starts an additional thread; `NextSession`/`PreviousSession` cycle the known thread list (the active thread receives subsequent prompts/interrupts). The thread list is cleared on app-server crash — resuming threads across restarts (`thread/resume`) is not wired yet.
 
 ## Claude Code adapter (`--agent claude`)
 
@@ -51,7 +51,7 @@ Spawns `claude --print --input-format stream-json --output-format stream-json --
 
 - Outbound: user turns as `{"type":"user","message":{role,content:[{type:"text",text}]}}`; interrupt as a `control_request` with subtype `interrupt`; permission answers as `control_response` (`allow` echoes the tool input back as `updatedInput`; `deny` carries a message).
 - Inbound (classified by the pure, unit-tested `ClaudeStreamParser`): `system/init` → Idle (captures session id), `assistant` messages → Working (text snippet or "Using tool: X"), `result` → Completed or Error, `control_request` subtype `can_use_tool` → ApprovalRequired (request id + tool name + input stored for the echo), `control_cancel_request` → clears the pending approval.
-- `NewSession` restarts the CLI process (fresh session).
+- `NewSession` restarts the CLI process (fresh session). `NextSession`/`PreviousSession` report that Claude Code runs one session per process — multi-session needs a `--resume` design first.
 - `ApproveForSession` allows the request **and** adds a session-scoped allow rule for the whole tool (`updatedPermissions`: `addRules`/`allow`/`destination: session`), so that tool stops prompting for the rest of the session. Payload shapes live in the pure `ClaudePermissionResponse` (unit-tested).
 - Known limit: the wire shapes follow the Agent SDK protocol and still need verification against an installed CLI.
 

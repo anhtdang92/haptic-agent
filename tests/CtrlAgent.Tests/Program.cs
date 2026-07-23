@@ -27,6 +27,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
+    ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
 };
 
 var failures = 0;
@@ -559,6 +560,31 @@ static ValidationReport SampleReport(
         "rumble notes",
         string.Empty,
         DateTimeOffset.UtcNow);
+
+static async Task TestMockSessionNavigationAsync()
+{
+    await using var adapter = new MockAgentAdapter();
+    await adapter.StartAsync().ConfigureAwait(false);
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+    await using var enumerator = adapter.ReadEventsAsync(timeout.Token).GetAsyncEnumerator(timeout.Token);
+
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected the ready event.");
+    AssertEqual("mock-1", enumerator.Current.SessionId);
+
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.NextSession)).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a switch event.");
+    AssertEqual("mock-2", enumerator.Current.SessionId);
+
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.PreviousSession)).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a switch-back event.");
+    AssertEqual("mock-1", enumerator.Current.SessionId);
+
+    // Previous at the first session stays put instead of going negative.
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.PreviousSession)).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a boundary event.");
+    AssertEqual("mock-1", enumerator.Current.SessionId);
+}
 
 static ControllerInputEvent Press(ControllerControl control) =>
     new("test-controller", control, ControllerInputEventKind.Pressed, 1f, DateTimeOffset.UtcNow);

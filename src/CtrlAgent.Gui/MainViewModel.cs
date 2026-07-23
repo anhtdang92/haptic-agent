@@ -57,6 +57,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _controllerStatus = "Searching…";
     private string _agentStatus = "Starting…";
     private string _agentState = "Unknown";
+    private string _sessionId = string.Empty;
     private string _profileName = "default";
     private string _promptText = string.Empty;
     private string _pendingApprovalMessage = string.Empty;
@@ -92,7 +93,11 @@ public sealed class MainViewModel : ViewModelBase
         engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
         engine.ControllerConnected += snapshot => Post(() => ControllerStatus =
             $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : " (XInput fallback)")}");
-        engine.AgentEventReceived += agentEvent => Post(() => AgentState = agentEvent.State.ToString());
+        engine.AgentEventReceived += agentEvent => Post(() =>
+        {
+            AgentState = agentEvent.State.ToString();
+            SessionId = agentEvent.SessionId;
+        });
         engine.PendingApprovalChanged += message => Post(() =>
         {
             HasPendingApproval = message is not null;
@@ -166,6 +171,12 @@ public sealed class MainViewModel : ViewModelBase
     {
         get => _agentState;
         set => Set(ref _agentState, value);
+    }
+
+    public string SessionId
+    {
+        get => _sessionId;
+        set => Set(ref _sessionId, value);
     }
 
     public string ProfileName

@@ -141,7 +141,9 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
 
             case AgentCommandKind.NextSession:
             case AgentCommandKind.PreviousSession:
-                Publish(AgentStateKind.Idle, "Session navigation is not implemented yet.");
+                Publish(
+                    AgentStateKind.Idle,
+                    "Claude Code runs one session per process; use NewSession for a fresh one.");
                 break;
 
             default:

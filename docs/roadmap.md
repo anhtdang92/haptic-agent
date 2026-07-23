@@ -19,7 +19,7 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 | 5 | GUI phase 2: tray icon, minimize-to-tray, mapping editor with live validation | Phase 5 exit gate needs profile editing without hand-written JSON | **Done** — tray + hide-on-close + editor with live validation, runtime apply, JSON save/load |
 | 6 | Release packaging: self-contained win-x64 zip (App + Gui + bridge) on tags | Install without a dev environment | **Done** — release workflow on `v*` tags |
 | 7 | Haptic pattern tuning pass | Depends on #1 evidence | Blocked on #1 |
-| 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession are stubs in both adapters | Ready to design |
+| 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession were stubs | **Mostly done** — mock cycles sessions, Codex cycles live threads (D-pad switching works); remaining: Codex `thread/resume` after crash, Claude `--resume` design |
 | 9 | Profile layers and per-device matching | Deferred from Phase 3 | Design first |
 | 10 | OpenCode / generic process adapter | Phase 6 candidates | After #2 proves the pattern |
 

@@ -10,6 +10,9 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
     }
 
+    private void OnToggleOverlay(object? sender, RoutedEventArgs eventArgs) =>
+        (Avalonia.Application.Current as App)?.ToggleOverlay();
+
     private async void OnEditProfile(object? sender, RoutedEventArgs eventArgs)
     {
         if (DataContext is not MainViewModel viewModel || viewModel.Engine is null)

@@ -50,7 +50,7 @@ Owned app-server process, handshake, thread/turn lifecycle, approval correlation
 
 ### Phase 5 — Windows desktop application — **In progress**
 
-Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, and a mapping editor with live validation, runtime profile apply, and JSON save/load. Remaining for the exit gate: Windows notifications, validation-wizard integration, startup settings.
+Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, mapping editor with live validation and runtime apply, live controller mirror with approval highlights, CTRL·BOT shortcut coaching, settings persistence, and the always-on-top overlay HUD (the "compact HUD" deliverable). Remaining for the exit gate: Windows notifications and validation-wizard integration.
 
 ### Phase 6 — Additional adapters — **Claude Code delivered (pulled forward)**
 

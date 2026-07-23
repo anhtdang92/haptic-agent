@@ -177,6 +177,7 @@
         <Button Content="Review" Command="{Binding ReviewCommand}" />
         <Button Content="New session" Command="{Binding NewSessionCommand}" />
         <Button Content="Edit profile…" Click="OnEditProfile" />
+        <Button Content="Overlay" Click="OnToggleOverlay" ToolTip.Tip="Always-on-top HUD" />
       </StackPanel>
       <TextBox Text="{Binding PromptText}" Watermark="Prompt to send (empty = default prompt)" />
     </DockPanel>

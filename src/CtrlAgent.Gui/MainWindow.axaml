@@ -122,7 +122,7 @@
       <Button Content="Stop" Classes="deny" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
     </StackPanel>
 
-    <!-- Log + bindings -->
+    <!-- Log + live input + bindings -->
     <Grid ColumnDefinitions="3*,2*" Margin="0,10,0,0">
       <Border Classes="card" Padding="8" Margin="0,0,6,0">
         <DockPanel>
@@ -133,12 +133,121 @@
                    Foreground="#B9CCEF" />
         </DockPanel>
       </Border>
-      <Border Classes="card" Grid.Column="1" Padding="8" Margin="6,0,0,0">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="ACTIVE BINDINGS" Classes="label" Margin="4,0,0,6" />
-          <ListBox ItemsSource="{Binding Bindings}" FontSize="12" Foreground="#B9CCEF" />
-        </DockPanel>
-      </Border>
+
+      <DockPanel Grid.Column="1" Margin="6,0,0,0">
+
+        <!-- Live controller mirror: every control lights up as it is used -->
+        <Border DockPanel.Dock="Top" Classes="card" Padding="8" Margin="0,0,0,6">
+          <StackPanel Spacing="4" DataContext="{Binding ControllerVisual}" x:DataType="gui:ControllerVisualViewModel">
+            <TextBlock Text="LIVE INPUT" Classes="label" Margin="4,0,0,2" />
+            <Viewbox Stretch="Uniform" MaxHeight="200">
+              <Canvas Width="380" Height="188">
+
+                <!-- Trigger pull bars -->
+                <Border Canvas.Left="70" Canvas.Top="4" Width="70" Height="12"
+                        CornerRadius="6" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
+                  <Border Width="{Binding LeftTriggerWidth}" Height="8" CornerRadius="4"
+                          HorizontalAlignment="Left" Margin="1,0,0,0" Background="#00D4FF" />
+                </Border>
+                <Border Canvas.Left="240" Canvas.Top="4" Width="70" Height="12"
+                        CornerRadius="6" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
+                  <Border Width="{Binding RightTriggerWidth}" Height="8" CornerRadius="4"
+                          HorizontalAlignment="Left" Margin="1,0,0,0" Background="#00D4FF" />
+                </Border>
+
+                <!-- Shoulders -->
+                <Border Canvas.Left="70" Canvas.Top="22" Width="70" Height="14" CornerRadius="7"
+                        Background="{Binding IsLeftShoulderPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Border Canvas.Left="240" Canvas.Top="22" Width="70" Height="14" CornerRadius="7"
+                        Background="{Binding IsRightShoulderPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+
+                <!-- Body -->
+                <Ellipse Canvas.Left="18" Canvas.Top="58" Width="104" Height="118" Fill="#101A2E" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Ellipse Canvas.Left="258" Canvas.Top="58" Width="104" Height="118" Fill="#101A2E" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Border Canvas.Left="62" Canvas.Top="44" Width="256" Height="104" CornerRadius="42"
+                        Background="#101A2E" BorderBrush="#2E4A78" BorderThickness="1.5" />
+
+                <!-- D-pad -->
+                <Border Canvas.Left="88" Canvas.Top="66" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding IsDPadUpPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Border Canvas.Left="88" Canvas.Top="110" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding IsDPadDownPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Border Canvas.Left="66" Canvas.Top="88" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding IsDPadLeftPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Border Canvas.Left="110" Canvas.Top="88" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding IsDPadRightPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Border Canvas.Left="88" Canvas.Top="88" Width="22" Height="22" Background="#182540" />
+
+                <!-- View / Menu -->
+                <Ellipse Canvas.Left="164" Canvas.Top="70" Width="15" Height="15"
+                         Fill="{Binding IsViewPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Ellipse Canvas.Left="201" Canvas.Top="70" Width="15" Height="15"
+                         Fill="{Binding IsMenuPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+
+                <!-- Face buttons -->
+                <Ellipse Canvas.Left="277" Canvas.Top="58" Width="24" Height="24"
+                         Fill="{Binding IsYPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Ellipse Canvas.Left="253" Canvas.Top="82" Width="24" Height="24"
+                         Fill="{Binding IsXPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Ellipse Canvas.Left="301" Canvas.Top="82" Width="24" Height="24"
+                         Fill="{Binding IsBPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <Ellipse Canvas.Left="277" Canvas.Top="106" Width="24" Height="24"
+                         Fill="{Binding IsAPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}" />
+                <TextBlock Canvas.Left="285" Canvas.Top="61" Text="Y" FontSize="11" Foreground="#9FB7DF" />
+                <TextBlock Canvas.Left="261" Canvas.Top="85" Text="X" FontSize="11" Foreground="#9FB7DF" />
+                <TextBlock Canvas.Left="309" Canvas.Top="85" Text="B" FontSize="11" Foreground="#9FB7DF" />
+                <TextBlock Canvas.Left="285" Canvas.Top="109" Text="A" FontSize="11" Foreground="#9FB7DF" />
+
+                <!-- Sticks: ring + knob that tracks deflection -->
+                <Ellipse Canvas.Left="128" Canvas.Top="118" Width="44" Height="44" Fill="#0B1322" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Ellipse Canvas.Left="137" Canvas.Top="127" Width="26" Height="26"
+                         Fill="{Binding IsLeftThumbPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}"
+                         Stroke="#7DD3FC" StrokeThickness="1">
+                  <Ellipse.RenderTransform>
+                    <TranslateTransform X="{Binding LeftStickOffsetX}" Y="{Binding LeftStickOffsetY}" />
+                  </Ellipse.RenderTransform>
+                </Ellipse>
+                <Ellipse Canvas.Left="208" Canvas.Top="118" Width="44" Height="44" Fill="#0B1322" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Ellipse Canvas.Left="217" Canvas.Top="127" Width="26" Height="26"
+                         Fill="{Binding IsRightThumbPressed, Converter={x:Static gui:PressedBrushConverter.Instance}}"
+                         Stroke="#7DD3FC" StrokeThickness="1">
+                  <Ellipse.RenderTransform>
+                    <TranslateTransform X="{Binding RightStickOffsetX}" Y="{Binding RightStickOffsetY}" />
+                  </Ellipse.RenderTransform>
+                </Ellipse>
+
+              </Canvas>
+            </Viewbox>
+
+            <!-- Rear paddles -->
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding IsPaddleLeft1Pressed, Converter={x:Static gui:PressedBrushConverter.Instance}}">
+                <TextBlock Text="P1" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding IsPaddleLeft2Pressed, Converter={x:Static gui:PressedBrushConverter.Instance}}">
+                <TextBlock Text="P2" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding IsPaddleRight1Pressed, Converter={x:Static gui:PressedBrushConverter.Instance}}">
+                <TextBlock Text="P3" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding IsPaddleRight2Pressed, Converter={x:Static gui:PressedBrushConverter.Instance}}">
+                <TextBlock Text="P4" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="card" Padding="8">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="ACTIVE BINDINGS" Classes="label" Margin="4,0,0,6" />
+            <ListBox ItemsSource="{Binding Bindings}" FontSize="12" Foreground="#B9CCEF" />
+          </DockPanel>
+        </Border>
+      </DockPanel>
     </Grid>
 
   </DockPanel>

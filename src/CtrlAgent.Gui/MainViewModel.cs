@@ -93,6 +93,7 @@ public sealed class MainViewModel : ViewModelBase
         engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
         engine.ControllerConnected += snapshot => Post(() => ControllerStatus =
             $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : " (XInput fallback)")}");
+        engine.ControllerInputReceived += inputEvent => Post(() => ControllerVisual.Apply(inputEvent));
         engine.AgentEventReceived += agentEvent => Post(() =>
         {
             AgentState = agentEvent.State.ToString();
@@ -136,6 +137,8 @@ public sealed class MainViewModel : ViewModelBase
     public ObservableCollection<string> Log { get; } = [];
 
     public ObservableCollection<string> Bindings { get; } = [];
+
+    public ControllerVisualViewModel ControllerVisual { get; } = new();
 
     public ICommand SubmitPromptCommand { get; }
 

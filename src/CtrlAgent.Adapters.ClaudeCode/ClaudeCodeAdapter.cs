@@ -274,7 +274,14 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         finally
         {
             _replacingProcess = false;
-            _startGate.Release();
+            try
+            {
+                _startGate.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // A concurrent shutdown disposed the gate.
+            }
         }
     }
 

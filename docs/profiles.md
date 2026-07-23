@@ -64,7 +64,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 | `tap` | button up | Held **shorter** than `holdMilliseconds` |
 | `hold` | button up | Held **at least** `holdMilliseconds` (note: fires on release, not at the threshold crossing) |
 | `doublePress` | second button down | Two presses within `doublePressMilliseconds`; a completed double resets the sequence, so a third press starts a new pair |
-| `axisThreshold` | axis change | Absolute value reaches `minimumValue` (triggers, stick axes) |
+| `axisThreshold` | axis change | Fires when the absolute value **crosses** `minimumValue` from below; latched until the axis drops back under the threshold, so jitter above it never re-fires |
 
 Durations are computed from the timestamps stamped on device events, so gesture behavior is identical in tests and on hardware.
 

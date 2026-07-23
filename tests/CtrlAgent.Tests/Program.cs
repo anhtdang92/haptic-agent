@@ -17,6 +17,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Pending approval hydrates request id", TestApprovalMappingAsync),
     ("Tap and hold split on release duration", TestTapVersusHoldAsync),
     ("Double press fires inside its window", TestDoublePressAsync),
+    ("Axis threshold latches until the axis drops", TestAxisThresholdLatchAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
@@ -233,6 +234,35 @@ static Task TestDoublePressAsync()
     var late = start + TimeSpan.FromSeconds(5);
     _ = engine.Process(At(ControllerControl.B, ControllerInputEventKind.Released, start + TimeSpan.FromMilliseconds(460)));
     AssertEqual(0, engine.Process(At(ControllerControl.B, ControllerInputEventKind.Pressed, late)).Count);
+    return Task.CompletedTask;
+}
+
+static Task TestAxisThresholdLatchAsync()
+{
+    var profile = new ControllerProfile(
+        "axis",
+        [
+            new(ControllerControl.RightTrigger, InputGesture.AxisThreshold, AgentCommandKind.Interrupt),
+        ]);
+    var engine = new MappingEngine(profile);
+    var start = DateTimeOffset.UtcNow;
+
+    ControllerInputEvent Axis(float value, int ms) => new(
+        "test-controller",
+        ControllerControl.RightTrigger,
+        ControllerInputEventKind.ValueChanged,
+        value,
+        start + TimeSpan.FromMilliseconds(ms));
+
+    AssertEqual(1, engine.Process(Axis(0.6f, 0)).Count);
+
+    // Jitter above the threshold must not re-fire.
+    AssertEqual(0, engine.Process(Axis(0.7f, 10)).Count);
+    AssertEqual(0, engine.Process(Axis(0.55f, 20)).Count);
+
+    // Dropping below re-arms; the next crossing fires again.
+    AssertEqual(0, engine.Process(Axis(0.2f, 30)).Count);
+    AssertEqual(1, engine.Process(Axis(0.9f, 40)).Count);
     return Task.CompletedTask;
 }
 

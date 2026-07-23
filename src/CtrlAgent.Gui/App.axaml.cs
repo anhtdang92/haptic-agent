@@ -19,6 +19,8 @@ public sealed class App : Application
     private MainViewModel? _viewModel;
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlay;
+    private ToastWindow? _toast;
+    private bool _toastIsApproval;
     private bool _exiting;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -28,6 +30,7 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var startupError = default(string);
+            var firstRun = false;
             var options = new GuiOptions(
                 "mock",
                 Environment.CurrentDirectory,
@@ -41,31 +44,25 @@ public sealed class App : Application
             {
                 var args = desktop.Args ?? [];
                 options = GuiOptions.Parse(args);
-                if (args.Length == 0 && GuiSettings.TryLoad() is { } saved)
+                if (args.Length == 0)
                 {
-                    // No CLI arguments: pick up where the user left off.
-                    options = saved.ApplyTo(options);
+                    if (GuiSettings.TryLoad() is { } saved)
+                    {
+                        // No CLI arguments: pick up where the user left off.
+                        options = saved.ApplyTo(options);
+                    }
+                    else
+                    {
+                        firstRun = true;
+                    }
                 }
-
-                var profile = options.ProfilePath is null
-                    ? ControllerProfile.Default
-                    : ControllerProfileJson.Deserialize(File.ReadAllText(options.ProfilePath));
-
-                _engine = new HostEngine(
-                    new WindowsControllerProvider(options.GameInputBridgeExecutable),
-                    CreateAgentAdapter(options),
-                    profile,
-                    new HostEngineOptions(options.DefaultPrompt));
-
-                GuiSettings.TrySave(options);
             }
             catch (Exception exception)
             {
                 startupError = exception.Message;
-                _engine = null;
             }
 
-            var viewModel = new MainViewModel(_engine, options);
+            var viewModel = new MainViewModel(null, options);
             if (startupError is not null)
             {
                 viewModel.AppendLog($"Startup failed: {startupError}");
@@ -96,25 +93,80 @@ public sealed class App : Application
             SetUpTrayIcon(desktop, mainWindow, icon);
             mainWindow.Show();
 
-            if (_engine is not null)
+            viewModel.SetupCompleted += StartWithOptions;
+            if (startupError is null)
             {
-                var engine = _engine;
-                _ = Task.Run(async () =>
+                if (firstRun)
                 {
-                    try
-                    {
-                        await engine.StartAsync().ConfigureAwait(false);
-                    }
-                    catch (Exception exception)
-                    {
-                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                            viewModel.AppendLog($"Host failed to start: {exception.Message}"));
-                    }
-                });
+                    viewModel.IsSetupVisible = true;
+                }
+                else
+                {
+                    StartWithOptions(options);
+                }
             }
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Creates and starts the engine for the given options (initial
+    /// launch or first-run setup submission).</summary>
+    private void StartWithOptions(GuiOptions options)
+    {
+        if (_viewModel is null || _engine is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            var profile = options.ProfilePath is null
+                ? ControllerProfile.Default
+                : ControllerProfileJson.Deserialize(File.ReadAllText(options.ProfilePath));
+
+            var engine = new HostEngine(
+                new WindowsControllerProvider(options.GameInputBridgeExecutable),
+                CreateAgentAdapter(options),
+                profile,
+                new HostEngineOptions(options.DefaultPrompt));
+
+            _engine = engine;
+            _viewModel.AttachEngine(engine);
+            _viewModel.AgentStatus = options.Agent;
+            GuiSettings.TrySave(options);
+
+            engine.AgentEventReceived += agentEvent =>
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => MaybeToast(agentEvent));
+            engine.PendingApprovalChanged += message =>
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    // The approval got answered elsewhere; retire its toast.
+                    if (message is null && _toastIsApproval)
+                    {
+                        _toast?.Close();
+                    }
+                });
+
+            var viewModel = _viewModel;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await engine.StartAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        viewModel.AppendLog($"Host failed to start: {exception.Message}"));
+                }
+            });
+        }
+        catch (Exception exception)
+        {
+            _viewModel.AppendLog($"Startup failed: {exception.Message}");
+            _viewModel.IsSetupVisible = true;
+        }
     }
 
     private void SetUpTrayIcon(
@@ -153,6 +205,73 @@ public sealed class App : Application
         mainWindow.Show();
         mainWindow.WindowState = WindowState.Normal;
         mainWindow.Activate();
+    }
+
+    /// <summary>
+    /// Shows a notification card when nothing else is on screen: main window
+    /// hidden/minimized and no overlay visible.
+    /// </summary>
+    private void MaybeToast(CtrlAgent.Core.AgentEvent agentEvent)
+    {
+        if (_exiting || _viewModel is null)
+        {
+            return;
+        }
+
+        var mainVisible = _mainWindow is { IsVisible: true } && _mainWindow.WindowState != WindowState.Minimized;
+        var overlayVisible = _overlay is { IsVisible: true };
+        if (mainVisible || overlayVisible)
+        {
+            return;
+        }
+
+        switch (agentEvent.State)
+        {
+            case CtrlAgent.Core.AgentStateKind.ApprovalRequired:
+            case CtrlAgent.Core.AgentStateKind.WaitingForInput:
+                ShowToast("APPROVAL REQUIRED", agentEvent.Message ?? "The agent needs permission.", "#FFB020", approval: true);
+                break;
+            case CtrlAgent.Core.AgentStateKind.Completed:
+                ShowToast("TURN COMPLETED", agentEvent.Message ?? "The agent finished.", "#34F5A4", approval: false);
+                break;
+            case CtrlAgent.Core.AgentStateKind.Error:
+                ShowToast("AGENT ERROR", agentEvent.Message ?? "Something went wrong.", "#FF5A78", approval: false);
+                break;
+        }
+    }
+
+    private void ShowToast(string title, string message, string accentHex, bool approval)
+    {
+        _toast?.Close();
+
+        var toast = new ToastWindow();
+        toast.Configure(title, message, accentHex, approval);
+
+        if (approval && _viewModel is { } viewModel)
+        {
+            toast.ApproveRequested += () => viewModel.ApproveOnceCommand.Execute(null);
+            toast.DeclineRequested += () => viewModel.DeclineCommand.Execute(null);
+        }
+
+        toast.OpenRequested += () =>
+        {
+            if (_mainWindow is not null)
+            {
+                ShowMainWindow(_mainWindow);
+            }
+        };
+        toast.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_toast, toast))
+            {
+                _toast = null;
+                _toastIsApproval = false;
+            }
+        };
+
+        _toast = toast;
+        _toastIsApproval = approval;
+        toast.Show();
     }
 
     /// <summary>Shows or hides the always-on-top HUD strip.</summary>
@@ -215,6 +334,8 @@ public sealed class App : Application
     private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs eventArgs)
     {
         _exiting = true;
+        _toast?.Close();
+        _toast = null;
 
         if (_overlay is not null)
         {

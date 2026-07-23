@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CtrlAgent.Gui.ToastWindow"
+        Title="CtrlAgent notification"
+        SystemDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        Topmost="True"
+        CanResize="False"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        SizeToContent="Height"
+        Width="340">
+
+  <Border CornerRadius="10"
+          Padding="12"
+          BorderThickness="1"
+          BorderBrush="#662E4A78"
+          BoxShadow="0 6 24 0 #99000000"
+          PointerPressed="OnBodyPressed">
+    <Border.Background>
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#F60B1322" Offset="0" />
+        <GradientStop Color="#F60E1B33" Offset="1" />
+      </LinearGradientBrush>
+    </Border.Background>
+
+    <StackPanel Spacing="6">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="✕" FontSize="10" Padding="6,2" Click="OnClose" />
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Ellipse Name="AccentDot" Width="9" Height="9" VerticalAlignment="Center" />
+          <TextBlock Name="TitleText" Classes="label" VerticalAlignment="Center" />
+        </StackPanel>
+      </DockPanel>
+
+      <TextBlock Name="MessageText"
+                 FontSize="12"
+                 Foreground="#CFE1FF"
+                 TextWrapping="Wrap"
+                 MaxLines="3"
+                 TextTrimming="CharacterEllipsis" />
+
+      <StackPanel Name="ApprovalButtons" Orientation="Horizontal" Spacing="6" IsVisible="False">
+        <Button Content="Approve" Classes="approve" FontSize="11" Padding="10,4" Click="OnApprove" />
+        <Button Content="Decline" Classes="deny" FontSize="11" Padding="10,4" Click="OnDecline" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

@@ -87,8 +87,23 @@ public sealed class MockAgentAdapter : IAgentAdapter
                 break;
 
             case AgentCommandKind.NextSession:
+                CancelActiveTurn();
+                _sessionNumber++;
+                Publish(AgentStateKind.Idle, $"Switched to {CurrentSessionId}.");
+                break;
+
             case AgentCommandKind.PreviousSession:
-                Publish(AgentStateKind.Idle, "Mock adapter has one active session.");
+                CancelActiveTurn();
+                if (_sessionNumber > 1)
+                {
+                    _sessionNumber--;
+                    Publish(AgentStateKind.Idle, $"Switched to {CurrentSessionId}.");
+                }
+                else
+                {
+                    Publish(AgentStateKind.Idle, $"Already at the first session ({CurrentSessionId}).");
+                }
+
                 break;
 
             default:

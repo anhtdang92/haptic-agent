@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Avalonia.Threading;
 using CtrlAgent.Core;
+using CtrlAgent.Hosting;
 
 namespace CtrlAgent.Gui;
 
@@ -22,6 +23,9 @@ public abstract class ViewModelBase : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         return true;
     }
+
+    protected void Raise(string propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 public sealed class RelayCommand : ICommand
@@ -53,6 +57,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _controllerStatus = "Searching…";
     private string _agentStatus = "Starting…";
     private string _agentState = "Unknown";
+    private string _sessionId = string.Empty;
     private string _profileName = "default";
     private string _promptText = string.Empty;
     private string _pendingApprovalMessage = string.Empty;
@@ -70,8 +75,8 @@ public sealed class MainViewModel : ViewModelBase
         ApproveOnceCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.ApproveOnce)));
         ApproveSessionCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.ApproveForSession)));
         DeclineCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.Decline)));
-        CancelCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.Cancel)));
-        PlayPatternCommand = new RelayCommand(parameter => Fire(e => e.PlayPatternAsync(parameter as string ?? "stop")));
+        CancelCommand = new RelayCommand(_ => Fire(e => e.CancelAsync()));
+        PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
 
         if (engine is null)
         {
@@ -84,14 +89,48 @@ public sealed class MainViewModel : ViewModelBase
             Bindings.Add(DescribeBinding(binding));
         }
 
-        engine.LogEmitted += message => Post(() => AppendLog(message));
+        engine.LogEmitted += message => Post(() => AppendLog($"{DateTimeOffset.Now:HH:mm:ss} {message}"));
         engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
-        engine.AgentStateChanged += state => Post(() => AgentState = state);
+        engine.ControllerConnected += snapshot => Post(() => ControllerStatus =
+            $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : " (XInput fallback)")}");
+        engine.AgentEventReceived += agentEvent => Post(() =>
+        {
+            AgentState = agentEvent.State.ToString();
+            SessionId = agentEvent.SessionId;
+        });
         engine.PendingApprovalChanged += message => Post(() =>
         {
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
         });
+        engine.ProfileApplied += applied => Post(() =>
+        {
+            ProfileName = applied.Name;
+            Bindings.Clear();
+            foreach (var binding in applied.Bindings)
+            {
+                Bindings.Add(DescribeBinding(binding));
+            }
+        });
+    }
+
+    internal HostEngine? Engine => _engine;
+
+    private static Task PreviewPatternAsync(HostEngine engine, string? name)
+    {
+        var pattern = name switch
+        {
+            "working" => HapticPatternCatalog.Working,
+            "approval" => HapticPatternCatalog.ApprovalRequired,
+            "waiting" => HapticPatternCatalog.WaitingForInput,
+            "completed" => HapticPatternCatalog.Completed,
+            "error" => HapticPatternCatalog.Error,
+            _ => null,
+        };
+
+        return pattern is null
+            ? engine.StopHapticsAsync().AsTask()
+            : engine.PlayPatternAsync(pattern).AsTask();
     }
 
     public ObservableCollection<string> Log { get; } = [];
@@ -132,6 +171,12 @@ public sealed class MainViewModel : ViewModelBase
     {
         get => _agentState;
         set => Set(ref _agentState, value);
+    }
+
+    public string SessionId
+    {
+        get => _sessionId;
+        set => Set(ref _sessionId, value);
     }
 
     public string ProfileName

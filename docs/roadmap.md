@@ -1,151 +1,62 @@
 # CtrlAgent Roadmap
 
-The project advances through evidence-based gates. Each phase should produce something testable before the next layer is added.
+The project advances through evidence-based gates: each phase produces something testable before the next layer is added. This file carries two views — the phase ledger (what the gates were and where they stand) and the prioritized near-term backlog (what to pick up next).
 
-## Phase 0 — Architecture and core contracts
+## Snapshot (2026-07-22)
 
-Status: **Complete**
+Implemented and unit-tested: platform-independent core, mapping engine with gestures and validated JSON profiles, haptic scheduler + hub, XInput fallback, native GameInput bridge (code complete), Mock/Codex/Claude Code adapters with crash restart, console host with reconnect resilience, Avalonia GUI, hardware validation wizard, Windows CI. 16 tests passing.
 
-Deliverables:
+**The critical path is now evidence, not code.** Nothing hardware- or agent-facing has been verified against a real Elite controller, a real Codex install, or a real Claude Code install.
 
-- platform-independent controller and agent contracts;
-- haptic frame and pattern model;
-- built-in feedback cues;
-- architecture blueprint;
-- Xbox Elite validation plan;
-- buildable mock feedback demo.
+## Near-term backlog (priority order)
 
-Exit gate:
+| # | Item | Why | Status |
+|---|---|---|---|
+| 1 | Hardware validation runs (`--validate`, per transport) | Gates the paddle decision and haptic tuning; everything Elite-specific is provisional until this exists | **Blocked on hardware access** |
+| 2 | Live verification of Codex + Claude Code adapters | Wire shapes follow documented protocols; first real run is the compatibility test | Blocked on installed CLIs |
+| 3 | Shared hosting layer (`CtrlAgent.Hosting`) | App and Gui ran parallel copies of the same loops | **Done** — both hosts run on `HostEngine`, covered by an end-to-end test |
+| 4 | Claude Code approve-for-session | Wire session-wide permission rules (`updatedPermissions`) instead of degrading to approve-once | **Done** — session-scoped tool allow rule, wire shape unit-tested |
+| 5 | GUI phase 2: tray icon, minimize-to-tray, mapping editor with live validation | Phase 5 exit gate needs profile editing without hand-written JSON | **Done** — tray + hide-on-close + editor with live validation, runtime apply, JSON save/load |
+| 6 | Release packaging: self-contained win-x64 zip (App + Gui + bridge) on tags | Install without a dev environment | **Done** — release workflow on `v*` tags |
+| 7 | Haptic pattern tuning pass | Depends on #1 evidence | Blocked on #1 |
+| 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession were stubs | **Mostly done** — mock cycles sessions, Codex cycles live threads (D-pad switching works); remaining: Codex `thread/resume` after crash, Claude `--resume` design |
+| 9 | Profile layers and per-device matching | Deferred from Phase 3 | Design first |
+| 10 | OpenCode / generic process adapter | Phase 6 candidates | After #2 proves the pattern |
 
-- the solution builds on .NET 10;
-- mock agent events route to deterministic haptic patterns;
-- architecture review identifies no blocking issue.
+## Phase ledger
 
-## Phase 1 — Native GameInput hardware spike
+### Phase 0 — Architecture and core contracts — **Complete**
 
-Status: **Code complete — awaiting real Elite-controller validation**
+Contracts, haptic model, feedback cues, architecture doc, validation plan, mock demo. Exit gate met.
 
-Deliverables:
+### Phase 1 — Native GameInput hardware spike — **Code complete, awaiting hardware validation**
 
-- minimal Windows C++ console project using Microsoft.GameInput 3.4;
-- controller discovery and reconnect logging;
-- state-change logging for standard controls and all four Elite paddles;
-- four-motor rumble test menu;
-- validation reports for USB, Xbox Wireless Adapter, and Bluetooth.
+The bridge builds in CI and implements discovery, paddle flags, and four-channel rumble. Exit gate (reliable USB input, documented paddle behavior, distinct cues, clean reconnect) **requires real-device evidence** — run `--validate` per transport and commit the reports under `validation/`.
 
-Exit gate:
+### Phase 2 — Managed GameInput adapter — **Complete in software, pending hardware sign-off**
 
-- standard input is reliable over USB;
-- paddle behavior is documented;
-- two or more distinct rumble cues are reliable;
-- no stuck rumble or stuck controls after reconnect.
+Bridge client, `IControllerDevice`, serialized cancellable haptics, capability reporting, normalization/scheduling tests, defunct-bridge re-resolution.
 
-## Phase 2 — Managed GameInput adapter
+### Phase 3 — Mapping engine — **Largely complete**
 
-Status: **Complete in software — pending hardware sign-off**
+Delivered: versioned JSON profiles, press/release/tap/hold/double-press/axis-threshold gestures, chords, collision detection, enforced approval safeguards, import/export. Remaining: layers, per-device match criteria, haptic cue overrides in profiles.
 
-Deliverables:
+### Phase 4 — Codex adapter — **Implemented, pending live verification**
 
-- narrow native bridge or generated managed interop;
-- `IControllerDevice` implementation;
-- serialized haptic playback with interruption priorities;
-- device capability reporting;
-- automated tests for event normalization and haptic scheduling.
+Owned app-server process, handshake, thread/turn lifecycle, approval correlation, interrupt/approve/decline commands, crash restart with backoff. Remaining: verification against a real Codex install; schema pinning; session navigation.
 
-Exit gate:
+### Phase 5 — Windows desktop application — **In progress**
 
-- managed demo receives live controller input;
-- mock agent states trigger physical controller feedback;
-- clean startup, cancellation, disconnect, reconnect, and shutdown.
+Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, and a mapping editor with live validation, runtime profile apply, and JSON save/load. Remaining for the exit gate: Windows notifications, validation-wizard integration, startup settings.
 
-## Phase 3 — Mapping engine
+### Phase 6 — Additional adapters — **Claude Code delivered (pulled forward)**
 
-Status: **In progress** — versioned JSON profiles, press/release/tap/hold/double-press/axis-threshold gestures, collision detection, approval safeguards, and import/export are implemented; layers and modifier layers beyond chords remain.
-
-Deliverables:
-
-- versioned profile format;
-- press, release, hold, double-press, chord, and axis-threshold gestures;
-- layers and modifiers;
-- collision detection;
-- explicit safeguards for approval-capable commands;
-- profile import and export.
-
-Exit gate:
-
-- a controller profile can map physical events to mock agent commands without keyboard injection;
-- conflicting mappings are rejected or clearly surfaced;
-- approval mappings require deliberate configuration.
-
-## Phase 4 — Codex adapter
-
-Status: **Implemented — crash recovery restarts the app-server with backoff; end-to-end verification against a real Codex install still pending**
-
-Deliverables:
-
-- owned local `codex app-server` process over stdio;
-- initialization handshake;
-- thread and turn lifecycle normalization;
-- approval-request correlation by thread, turn, and request;
-- commands for interrupt, approve, decline, new session, and session navigation;
-- schema generation pinned to the installed Codex version where practical.
-
-Exit gate:
-
-- controller can safely respond to a real Codex approval request;
-- completion, waiting, and error states produce physical cues;
-- app-server crash and restart are recoverable.
-
-## Phase 5 — Windows tray application
-
-Status: **In progress** — an Avalonia desktop window (`src/CtrlAgent.Gui`) covers device/agent status, approval actions, prompt submission, haptic preview, active-profile display, and a live event log. Tray icon, mapping editor, notifications, and settings remain. Avalonia was selected over WinUI 3/WPF for testability and future cross-platform frontends.
-
-Deliverables:
-
-- connected-device and agent status;
-- mapping editor;
-- live input inspector;
-- haptic pattern preview;
-- active-profile and active-session selection;
-- compact HUD and Windows notifications;
-- startup and update settings.
-
-Exit gate:
-
-- a new user can connect a controller, run hardware validation, select a safe starter profile, and use Codex without editing JSON manually.
-
-## Phase 6 — Additional adapters
-
-Status: **Claude Code adapter implemented** (pulled forward from this phase) — drives the Claude Code CLI over bidirectional stream-json with controller-answered `can_use_tool` permission prompts. Protocol shapes follow the Agent SDK wire format and still need verification against an installed CLI. Approve-for-session currently degrades to approve-once.
-
-Candidates:
-
-- Claude Code lifecycle hooks;
-- OpenCode;
-- generic process and webhook adapters;
-- DualSense and generic SDL/GameInput controllers;
-- Stream Deck, handheld, and mobile frontends.
-
-These begin only after the Xbox Elite plus Codex path is stable.
+Claude Code stream-json adapter with controller-answered permission prompts. Remaining candidates: OpenCode, generic process/webhook adapters, DualSense/SDL controllers, Stream Deck and mobile frontends — after the Elite + Codex/Claude path is verified stable.
 
 ## Release targets
 
-### v0.1.0 — Hardware proof
-
-Live Elite input inspector and haptic test utility.
-
-### v0.2.0 — Mock two-way loop
-
-Mapping engine plus physical feedback driven by mock agent events.
-
-### v0.3.0 — Codex technical preview
-
-Direct Codex app-server control and feedback without a polished editor.
-
-### v0.5.0 — Usable Windows preview
-
-Tray application, starter profiles, validation wizard, and safer approvals.
-
-### v1.0.0 — Stable controller-agent interface
-
-Documented extension contracts, dependable upgrades, tested transports, and stable profile compatibility.
+- **v0.1.0 — Hardware proof:** software is ready (`--validate` is the inspector/test utility); tag once per-transport validation reports exist. ← *next release*
+- **v0.2.0 — Mock two-way loop:** functionality complete today (profiles + physical feedback via mock agent); tag alongside v0.1 evidence.
+- **v0.3.0 — Agent technical preview:** Codex and Claude Code verified against live installs; known protocol gaps closed.
+- **v0.5.0 — Usable Windows preview:** tray app, mapping editor, starter profiles, packaged zip, validation wizard integrated in GUI.
+- **v1.0.0 — Stable controller-agent interface:** documented extension contracts, dependable upgrades, tested transports, stable profile compatibility.

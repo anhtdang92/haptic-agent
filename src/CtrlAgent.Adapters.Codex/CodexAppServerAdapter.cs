@@ -24,6 +24,8 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
     private Task? _stdoutLoop;
     private Task? _stderrLoop;
     private long _nextRequestId;
+    private readonly List<string> _threadIds = [];
+    private readonly object _threadSync = new();
     private string? _threadId;
     private string? _turnId;
     private bool _disposed;
@@ -212,8 +214,11 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
                 break;
 
             case AgentCommandKind.NextSession:
+                SwitchThread(+1);
+                break;
+
             case AgentCommandKind.PreviousSession:
-                Publish(AgentStateKind.Idle, "Session navigation is not implemented yet.");
+                SwitchThread(-1);
                 break;
 
             default:
@@ -273,10 +278,52 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
             },
             cancellationToken).ConfigureAwait(false);
 
-        _threadId = TryGetString(response, "thread", "id")
+        var threadId = TryGetString(response, "thread", "id")
             ?? throw new CodexProtocolException("thread/start response did not include thread.id.");
+        RememberThread(threadId);
+        _threadId = threadId;
         _turnId = null;
         Publish(AgentStateKind.Idle, "New Codex thread created.");
+    }
+
+    private void RememberThread(string threadId)
+    {
+        lock (_threadSync)
+        {
+            if (!_threadIds.Contains(threadId))
+            {
+                _threadIds.Add(threadId);
+            }
+        }
+    }
+
+    private void SwitchThread(int direction)
+    {
+        string? target = null;
+        int position = 0;
+        int count;
+
+        lock (_threadSync)
+        {
+            count = _threadIds.Count;
+            if (count > 1)
+            {
+                var index = _threadId is null ? -1 : _threadIds.IndexOf(_threadId);
+                var next = ((index < 0 ? 0 : index) + direction + count) % count;
+                target = _threadIds[next];
+                position = next + 1;
+            }
+        }
+
+        if (target is null)
+        {
+            Publish(AgentStateKind.Idle, "No other Codex thread to switch to; use NewSession to create one.");
+            return;
+        }
+
+        _threadId = target;
+        _turnId = null;
+        Publish(AgentStateKind.Idle, $"Active thread {position}/{count}: {target}.");
     }
 
     private async Task StartTurnAsync(string prompt, CancellationToken cancellationToken)
@@ -512,7 +559,12 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         switch (method)
         {
             case "thread/started":
-                _threadId = TryGetString(root, "params", "thread", "id") ?? _threadId;
+                if (TryGetString(root, "params", "thread", "id") is { Length: > 0 } startedThreadId)
+                {
+                    RememberThread(startedThreadId);
+                    _threadId = startedThreadId;
+                }
+
                 Publish(AgentStateKind.Idle, "Codex thread started.");
                 break;
 
@@ -555,6 +607,11 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         IsStarted = false;
         _threadId = null;
         _turnId = null;
+        lock (_threadSync)
+        {
+            // Threads belonged to the dead server; resuming them is not wired yet.
+            _threadIds.Clear();
+        }
 
         int? exitCode = null;
         try

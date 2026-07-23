@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <AvaloniaResource Include="Assets\icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.18" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.18" />
@@ -17,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CtrlAgent.Core\CtrlAgent.Core.csproj" />
+    <ProjectReference Include="..\CtrlAgent.Hosting\CtrlAgent.Hosting.csproj" />
     <ProjectReference Include="..\CtrlAgent.Platform.Windows\CtrlAgent.Platform.Windows.csproj" />
     <ProjectReference Include="..\CtrlAgent.Adapters.Mock\CtrlAgent.Adapters.Mock.csproj" />
     <ProjectReference Include="..\CtrlAgent.Adapters.Codex\CtrlAgent.Adapters.Codex.csproj" />

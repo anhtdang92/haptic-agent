@@ -26,6 +26,7 @@
             <TextBlock Text="{Binding AgentStatus}" FontWeight="SemiBold" />
             <TextBlock Text="{Binding AgentState}" Opacity="0.8" />
           </StackPanel>
+          <TextBlock Text="{Binding SessionId}" FontSize="11" Opacity="0.5" TextTrimming="CharacterEllipsis" />
         </StackPanel>
       </Border>
       <Border Margin="6,0,0,0" Padding="10" CornerRadius="6" Background="#22FFFFFF">
@@ -63,6 +64,7 @@
         <Button Content="Interrupt" Command="{Binding InterruptCommand}" />
         <Button Content="Review" Command="{Binding ReviewCommand}" />
         <Button Content="New session" Command="{Binding NewSessionCommand}" />
+        <Button Content="Edit profile…" Click="OnEditProfile" />
       </StackPanel>
       <TextBox Text="{Binding PromptText}" Watermark="Prompt to send (empty = default prompt)" />
     </DockPanel>

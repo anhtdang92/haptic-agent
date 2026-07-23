@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:gui="using:CtrlAgent.Gui"
+        x:Class="CtrlAgent.Gui.ProfileEditorWindow"
+        x:DataType="gui:ProfileEditorViewModel"
+        Title="CtrlAgent profile editor"
+        Width="860"
+        Height="600"
+        MinWidth="700"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner">
+
+  <DockPanel Margin="14">
+
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8">
+      <TextBlock Text="Profile name:" VerticalAlignment="Center" />
+      <TextBox Text="{Binding Name}" Width="220" />
+      <Button Content="Add binding" Command="{Binding AddCommand}" />
+      <Button Content="Remove selected" Command="{Binding RemoveCommand}" />
+    </StackPanel>
+
+    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8" CornerRadius="6" Background="#18FFFFFF">
+      <StackPanel Spacing="8">
+        <ItemsControl ItemsSource="{Binding Errors}" MaxHeight="90">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock Text="{Binding}" Foreground="#FF7A6E" TextWrapping="Wrap" FontSize="12" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Apply to running host" IsEnabled="{Binding IsValid}" Click="OnApply" />
+          <Button Content="Save as JSON…" IsEnabled="{Binding IsValid}" Click="OnSave" />
+          <Button Content="Load JSON…" Click="OnLoad" />
+          <Button Content="Close" Click="OnClose" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Grid ColumnDefinitions="5*,4*" Margin="0,10,0,0">
+      <Border Padding="6" CornerRadius="6" Background="#18FFFFFF" Margin="0,0,6,0">
+        <ListBox ItemsSource="{Binding Bindings}" SelectedItem="{Binding SelectedBinding}" FontSize="12">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="gui:BindingEditor">
+              <TextBlock Text="{Binding Summary}" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <Border Grid.Column="1"
+              Padding="10"
+              CornerRadius="6"
+              Background="#18FFFFFF"
+              Margin="6,0,0,0"
+              IsEnabled="{Binding SelectedBinding, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <ScrollViewer>
+          <StackPanel DataContext="{Binding SelectedBinding}" x:DataType="gui:BindingEditor" Spacing="6">
+            <TextBlock Text="Control" FontSize="11" Opacity="0.6" />
+            <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ControlNames}"
+                      SelectedItem="{Binding Control}"
+                      HorizontalAlignment="Stretch" />
+            <TextBlock Text="Gesture" FontSize="11" Opacity="0.6" />
+            <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.GestureNames}"
+                      SelectedItem="{Binding Gesture}"
+                      HorizontalAlignment="Stretch" />
+            <TextBlock Text="Command" FontSize="11" Opacity="0.6" />
+            <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.CommandNames}"
+                      SelectedItem="{Binding Command}"
+                      HorizontalAlignment="Stretch" />
+            <TextBlock Text="Modifiers (e.g. LeftShoulder+RightShoulder)" FontSize="11" Opacity="0.6" />
+            <TextBox Text="{Binding ModifiersText}" />
+            <TextBlock Text="Hold ms (Tap/Hold, default 400)" FontSize="11" Opacity="0.6" />
+            <TextBox Text="{Binding HoldMilliseconds}" />
+            <TextBlock Text="Double-press ms (default 300)" FontSize="11" Opacity="0.6" />
+            <TextBox Text="{Binding DoublePressMilliseconds}" />
+            <TextBlock Text="Axis minimum value (AxisThreshold)" FontSize="11" Opacity="0.6" />
+            <TextBox Text="{Binding MinimumValue}" />
+            <TextBlock Text="Prompt text (SubmitPrompt)" FontSize="11" Opacity="0.6" />
+            <TextBox Text="{Binding Text}" AcceptsReturn="False" />
+            <CheckBox Content="Requires pending approval" IsChecked="{Binding RequiresPendingApproval}" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+  </DockPanel>
+</Window>

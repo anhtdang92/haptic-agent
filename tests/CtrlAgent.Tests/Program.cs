@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading.Channels;
 using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
+using CtrlAgent.Hosting;
 
 var tests = new (string Name, Func<Task> Run)[]
 {
@@ -15,13 +17,18 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Pending approval hydrates request id", TestApprovalMappingAsync),
     ("Tap and hold split on release duration", TestTapVersusHoldAsync),
     ("Double press fires inside its window", TestDoublePressAsync),
+    ("Axis threshold latches until the axis drops", TestAxisThresholdLatchAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
+    ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
+    ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
+    ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
+    ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
 };
 
 var failures = 0;
@@ -230,6 +237,35 @@ static Task TestDoublePressAsync()
     return Task.CompletedTask;
 }
 
+static Task TestAxisThresholdLatchAsync()
+{
+    var profile = new ControllerProfile(
+        "axis",
+        [
+            new(ControllerControl.RightTrigger, InputGesture.AxisThreshold, AgentCommandKind.Interrupt),
+        ]);
+    var engine = new MappingEngine(profile);
+    var start = DateTimeOffset.UtcNow;
+
+    ControllerInputEvent Axis(float value, int ms) => new(
+        "test-controller",
+        ControllerControl.RightTrigger,
+        ControllerInputEventKind.ValueChanged,
+        value,
+        start + TimeSpan.FromMilliseconds(ms));
+
+    AssertEqual(1, engine.Process(Axis(0.6f, 0)).Count);
+
+    // Jitter above the threshold must not re-fire.
+    AssertEqual(0, engine.Process(Axis(0.7f, 10)).Count);
+    AssertEqual(0, engine.Process(Axis(0.55f, 20)).Count);
+
+    // Dropping below re-arms; the next crossing fires again.
+    AssertEqual(0, engine.Process(Axis(0.2f, 30)).Count);
+    AssertEqual(1, engine.Process(Axis(0.9f, 40)).Count);
+    return Task.CompletedTask;
+}
+
 static Task TestProfileJsonRoundTripAsync()
 {
     var json = ControllerProfileJson.Serialize(ControllerProfile.Default);
@@ -317,6 +353,84 @@ static async Task TestHapticHubAsync()
     await hub.StopAsync(timeout.Token).ConfigureAwait(false);
 
     Assert(controller.StopCount > 0, "Disposing the scheduler should stop controller haptics.");
+}
+
+static async Task TestHostEngineEndToEndAsync()
+{
+    var controller = new ScriptedController();
+    var provider = new SingleControllerProvider(controller);
+
+    // The default prompt mentions "delete" so the mock adapter demands approval.
+    await using var engine = new HostEngine(
+        provider,
+        new MockAgentAdapter(),
+        ControllerProfile.Default,
+        new HostEngineOptions("Please delete the generated file."));
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+    var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var cleared = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    engine.ControllerConnected += _ => connected.TrySetResult();
+    engine.PendingApprovalChanged += message =>
+    {
+        if (message is not null)
+        {
+            pending.TrySetResult();
+        }
+        else if (pending.Task.IsCompleted)
+        {
+            cleared.TrySetResult();
+        }
+    };
+
+    await engine.StartAsync(timeout.Token).ConfigureAwait(false);
+    await connected.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    // A press maps to SubmitPrompt through the default profile.
+    controller.Emit(ControllerControl.A, ControllerInputEventKind.Pressed);
+    controller.Emit(ControllerControl.A, ControllerInputEventKind.Released);
+
+    await pending.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+    Assert(
+        await engine.RespondToApprovalAsync(AgentCommandKind.ApproveOnce).ConfigureAwait(false),
+        "Expected a pending approval to answer.");
+
+    await cleared.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+    Assert(
+        !await engine.RespondToApprovalAsync(AgentCommandKind.ApproveOnce).ConfigureAwait(false),
+        "The pending approval must be cleared after it is answered.");
+}
+
+static async Task TestHostEngineProfileSwapAsync()
+{
+    var controller = new ScriptedController();
+    await using var engine = new HostEngine(
+        new SingleControllerProvider(controller),
+        new MockAgentAdapter(),
+        ControllerProfile.Default,
+        new HostEngineOptions("prompt"));
+
+    var applied = new TaskCompletionSource<ControllerProfile>(TaskCreationOptions.RunContinuationsAsynchronously);
+    engine.ProfileApplied += profile => applied.TrySetResult(profile);
+
+    // An unsafe profile is rejected with errors and the active profile stays.
+    var unsafeProfile = new ControllerProfile(
+        "unsafe",
+        [new(ControllerControl.A, InputGesture.Press, AgentCommandKind.ApproveOnce, RequiresPendingApproval: true)]);
+    Assert(!engine.TryApplyProfile(unsafeProfile, out var errors), "Unsafe profile must be rejected.");
+    Assert(errors.Count > 0, "Rejection must report errors.");
+    AssertEqual("default", engine.Profile.Name);
+
+    // A valid profile swaps in and raises ProfileApplied.
+    var custom = new ControllerProfile(
+        "custom",
+        [new(ControllerControl.B, InputGesture.Press, AgentCommandKind.Interrupt)]);
+    Assert(engine.TryApplyProfile(custom, out _), "Valid profile must apply.");
+    AssertEqual("custom", engine.Profile.Name);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+    AssertEqual("custom", (await applied.Task.WaitAsync(timeout.Token).ConfigureAwait(false)).Name);
 }
 
 static Task TestValidationReportGatesAsync()
@@ -424,6 +538,36 @@ static ClaudeStreamMessage ParseClaudeLine(string json)
     return ClaudeStreamParser.Parse(document.RootElement);
 }
 
+static Task TestClaudePermissionResponseAsync()
+{
+    using var inputDocument = JsonDocument.Parse("""{"command":"ls"}""");
+    var input = inputDocument.RootElement.Clone();
+
+    var once = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudePermissionResponse.Allow("req-1", "Bash", input, forSession: false))).RootElement;
+    var onceResponse = once.GetProperty("response").GetProperty("response");
+    AssertEqual("allow", onceResponse.GetProperty("behavior").GetString());
+    AssertEqual("ls", onceResponse.GetProperty("updatedInput").GetProperty("command").GetString());
+    Assert(!onceResponse.TryGetProperty("updatedPermissions", out _), "Approve-once must not add session rules.");
+    AssertEqual("req-1", once.GetProperty("response").GetProperty("request_id").GetString());
+
+    var session = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudePermissionResponse.Allow("req-2", "Bash", input, forSession: true))).RootElement;
+    var sessionResponse = session.GetProperty("response").GetProperty("response");
+    var rule = sessionResponse.GetProperty("updatedPermissions")[0];
+    AssertEqual("addRules", rule.GetProperty("type").GetString());
+    AssertEqual("allow", rule.GetProperty("behavior").GetString());
+    AssertEqual("session", rule.GetProperty("destination").GetString());
+    AssertEqual("Bash", rule.GetProperty("rules")[0].GetProperty("toolName").GetString());
+
+    var deny = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudePermissionResponse.Deny("req-3", "Declined."))).RootElement;
+    var denyResponse = deny.GetProperty("response").GetProperty("response");
+    AssertEqual("deny", denyResponse.GetProperty("behavior").GetString());
+    AssertEqual("Declined.", denyResponse.GetProperty("message").GetString());
+    return Task.CompletedTask;
+}
+
 static ValidationReport SampleReport(
     ValidationOutcome standard,
     ValidationOutcome reconnect,
@@ -446,6 +590,31 @@ static ValidationReport SampleReport(
         "rumble notes",
         string.Empty,
         DateTimeOffset.UtcNow);
+
+static async Task TestMockSessionNavigationAsync()
+{
+    await using var adapter = new MockAgentAdapter();
+    await adapter.StartAsync().ConfigureAwait(false);
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+    await using var enumerator = adapter.ReadEventsAsync(timeout.Token).GetAsyncEnumerator(timeout.Token);
+
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected the ready event.");
+    AssertEqual("mock-1", enumerator.Current.SessionId);
+
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.NextSession)).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a switch event.");
+    AssertEqual("mock-2", enumerator.Current.SessionId);
+
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.PreviousSession)).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a switch-back event.");
+    AssertEqual("mock-1", enumerator.Current.SessionId);
+
+    // Previous at the first session stays put instead of going negative.
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.PreviousSession)).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a boundary event.");
+    AssertEqual("mock-1", enumerator.Current.SessionId);
+}
 
 static ControllerInputEvent Press(ControllerControl control) =>
     new("test-controller", control, ControllerInputEventKind.Pressed, 1f, DateTimeOffset.UtcNow);
@@ -470,6 +639,74 @@ static void AssertEqual<T>(T expected, T actual)
     {
         throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
     }
+}
+
+internal sealed class ScriptedController : IControllerDevice
+{
+    private readonly Channel<ControllerInputEvent> _events = Channel.CreateUnbounded<ControllerInputEvent>();
+
+    public string Id => "scripted";
+
+    public string DisplayName => "Scripted test controller";
+
+    public ControllerCapabilities Capabilities { get; } = new(
+        HasFourPaddles: true,
+        HasLowFrequencyRumble: true,
+        HasHighFrequencyRumble: true,
+        HasLeftTriggerRumble: true,
+        HasRightTriggerRumble: true);
+
+    public bool IsConnected => true;
+
+    public void Emit(ControllerControl control, ControllerInputEventKind kind) =>
+        _events.Writer.TryWrite(new ControllerInputEvent(
+            Id,
+            control,
+            kind,
+            kind == ControllerInputEventKind.Pressed ? 1f : 0f,
+            DateTimeOffset.UtcNow));
+
+    public async IAsyncEnumerable<ControllerInputEvent> ReadEventsAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var inputEvent in _events.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return inputEvent;
+        }
+    }
+
+    public ValueTask PlayAsync(HapticPattern pattern, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask StopHapticsAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+
+    public ValueTask DisposeAsync()
+    {
+        _events.Writer.TryComplete();
+        return ValueTask.CompletedTask;
+    }
+}
+
+internal sealed class SingleControllerProvider(ScriptedController controller) : IControllerProvider
+{
+    private bool _handedOut;
+
+    public ValueTask<IControllerDevice?> GetPrimaryControllerAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_handedOut)
+        {
+            return ValueTask.FromResult<IControllerDevice?>(null);
+        }
+
+        _handedOut = true;
+        return ValueTask.FromResult<IControllerDevice?>(controller);
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 internal sealed class BlockingController : IControllerDevice

@@ -78,6 +78,7 @@ public sealed class MappingEngine
     private readonly HashSet<ControllerControl> _pressed = [];
     private readonly Dictionary<ControllerControl, DateTimeOffset> _pressStarted = [];
     private readonly Dictionary<ControllerControl, DateTimeOffset> _lastPress = [];
+    private readonly Dictionary<ControllerControl, float> _axisValues = [];
     private PendingApproval? _pendingApproval;
 
     public MappingEngine(ControllerProfile profile)
@@ -119,6 +120,7 @@ public sealed class MappingEngine
                 _pressed.Clear();
                 _pressStarted.Clear();
                 _lastPress.Clear();
+                _axisValues.Clear();
                 return [];
             }
 
@@ -126,6 +128,7 @@ public sealed class MappingEngine
             // deterministic and clock-free.
             TimeSpan? doublePressInterval = null;
             TimeSpan? heldDuration = null;
+            float previousAxisMagnitude = 0f;
 
             switch (inputEvent.Kind)
             {
@@ -149,10 +152,20 @@ public sealed class MappingEngine
                     }
 
                     break;
+
+                case ControllerInputEventKind.ValueChanged:
+                    previousAxisMagnitude = Math.Abs(_axisValues.GetValueOrDefault(inputEvent.Control));
+                    _axisValues[inputEvent.Control] = inputEvent.Value;
+                    break;
             }
 
             var structuralMatches = _profile.Bindings
-                .Where(binding => StructurallyMatches(binding, inputEvent, doublePressInterval, heldDuration))
+                .Where(binding => StructurallyMatches(
+                    binding,
+                    inputEvent,
+                    doublePressInterval,
+                    heldDuration,
+                    previousAxisMagnitude))
                 .ToArray();
 
             if (inputEvent.Kind == ControllerInputEventKind.Pressed)
@@ -196,7 +209,8 @@ public sealed class MappingEngine
         InputBinding binding,
         ControllerInputEvent inputEvent,
         TimeSpan? doublePressInterval,
-        TimeSpan? heldDuration)
+        TimeSpan? heldDuration,
+        float previousAxisMagnitude)
     {
         if (binding.Control != inputEvent.Control)
         {
@@ -209,9 +223,12 @@ public sealed class MappingEngine
                 inputEvent.Kind == ControllerInputEventKind.Pressed,
             InputGesture.Release =>
                 inputEvent.Kind == ControllerInputEventKind.Released,
+            // Latches on the upward crossing: analog jitter above the
+            // threshold must not re-fire the command.
             InputGesture.AxisThreshold =>
                 inputEvent.Kind == ControllerInputEventKind.ValueChanged &&
-                Math.Abs(inputEvent.Value) >= binding.MinimumValue,
+                Math.Abs(inputEvent.Value) >= binding.MinimumValue &&
+                previousAxisMagnitude < binding.MinimumValue,
             InputGesture.Tap =>
                 inputEvent.Kind == ControllerInputEventKind.Released &&
                 heldDuration is { } tapDuration &&

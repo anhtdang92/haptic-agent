@@ -123,7 +123,9 @@ An Avalonia desktop app provides live controller/agent status, an approval banne
 dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
 ```
 
-The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--gameinput-bridge`, and `--profile` options as the console host.
+The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--claude-path`, `--gameinput-bridge`, and `--profile` options as the console host. It lives in the system tray: closing the window hides it, the tray menu restores or exits. The built-in profile editor (Edit profile…) adds, edits, and removes bindings with live validation, applies the profile to the running host without a restart, and saves/loads profile JSON.
+
+Tagged releases (`v*`) publish a self-contained `CtrlAgent-<tag>-win-x64.zip` (console host, GUI, and GameInput bridge — no .NET install required) on the GitHub releases page.
 
 ## Run with the mock agent
 
@@ -143,7 +145,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- \
   --cwd C:\path\to\your\repository
 ```
 
-The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the paddles (approve maps to allow, decline to deny). Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable. Approve-for-session currently behaves as approve-once.
+The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the paddles — approve once allows the request, approve-for-session additionally adds a session-wide allow rule for that tool, decline denies. Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable.
 
 ## Run with Codex
 
@@ -166,6 +168,15 @@ Useful options:
 
 When the native bridge is not supplied or cannot start, CtrlAgent automatically falls back to XInput. Place `CtrlAgent.GameInputBridge.exe` beside the managed application, set `CTRL_AGENT_GAMEINPUT_BRIDGE`, or pass `--gameinput-bridge` to enable independent paddles and trigger rumble.
 
+## Documentation
+
+- [Architecture](docs/architecture.md) — as-built design, threading model, decision log
+- [Profiles](docs/profiles.md) — profile JSON reference, gestures, validation rules
+- [Agent adapters](docs/adapters.md) — adapter contract, protocols, how to add one
+- [Roadmap](docs/roadmap.md) — phase ledger, prioritized backlog, release targets
+- [Controller validation](docs/controller-validation.md) — hardware test plan and wizard
+- [Contributing](CONTRIBUTING.md) — build, tests, invariants, conventions
+
 ## Repository layout
 
 ```text
@@ -177,6 +188,7 @@ native/
 
 src/
   CtrlAgent.Core/              Contracts, mappings, feedback, and haptics
+  CtrlAgent.Hosting/           Shared HostEngine used by console host and GUI
   CtrlAgent.Platform.Windows/  GameInput bridge client and XInput fallback
   CtrlAgent.Adapters.Mock/     Safe simulated agent
   CtrlAgent.Adapters.Codex/    Codex app-server adapter

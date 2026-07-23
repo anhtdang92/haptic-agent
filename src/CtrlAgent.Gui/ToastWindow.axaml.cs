@@ -26,6 +26,7 @@ public sealed partial class ToastWindow : Window
         Opened += (_, _) =>
         {
             PositionBottomRight();
+            Opacity = 1;
             _autoClose.Start();
         };
         Closed += (_, _) => _autoClose.Stop();

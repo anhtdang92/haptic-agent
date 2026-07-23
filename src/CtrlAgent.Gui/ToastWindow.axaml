@@ -10,7 +10,15 @@
         ShowInTaskbar="False"
         ShowActivated="False"
         SizeToContent="Height"
-        Width="340">
+        Width="340"
+        Opacity="0">
+
+  <!-- Fades in on open; code-behind flips Opacity to 1 -->
+  <Window.Transitions>
+    <Transitions>
+      <DoubleTransition Property="Opacity" Duration="0:0:0.18" />
+    </Transitions>
+  </Window.Transitions>
 
   <Border CornerRadius="10"
           Padding="12"

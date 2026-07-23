@@ -12,7 +12,15 @@
         ShowInTaskbar="False"
         ShowActivated="False"
         SizeToContent="Height"
-        Width="380">
+        Width="380"
+        Opacity="0">
+
+  <!-- Fades in on show; code-behind flips Opacity with visibility -->
+  <Window.Transitions>
+    <Transitions>
+      <DoubleTransition Property="Opacity" Duration="0:0:0.18" />
+    </Transitions>
+  </Window.Transitions>
 
   <Border CornerRadius="12"
           Padding="12,10"
@@ -43,7 +51,10 @@
                   ToolTip.Tip="Hide overlay" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Ellipse Width="10" Height="10" Fill="{Binding Buddy.AccentBrush}" VerticalAlignment="Center" />
+          <Ellipse Width="10" Height="10"
+                   Fill="{Binding Buddy.AccentBrush}"
+                   Classes.pulse="{Binding IsAgentActive}"
+                   VerticalAlignment="Center" />
           <TextBlock Text="CTRLAGENT" Classes="label" VerticalAlignment="Center" />
           <TextBlock Text="{Binding AgentState}" Foreground="#7DD3FC" FontSize="12" VerticalAlignment="Center" />
         </StackPanel>
@@ -59,6 +70,8 @@
 
       <!-- Approval actions appear only while a request is pending -->
       <Border IsVisible="{Binding HasPendingApproval}"
+              Classes="approvalBanner"
+              Classes.show="{Binding HasPendingApproval}"
               Background="#2EFFA020"
               BorderBrush="#80FFB020"
               BorderThickness="1"

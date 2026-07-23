@@ -13,24 +13,6 @@
         MinWidth="740"
         MinHeight="560">
 
-  <Window.Styles>
-    <!-- Approval banner drops in instead of appearing -->
-    <Style Selector="Border.approvalBanner.show">
-      <Style.Animations>
-        <Animation Duration="0:0:0.22" FillMode="Forward">
-          <KeyFrame Cue="0%">
-            <Setter Property="Opacity" Value="0" />
-            <Setter Property="TranslateTransform.Y" Value="-16" />
-          </KeyFrame>
-          <KeyFrame Cue="100%">
-            <Setter Property="Opacity" Value="1" />
-            <Setter Property="TranslateTransform.Y" Value="0" />
-          </KeyFrame>
-        </Animation>
-      </Style.Animations>
-    </Style>
-  </Window.Styles>
-
   <Panel>
   <!-- Client area extends into the title bar; leave room for caption buttons -->
   <DockPanel Margin="16,38,16,16">
@@ -123,7 +105,25 @@
               <Ellipse Canvas.Left="24" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
               <Ellipse Canvas.Left="49" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
             </Canvas>
+            <!-- Alert eyes pulse urgently — something needs an answer -->
             <Canvas IsVisible="{Binding IsAlert}">
+              <Canvas.Styles>
+                <Style Selector="Ellipse">
+                  <Style.Animations>
+                    <Animation Duration="0:0:0.7" IterationCount="Infinite">
+                      <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="1" />
+                      </KeyFrame>
+                      <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="0.5" />
+                      </KeyFrame>
+                      <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1" />
+                      </KeyFrame>
+                    </Animation>
+                  </Style.Animations>
+                </Style>
+              </Canvas.Styles>
               <Ellipse Canvas.Left="23" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
               <Ellipse Canvas.Left="48" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
             </Canvas>

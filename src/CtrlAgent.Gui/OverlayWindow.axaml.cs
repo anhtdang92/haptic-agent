@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -21,6 +22,16 @@ public sealed partial class OverlayWindow : Window
 
     /// <summary>Set by the app during shutdown so Close actually closes.</summary>
     public bool AllowClose { get; set; }
+
+    // Fade in on every show (the window is hidden, not destroyed).
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsVisibleProperty)
+        {
+            Opacity = change.GetNewValue<bool>() ? 1 : 0;
+        }
+    }
 
     protected override void OnClosing(WindowClosingEventArgs eventArgs)
     {

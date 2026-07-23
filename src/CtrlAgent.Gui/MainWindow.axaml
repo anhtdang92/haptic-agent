@@ -5,11 +5,36 @@
         x:DataType="gui:MainViewModel"
         Title="CtrlAgent"
         Width="960"
-        Height="680"
+        Height="760"
         MinWidth="720"
-        MinHeight="480">
+        MinHeight="540">
 
   <DockPanel Margin="14">
+
+    <!-- Logo hero -->
+    <Border DockPanel.Dock="Top"
+            CornerRadius="8"
+            Padding="20,16"
+            Margin="0,0,0,12">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+          <GradientStop Color="#FF0B1526" Offset="0" />
+          <GradientStop Color="#FF122A4A" Offset="0.55" />
+          <GradientStop Color="#FF0B1526" Offset="1" />
+        </LinearGradientBrush>
+      </Border.Background>
+      <StackPanel Spacing="8" HorizontalAlignment="Center">
+        <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+               Height="104"
+               HorizontalAlignment="Center"
+               RenderOptions.BitmapInterpolationMode="HighQuality" />
+        <TextBlock Text="XBOX CONTROLLER INTERFACE FOR AI CODING AGENTS"
+                   FontSize="11"
+                   LetterSpacing="2"
+                   Opacity="0.55"
+                   HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
 
     <!-- Status row -->
     <UniformGrid DockPanel.Dock="Top" Columns="3">

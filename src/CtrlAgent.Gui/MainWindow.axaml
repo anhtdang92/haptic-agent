@@ -4,121 +4,321 @@
         x:Class="CtrlAgent.Gui.MainWindow"
         x:DataType="gui:MainViewModel"
         Title="CtrlAgent"
-        Width="960"
+        Width="980"
         Height="760"
-        MinWidth="720"
-        MinHeight="540">
+        MinWidth="740"
+        MinHeight="560">
 
-  <DockPanel Margin="14">
+  <DockPanel Margin="16">
 
-    <!-- Logo hero -->
+    <!-- Hero -->
     <Border DockPanel.Dock="Top"
-            CornerRadius="8"
-            Padding="20,16"
-            Margin="0,0,0,12">
+            CornerRadius="12"
+            Padding="20,14"
+            Margin="0,0,0,12"
+            BoxShadow="0 0 32 0 #2E00D4FF">
       <Border.Background>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-          <GradientStop Color="#FF0B1526" Offset="0" />
-          <GradientStop Color="#FF122A4A" Offset="0.55" />
-          <GradientStop Color="#FF0B1526" Offset="1" />
+          <GradientStop Color="#F00A1526" Offset="0" />
+          <GradientStop Color="#F0102A50" Offset="0.55" />
+          <GradientStop Color="#F0081226" Offset="1" />
         </LinearGradientBrush>
       </Border.Background>
-      <StackPanel Spacing="8" HorizontalAlignment="Center">
-        <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
-               Height="104"
-               HorizontalAlignment="Center"
-               RenderOptions.BitmapInterpolationMode="HighQuality" />
-        <TextBlock Text="XBOX CONTROLLER INTERFACE FOR AI CODING AGENTS"
-                   FontSize="11"
-                   LetterSpacing="2"
-                   Opacity="0.55"
-                   HorizontalAlignment="Center" />
-      </StackPanel>
+      <Grid ColumnDefinitions="Auto,*">
+
+        <!-- CTRL·BOT: the resident agent companion -->
+        <StackPanel Orientation="Horizontal"
+                    Spacing="12"
+                    VerticalAlignment="Center"
+                    DataContext="{Binding Buddy}"
+                    x:DataType="gui:AgentBuddyViewModel">
+          <Canvas Width="86" Height="100">
+            <!-- Antenna; the tip carries the mood color -->
+            <Border Canvas.Left="41" Canvas.Top="8" Width="4" Height="14" Background="#2E4A78" />
+            <Ellipse Canvas.Left="38" Canvas.Top="0" Width="10" Height="10" Fill="{Binding AccentBrush}" />
+
+            <!-- Head -->
+            <Border Canvas.Left="8" Canvas.Top="22" Width="70" Height="58"
+                    CornerRadius="14"
+                    Background="#0B1322"
+                    BorderBrush="{Binding AccentBrush}"
+                    BorderThickness="2" />
+            <!-- Face screen -->
+            <Border Canvas.Left="15" Canvas.Top="30" Width="56" Height="36"
+                    CornerRadius="8"
+                    Background="#060B14" />
+
+            <!-- Eyes: one variant per mood -->
+            <Canvas IsVisible="{Binding IsIdle}">
+              <Border Canvas.Left="24" Canvas.Top="45" Width="13" Height="5" CornerRadius="2" Background="#2E6E8E" />
+              <Border Canvas.Left="49" Canvas.Top="45" Width="13" Height="5" CornerRadius="2" Background="#2E6E8E" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsWorking}">
+              <Ellipse Canvas.Left="24" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
+              <Ellipse Canvas.Left="49" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsAlert}">
+              <Ellipse Canvas.Left="23" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
+              <Ellipse Canvas.Left="48" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsHappy}">
+              <Path Canvas.Left="24" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
+              <Path Canvas.Left="49" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
+            </Canvas>
+            <Canvas IsVisible="{Binding IsError}">
+              <Path Canvas.Left="24" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
+              <Path Canvas.Left="49" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
+            </Canvas>
+
+            <!-- Mouth + chassis -->
+            <Border Canvas.Left="36" Canvas.Top="58" Width="14" Height="3" CornerRadius="1.5" Background="#1C3050" />
+            <Border Canvas.Left="24" Canvas.Top="84" Width="38" Height="12" CornerRadius="6"
+                    Background="#0B1322" BorderBrush="#2E4A78" BorderThickness="1.5" />
+            <TextBlock Canvas.Left="16" Canvas.Top="99" Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5" />
+          </Canvas>
+
+          <!-- Speech bubble: contextual shortcut coaching -->
+          <Border Background="#C0122038"
+                  BorderBrush="#552E4A78"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="12,8"
+                  MaxWidth="260"
+                  VerticalAlignment="Center">
+            <TextBlock Text="{Binding Message}"
+                       TextWrapping="Wrap"
+                       FontSize="12"
+                       Foreground="#CFE1FF" />
+          </Border>
+        </StackPanel>
+
+        <!-- Wordmark -->
+        <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                 Height="78"
+                 HorizontalAlignment="Center"
+                 RenderOptions.BitmapInterpolationMode="HighQuality" />
+          <TextBlock Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
+                     Classes="label"
+                     FontSize="11"
+                     HorizontalAlignment="Center" />
+          <Border Height="2" Width="300" CornerRadius="1" HorizontalAlignment="Center">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                <GradientStop Color="#0000D4FF" Offset="0" />
+                <GradientStop Color="#FF00D4FF" Offset="0.5" />
+                <GradientStop Color="#0000D4FF" Offset="1" />
+              </LinearGradientBrush>
+            </Border.Background>
+          </Border>
+        </StackPanel>
+      </Grid>
     </Border>
 
     <!-- Status row -->
     <UniformGrid DockPanel.Dock="Top" Columns="3">
-      <Border Margin="0,0,6,0" Padding="10" CornerRadius="6" Background="#22FFFFFF">
-        <StackPanel Spacing="2">
-          <TextBlock Text="CONTROLLER" FontSize="11" Opacity="0.6" />
-          <TextBlock Text="{Binding ControllerStatus}" FontWeight="SemiBold" TextWrapping="Wrap" />
+      <Border Classes="card" Margin="0,0,6,0" Padding="12,10">
+        <StackPanel Spacing="3">
+          <TextBlock Text="CONTROLLER" Classes="label" />
+          <TextBlock Text="{Binding ControllerStatus}" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="#EAF3FF" />
         </StackPanel>
       </Border>
-      <Border Margin="6,0" Padding="10" CornerRadius="6" Background="#22FFFFFF">
-        <StackPanel Spacing="2">
-          <TextBlock Text="AGENT" FontSize="11" Opacity="0.6" />
+      <Border Classes="card" Margin="6,0" Padding="12,10">
+        <StackPanel Spacing="3">
+          <TextBlock Text="AGENT" Classes="label" />
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{Binding AgentStatus}" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding AgentState}" Opacity="0.8" />
+            <TextBlock Text="{Binding AgentStatus}" FontWeight="SemiBold" Foreground="#EAF3FF" />
+            <TextBlock Text="{Binding AgentState}" Foreground="#7DD3FC" />
           </StackPanel>
-          <TextBlock Text="{Binding SessionId}" FontSize="11" Opacity="0.5" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding SessionId}"
+                     FontSize="11"
+                     Opacity="0.5"
+                     FontFamily="Cascadia Mono,Consolas,monospace"
+                     TextTrimming="CharacterEllipsis" />
         </StackPanel>
       </Border>
-      <Border Margin="6,0,0,0" Padding="10" CornerRadius="6" Background="#22FFFFFF">
-        <StackPanel Spacing="2">
-          <TextBlock Text="PROFILE" FontSize="11" Opacity="0.6" />
-          <TextBlock Text="{Binding ProfileName}" FontWeight="SemiBold" />
+      <Border Classes="card" Margin="6,0,0,0" Padding="12,10">
+        <StackPanel Spacing="3">
+          <TextBlock Text="PROFILE" Classes="label" />
+          <TextBlock Text="{Binding ProfileName}" FontWeight="SemiBold" Foreground="#EAF3FF" />
         </StackPanel>
       </Border>
     </UniformGrid>
 
     <!-- Approval banner -->
     <Border DockPanel.Dock="Top"
+            Classes="alert"
             Margin="0,10,0,0"
-            Padding="10"
-            CornerRadius="6"
-            Background="#40FF8C00"
+            Padding="12,10"
             IsVisible="{Binding HasPendingApproval}">
       <StackPanel Orientation="Horizontal" Spacing="10">
-        <TextBlock Text="Approval required:" FontWeight="Bold" VerticalAlignment="Center" />
+        <TextBlock Text="APPROVAL REQUIRED"
+                   Classes="label"
+                   Foreground="#FFD9A0"
+                   Opacity="1"
+                   VerticalAlignment="Center" />
         <TextBlock Text="{Binding PendingApprovalMessage}"
                    VerticalAlignment="Center"
                    TextWrapping="Wrap"
-                   MaxWidth="360" />
-        <Button Content="Approve once" Command="{Binding ApproveOnceCommand}" />
-        <Button Content="Approve for session" Command="{Binding ApproveSessionCommand}" />
-        <Button Content="Decline" Command="{Binding DeclineCommand}" />
-        <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                   MaxWidth="330"
+                   Foreground="#FFEFD6" />
+        <Button Content="Approve once" Classes="approve" Command="{Binding ApproveOnceCommand}" />
+        <Button Content="Approve for session" Classes="approve" Command="{Binding ApproveSessionCommand}" />
+        <Button Content="Decline" Classes="deny" Command="{Binding DeclineCommand}" />
+        <Button Content="Cancel" Classes="deny" Command="{Binding CancelCommand}" />
       </StackPanel>
     </Border>
 
     <!-- Prompt row -->
     <DockPanel DockPanel.Dock="Top" Margin="0,10,0,0">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="6,0,0,0">
-        <Button Content="Submit" Command="{Binding SubmitPromptCommand}" />
+        <Button Content="Submit" Classes="accent" Command="{Binding SubmitPromptCommand}" />
         <Button Content="Interrupt" Command="{Binding InterruptCommand}" />
         <Button Content="Review" Command="{Binding ReviewCommand}" />
         <Button Content="New session" Command="{Binding NewSessionCommand}" />
         <Button Content="Edit profile…" Click="OnEditProfile" />
+        <Button Content="Overlay" Click="OnToggleOverlay" ToolTip.Tip="Always-on-top HUD" />
       </StackPanel>
       <TextBox Text="{Binding PromptText}" Watermark="Prompt to send (empty = default prompt)" />
     </DockPanel>
 
     <!-- Haptics preview -->
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,10,0,0">
-      <TextBlock Text="Haptics:" VerticalAlignment="Center" Opacity="0.7" />
+      <TextBlock Text="HAPTICS" Classes="label" VerticalAlignment="Center" Margin="0,0,4,0" />
       <Button Content="Working" Command="{Binding PlayPatternCommand}" CommandParameter="working" />
       <Button Content="Approval" Command="{Binding PlayPatternCommand}" CommandParameter="approval" />
       <Button Content="Waiting" Command="{Binding PlayPatternCommand}" CommandParameter="waiting" />
       <Button Content="Completed" Command="{Binding PlayPatternCommand}" CommandParameter="completed" />
       <Button Content="Error" Command="{Binding PlayPatternCommand}" CommandParameter="error" />
-      <Button Content="Stop" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
+      <Button Content="Stop" Classes="deny" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
     </StackPanel>
 
-    <!-- Log + bindings -->
+    <!-- Log + live input + bindings -->
     <Grid ColumnDefinitions="3*,2*" Margin="0,10,0,0">
-      <Border Padding="6" CornerRadius="6" Background="#18FFFFFF" Margin="0,0,6,0">
+      <Border Classes="card" Padding="8" Margin="0,0,6,0">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="EVENTS" FontSize="11" Opacity="0.6" Margin="4,0,0,4" />
-          <ListBox ItemsSource="{Binding Log}" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12" />
+          <TextBlock DockPanel.Dock="Top" Text="EVENT STREAM" Classes="label" Margin="4,0,0,6" />
+          <ListBox ItemsSource="{Binding Log}"
+                   FontFamily="Cascadia Mono,Consolas,monospace"
+                   FontSize="12"
+                   Foreground="#B9CCEF" />
         </DockPanel>
       </Border>
-      <Border Grid.Column="1" Padding="6" CornerRadius="6" Background="#18FFFFFF" Margin="6,0,0,0">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="ACTIVE BINDINGS" FontSize="11" Opacity="0.6" Margin="4,0,0,4" />
-          <ListBox ItemsSource="{Binding Bindings}" FontSize="12" />
-        </DockPanel>
-      </Border>
+
+      <DockPanel Grid.Column="1" Margin="6,0,0,0">
+
+        <!-- Live controller mirror: every control lights up as it is used -->
+        <Border DockPanel.Dock="Top" Classes="card" Padding="8" Margin="0,0,0,6">
+          <StackPanel Spacing="4" DataContext="{Binding ControllerVisual}" x:DataType="gui:ControllerVisualViewModel">
+            <TextBlock Text="LIVE INPUT" Classes="label" Margin="4,0,0,2" />
+            <Viewbox Stretch="Uniform" MaxHeight="200">
+              <Canvas Width="380" Height="188">
+
+                <!-- Trigger pull bars -->
+                <Border Canvas.Left="70" Canvas.Top="4" Width="70" Height="12"
+                        CornerRadius="6" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
+                  <Border Width="{Binding LeftTriggerWidth}" Height="8" CornerRadius="4"
+                          HorizontalAlignment="Left" Margin="1,0,0,0" Background="#00D4FF" />
+                </Border>
+                <Border Canvas.Left="240" Canvas.Top="4" Width="70" Height="12"
+                        CornerRadius="6" Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1">
+                  <Border Width="{Binding RightTriggerWidth}" Height="8" CornerRadius="4"
+                          HorizontalAlignment="Left" Margin="1,0,0,0" Background="#00D4FF" />
+                </Border>
+
+                <!-- Shoulders -->
+                <Border Canvas.Left="70" Canvas.Top="22" Width="70" Height="14" CornerRadius="7"
+                        Background="{Binding LeftShoulderBrush}" />
+                <Border Canvas.Left="240" Canvas.Top="22" Width="70" Height="14" CornerRadius="7"
+                        Background="{Binding RightShoulderBrush}" />
+
+                <!-- Body -->
+                <Ellipse Canvas.Left="18" Canvas.Top="58" Width="104" Height="118" Fill="#101A2E" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Ellipse Canvas.Left="258" Canvas.Top="58" Width="104" Height="118" Fill="#101A2E" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Border Canvas.Left="62" Canvas.Top="44" Width="256" Height="104" CornerRadius="42"
+                        Background="#101A2E" BorderBrush="#2E4A78" BorderThickness="1.5" />
+
+                <!-- D-pad -->
+                <Border Canvas.Left="88" Canvas.Top="66" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding DPadUpBrush}" />
+                <Border Canvas.Left="88" Canvas.Top="110" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding DPadDownBrush}" />
+                <Border Canvas.Left="66" Canvas.Top="88" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding DPadLeftBrush}" />
+                <Border Canvas.Left="110" Canvas.Top="88" Width="22" Height="22" CornerRadius="4"
+                        Background="{Binding DPadRightBrush}" />
+                <Border Canvas.Left="88" Canvas.Top="88" Width="22" Height="22" Background="#182540" />
+
+                <!-- View / Menu -->
+                <Ellipse Canvas.Left="164" Canvas.Top="70" Width="15" Height="15"
+                         Fill="{Binding ViewBrush}" />
+                <Ellipse Canvas.Left="201" Canvas.Top="70" Width="15" Height="15"
+                         Fill="{Binding MenuBrush}" />
+
+                <!-- Face buttons -->
+                <Ellipse Canvas.Left="277" Canvas.Top="58" Width="24" Height="24"
+                         Fill="{Binding YBrush}" />
+                <Ellipse Canvas.Left="253" Canvas.Top="82" Width="24" Height="24"
+                         Fill="{Binding XBrush}" />
+                <Ellipse Canvas.Left="301" Canvas.Top="82" Width="24" Height="24"
+                         Fill="{Binding BBrush}" />
+                <Ellipse Canvas.Left="277" Canvas.Top="106" Width="24" Height="24"
+                         Fill="{Binding ABrush}" />
+                <TextBlock Canvas.Left="285" Canvas.Top="61" Text="{Binding NorthLabel}" FontSize="11" Foreground="#9FB7DF" />
+                <TextBlock Canvas.Left="261" Canvas.Top="85" Text="{Binding WestLabel}" FontSize="11" Foreground="#9FB7DF" />
+                <TextBlock Canvas.Left="309" Canvas.Top="85" Text="{Binding EastLabel}" FontSize="11" Foreground="#9FB7DF" />
+                <TextBlock Canvas.Left="285" Canvas.Top="109" Text="{Binding SouthLabel}" FontSize="11" Foreground="#9FB7DF" />
+
+                <!-- Sticks: ring + knob that tracks deflection -->
+                <Ellipse Canvas.Left="128" Canvas.Top="118" Width="44" Height="44" Fill="#0B1322" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Ellipse Canvas.Left="137" Canvas.Top="127" Width="26" Height="26"
+                         Fill="{Binding LeftThumbBrush}"
+                         Stroke="#7DD3FC" StrokeThickness="1">
+                  <Ellipse.RenderTransform>
+                    <TranslateTransform X="{Binding LeftStickOffsetX}" Y="{Binding LeftStickOffsetY}" />
+                  </Ellipse.RenderTransform>
+                </Ellipse>
+                <Ellipse Canvas.Left="208" Canvas.Top="118" Width="44" Height="44" Fill="#0B1322" Stroke="#2E4A78" StrokeThickness="1.5" />
+                <Ellipse Canvas.Left="217" Canvas.Top="127" Width="26" Height="26"
+                         Fill="{Binding RightThumbBrush}"
+                         Stroke="#7DD3FC" StrokeThickness="1">
+                  <Ellipse.RenderTransform>
+                    <TranslateTransform X="{Binding RightStickOffsetX}" Y="{Binding RightStickOffsetY}" />
+                  </Ellipse.RenderTransform>
+                </Ellipse>
+
+              </Canvas>
+            </Viewbox>
+
+            <!-- Rear paddles -->
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding PaddleLeft1Brush}">
+                <TextBlock Text="P1" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding PaddleLeft2Brush}">
+                <TextBlock Text="P2" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding PaddleRight1Brush}">
+                <TextBlock Text="P3" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <Border Width="42" Height="16" CornerRadius="8"
+                      Background="{Binding PaddleRight2Brush}">
+                <TextBlock Text="P4" FontSize="9" Foreground="#9FB7DF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="card" Padding="8">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="ACTIVE BINDINGS" Classes="label" Margin="4,0,0,6" />
+            <ListBox ItemsSource="{Binding Bindings}" FontSize="12" Foreground="#B9CCEF" />
+          </DockPanel>
+        </Border>
+      </DockPanel>
     </Grid>
 
   </DockPanel>

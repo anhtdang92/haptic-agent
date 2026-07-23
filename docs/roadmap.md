@@ -22,6 +22,9 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 | 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession were stubs | **Mostly done** — mock cycles sessions, Codex cycles live threads (D-pad switching works); remaining: Codex `thread/resume` after crash, Claude `--resume` design |
 | 9 | Profile layers and per-device matching | Deferred from Phase 3 | Design first |
 | 10 | OpenCode / generic process adapter | Phase 6 candidates | After #2 proves the pattern |
+| 11 | PS5 DualSense adapter (raw HID) | First non-Xbox controller proves the pluggable story | **Implemented** — protocol unit-tested (USB/BT parse, Edge paddles, CRC); needs a real pad to verify |
+| 12 | Cursor adapter (`cursor-agent` CLI) | Third real agent platform | Blocked on protocol research against an installed CLI |
+| 13 | Antigravity adapter | Fourth platform target | Blocked on a public automation surface existing |
 
 ## Phase ledger
 
@@ -47,11 +50,32 @@ Owned app-server process, handshake, thread/turn lifecycle, approval correlation
 
 ### Phase 5 — Windows desktop application — **In progress**
 
-Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, and a mapping editor with live validation, runtime profile apply, and JSON save/load. Remaining for the exit gate: Windows notifications, validation-wizard integration, startup settings.
+Delivered (Avalonia): device/agent status, approval actions, prompt submission, haptic preview, event log, tray icon with hide-on-close, mapping editor with live validation and runtime apply, live controller mirror with approval highlights, CTRL·BOT shortcut coaching, settings persistence, and the always-on-top overlay HUD (the "compact HUD" deliverable). Remaining for the exit gate: Windows notifications and validation-wizard integration.
 
 ### Phase 6 — Additional adapters — **Claude Code delivered (pulled forward)**
 
-Claude Code stream-json adapter with controller-answered permission prompts. Remaining candidates: OpenCode, generic process/webhook adapters, DualSense/SDL controllers, Stream Deck and mobile frontends — after the Elite + Codex/Claude path is verified stable.
+Target: all popular controllers × all popular agentic coding platforms. The launch pair is Xbox Elite + Codex; everything else plugs into the same two interfaces.
+
+**Agent platform targets**
+
+| Platform | Path | Status |
+|---|---|---|
+| Codex | app-server JSONL over stdio | Implemented, live verification pending |
+| Claude Code | stream-json + `--permission-prompt-tool stdio` | Implemented, live verification pending |
+| Cursor | `cursor-agent` CLI headless mode; JSON output exists — approval/permission wire protocol needs research | Planned |
+| Google Antigravity | No public automation protocol known yet (VS Code-fork agent manager); watch for CLI/extension/MCP surface | Research |
+| OpenCode / generic process adapters | stdio JSONL, same shape as existing adapters | Candidate |
+
+**Controller targets**
+
+| Controller | Path | Status |
+|---|---|---|
+| Xbox family | XInput (done) + GameInput bridge for Elite paddles (done, hardware validation pending) | Supported |
+| PS5 DualSense | Raw HID input reports + HID output for rumble/lightbar (community-documented format; no OS driver needed) | Implemented — hardware verification pending |
+| DualSense Edge | Same HID path; rear paddles + Fn buttons map to the four paddle controls | Implemented — hardware verification pending |
+| Generic pads | SDL2 or GameInput enumeration | Candidate |
+
+Stream Deck / handheld / mobile frontends remain later-stage candidates.
 
 ## Release targets
 

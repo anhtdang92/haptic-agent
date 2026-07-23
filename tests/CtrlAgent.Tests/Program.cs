@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Adapters.Mock;
+using CtrlAgent.Controllers.DualSense;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
 
@@ -25,6 +26,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
     ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
+    ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
@@ -565,6 +567,73 @@ static Task TestClaudePermissionResponseAsync()
     var denyResponse = deny.GetProperty("response").GetProperty("response");
     AssertEqual("deny", denyResponse.GetProperty("behavior").GetString());
     AssertEqual("Declined.", denyResponse.GetProperty("message").GetString());
+    return Task.CompletedTask;
+}
+
+static Task TestDualSenseProtocolAsync()
+{
+    // USB report 0x01: sticks centered-ish, R2 pulled, Cross + D-pad-left +
+    // R1 + Options held.
+    var usb = new byte[64];
+    usb[0] = 0x01;
+    usb[1] = 128;                    // LX
+    usb[2] = 128;                    // LY
+    usb[3] = 200;                    // RX
+    usb[4] = 55;                     // RY
+    usb[5] = 0;                      // L2
+    usb[6] = 255;                    // R2
+    usb[8] = 0x20 | 0x06;            // Cross + hat 6 (west)
+    usb[9] = 0x02 | 0x20;            // R1 + Options
+    Assert(DualSenseProtocol.TryParseInput(usb, out var state), "USB report must parse.");
+    Assert(state.Buttons.HasFlag(DualSenseButtons.Cross), "Cross must be pressed.");
+    Assert(state.Buttons.HasFlag(DualSenseButtons.DPadLeft), "Hat west must decode to D-pad left.");
+    Assert(state.Buttons.HasFlag(DualSenseButtons.R1), "R1 must be pressed.");
+    Assert(state.Buttons.HasFlag(DualSenseButtons.Options), "Options must be pressed.");
+    Assert(!state.Buttons.HasFlag(DualSenseButtons.Triangle), "Triangle must not be pressed.");
+    AssertEqual((byte)255, state.RightTrigger);
+    AssertEqual((byte)200, state.RightStickX);
+
+    // Edge paddles live in the third button byte.
+    var edge = new byte[64];
+    edge[0] = 0x01;
+    edge[8] = 0x08;                  // hat released
+    edge[10] = 0x40 | 0x20;          // LeftPaddle + RightFunction
+    Assert(DualSenseProtocol.TryParseInput(edge, out var edgeState), "Edge report must parse.");
+    Assert(edgeState.Buttons.HasFlag(DualSenseButtons.LeftPaddle), "Left paddle must be pressed.");
+    Assert(edgeState.Buttons.HasFlag(DualSenseButtons.RightFunction), "Right Fn must be pressed.");
+    Assert(!edgeState.Buttons.HasFlag(DualSenseButtons.DPadUp), "Released hat must press nothing.");
+
+    // Bluetooth report 0x31 carries the same payload shifted by one byte.
+    var bluetooth = new byte[78];
+    bluetooth[0] = 0x31;
+    bluetooth[2] = 128;
+    bluetooth[9] = 0x28;             // Cross + hat 8 (released)
+    Assert(DualSenseProtocol.TryParseInput(bluetooth, out var btState), "Bluetooth report must parse.");
+    Assert(btState.Buttons.HasFlag(DualSenseButtons.Cross), "Cross must be pressed over Bluetooth.");
+
+    // USB output: id, flags, motors, and the cyan lightbar in place.
+    var output = DualSenseProtocol.BuildUsbOutput(1f, 0.5f, 0x00, 0xD4, 0xFF);
+    AssertEqual(DualSenseProtocol.UsbOutputReportLength, output.Length);
+    AssertEqual((byte)0x02, output[0]);
+    AssertEqual((byte)0x03, output[1]);
+    AssertEqual((byte)128, output[3]);   // high-frequency → right motor
+    AssertEqual((byte)255, output[4]);   // low-frequency → left motor
+    AssertEqual((byte)0xD4, output[46]);
+    AssertEqual((byte)0xFF, output[47]);
+
+    // Bluetooth output: correct frame plus a self-consistent trailing CRC32.
+    var btOutput = DualSenseProtocol.BuildBluetoothOutput(3, 0.25f, 0f, 0x00, 0xD4, 0xFF);
+    AssertEqual(DualSenseProtocol.BluetoothOutputReportLength, btOutput.Length);
+    AssertEqual((byte)0x31, btOutput[0]);
+    AssertEqual((byte)0x30, btOutput[1]);
+    var expectedCrc = DualSenseProtocol.ComputeOutputCrc(btOutput.AsSpan(0, 74));
+    var actualCrc = btOutput[74] | ((uint)btOutput[75] << 8) | ((uint)btOutput[76] << 16) | ((uint)btOutput[77] << 24);
+    AssertEqual(expectedCrc, actualCrc);
+
+    Assert(
+        DualSenseProtocol.IsSupported(DualSenseProtocol.SonyVendorId, DualSenseProtocol.DualSenseEdgeProductId),
+        "Edge PID must be recognized.");
+    Assert(!DualSenseProtocol.IsSupported(0x045E, 0x02FF), "Non-Sony devices must be rejected.");
     return Task.CompletedTask;
 }
 

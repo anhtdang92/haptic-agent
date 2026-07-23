@@ -53,6 +53,10 @@ public sealed class HostEngine : IAsyncDisposable
     /// <summary>Human-readable status: "Searching…", "Disconnected — waiting…".</summary>
     public event Action<string>? ControllerStatusChanged;
 
+    /// <summary>Every raw controller input event, including analog changes
+    /// (drives live input visualization).</summary>
+    public event Action<ControllerInputEvent>? ControllerInputReceived;
+
     public event Action<AgentEvent>? AgentEventReceived;
 
     /// <summary>Message of the pending approval request, or null when cleared.</summary>
@@ -208,6 +212,8 @@ public sealed class HostEngine : IAsyncDisposable
             {
                 await foreach (var inputEvent in controller.ReadEventsAsync(cancellationToken).ConfigureAwait(false))
                 {
+                    ControllerInputReceived?.Invoke(inputEvent);
+
                     if (inputEvent.Kind != ControllerInputEventKind.ValueChanged)
                     {
                         Log($"[controller] {inputEvent.Kind} {inputEvent.Control}");

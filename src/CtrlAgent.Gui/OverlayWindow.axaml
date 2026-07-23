@@ -1,0 +1,85 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:gui="using:CtrlAgent.Gui"
+        x:Class="CtrlAgent.Gui.OverlayWindow"
+        x:DataType="gui:MainViewModel"
+        Title="CtrlAgent overlay"
+        SystemDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        Topmost="True"
+        CanResize="False"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        SizeToContent="Height"
+        Width="380">
+
+  <Border CornerRadius="12"
+          Padding="12,10"
+          BorderThickness="1"
+          BorderBrush="#662E4A78"
+          BoxShadow="0 6 28 0 #99000000">
+    <Border.Background>
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#F60B1322" Offset="0" />
+        <GradientStop Color="#F60E1B33" Offset="1" />
+      </LinearGradientBrush>
+    </Border.Background>
+
+    <StackPanel Spacing="8">
+
+      <!-- Header doubles as the drag handle -->
+      <DockPanel Name="DragZone" Background="Transparent" PointerPressed="OnDragStart">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
+          <Button Content="⌂"
+                  FontSize="12"
+                  Padding="7,3"
+                  Click="OnOpenMain"
+                  ToolTip.Tip="Open CtrlAgent" />
+          <Button Content="✕"
+                  FontSize="11"
+                  Padding="7,3"
+                  Click="OnHide"
+                  ToolTip.Tip="Hide overlay" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Ellipse Width="10" Height="10" Fill="{Binding Buddy.AccentBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="CTRLAGENT" Classes="label" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding AgentState}" Foreground="#7DD3FC" FontSize="12" VerticalAlignment="Center" />
+        </StackPanel>
+      </DockPanel>
+
+      <!-- CTRL·BOT's current coaching line -->
+      <TextBlock Text="{Binding Buddy.Message}"
+                 FontSize="11"
+                 Foreground="#9FB7DF"
+                 TextWrapping="Wrap"
+                 MaxLines="2"
+                 TextTrimming="CharacterEllipsis" />
+
+      <!-- Approval actions appear only while a request is pending -->
+      <Border IsVisible="{Binding HasPendingApproval}"
+              Background="#2EFFA020"
+              BorderBrush="#80FFB020"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="8">
+        <StackPanel Spacing="6">
+          <TextBlock Text="{Binding PendingApprovalMessage}"
+                     FontSize="11"
+                     Foreground="#FFEFD6"
+                     TextWrapping="Wrap"
+                     MaxLines="2"
+                     TextTrimming="CharacterEllipsis" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Approve" Classes="approve" FontSize="11" Padding="9,4" Command="{Binding ApproveOnceCommand}" />
+            <Button Content="Session" Classes="approve" FontSize="11" Padding="9,4" Command="{Binding ApproveSessionCommand}" />
+            <Button Content="Decline" Classes="deny" FontSize="11" Padding="9,4" Command="{Binding DeclineCommand}" />
+            <Button Content="Cancel" Classes="deny" FontSize="11" Padding="9,4" Command="{Binding CancelCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </Border>
+</Window>

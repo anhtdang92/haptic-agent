@@ -2,7 +2,147 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="CtrlAgent.Gui.App"
              RequestedThemeVariant="Dark">
+
   <Application.Styles>
     <FluentTheme />
+
+    <!-- ==== CtrlAgent design system: deep-space glass + neon cyan ==== -->
+
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#05070D" Offset="0" />
+            <GradientStop Color="#0A1322" Offset="0.45" />
+            <GradientStop Color="#081020" Offset="0.75" />
+            <GradientStop Color="#05070D" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Uppercase micro-labels -->
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="LetterSpacing" Value="2.5" />
+      <Setter Property="Foreground" Value="#7DD3FC" />
+      <Setter Property="Opacity" Value="0.75" />
+    </Style>
+
+    <!-- Glass cards with a faint cyan aura -->
+    <Style Selector="Border.card">
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#CC101A2E" Offset="0" />
+            <GradientStop Color="#CC0B1322" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#3D2E4A78" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="BoxShadow" Value="0 2 24 0 #1A00D4FF" />
+    </Style>
+
+    <!-- Alert card variant: amber glow for approvals -->
+    <Style Selector="Border.alert">
+      <Setter Property="Background" Value="#2EFFA020" />
+      <Setter Property="BorderBrush" Value="#80FFB020" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="BoxShadow" Value="0 0 28 0 #33FFA020" />
+    </Style>
+
+    <!-- Base buttons: ghost slate with neon hover -->
+    <Style Selector="Button">
+      <Setter Property="Background" Value="#B0141F36" />
+      <Setter Property="Foreground" Value="#DDE9FF" />
+      <Setter Property="BorderBrush" Value="#552E4A78" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="13,7" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1E2E52" />
+      <Setter Property="BorderBrush" Value="#9900D4FF" />
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#27407A" />
+    </Style>
+
+    <!-- Primary action: neon cyan-to-blue -->
+    <Style Selector="Button.accent">
+      <Setter Property="Foreground" Value="#041220" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#00D4FF" Offset="0" />
+            <GradientStop Color="#3B82F6" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#54E4FF" Offset="0" />
+            <GradientStop Color="#659EFF" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Approve / deny actions -->
+    <Style Selector="Button.approve">
+      <Setter Property="Foreground" Value="#06170D" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#34F5A4" Offset="0" />
+            <GradientStop Color="#00D4FF" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style Selector="Button.approve:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#66FFC4" />
+    </Style>
+    <Style Selector="Button.deny">
+      <Setter Property="Background" Value="#B03A1420" />
+      <Setter Property="Foreground" Value="#FFB4C0" />
+      <Setter Property="BorderBrush" Value="#66FF5A78" />
+    </Style>
+    <Style Selector="Button.deny:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#5A2030" />
+      <Setter Property="BorderBrush" Value="#FF5A78" />
+    </Style>
+
+    <!-- Inputs -->
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="#A00C1424" />
+      <Setter Property="Foreground" Value="#E4EEFF" />
+      <Setter Property="BorderBrush" Value="#552E4A78" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="Background" Value="#A00C1424" />
+      <Setter Property="Foreground" Value="#E4EEFF" />
+      <Setter Property="BorderBrush" Value="#552E4A78" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+
+    <!-- Lists sit flush inside cards -->
+    <Style Selector="ListBox">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
   </Application.Styles>
 </Application>

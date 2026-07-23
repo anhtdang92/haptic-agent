@@ -54,6 +54,14 @@ public sealed class WindowsControllerProvider : IControllerProvider
             return _gameInput;
         }
 
+        // Preference order after the bridge: DualSense over raw HID, then the
+        // XInput fallback. Enumeration is per-call, so replugging just works.
+        var dualSense = DualSenseControllerDevice.TryCreate();
+        if (dualSense is not null)
+        {
+            return dualSense;
+        }
+
         return await _xInput.GetPrimaryControllerAsync(cancellationToken).ConfigureAwait(false);
     }
 

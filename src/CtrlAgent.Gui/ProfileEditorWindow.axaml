@@ -16,10 +16,10 @@
       <TextBlock Text="Profile name:" VerticalAlignment="Center" />
       <TextBox Text="{Binding Name}" Width="220" />
       <Button Content="Add binding" Command="{Binding AddCommand}" />
-      <Button Content="Remove selected" Command="{Binding RemoveCommand}" />
+      <Button Content="Remove selected" Classes="deny" Command="{Binding RemoveCommand}" />
     </StackPanel>
 
-    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8" CornerRadius="6" Background="#18FFFFFF">
+    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8" Classes="card">
       <StackPanel Spacing="8">
         <ItemsControl ItemsSource="{Binding Errors}" MaxHeight="90">
           <ItemsControl.ItemTemplate>
@@ -29,7 +29,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Apply to running host" IsEnabled="{Binding IsValid}" Click="OnApply" />
+          <Button Content="Apply to running host" Classes="accent" IsEnabled="{Binding IsValid}" Click="OnApply" />
           <Button Content="Save as JSON…" IsEnabled="{Binding IsValid}" Click="OnSave" />
           <Button Content="Load JSON…" Click="OnLoad" />
           <Button Content="Close" Click="OnClose" />
@@ -38,7 +38,7 @@
     </Border>
 
     <Grid ColumnDefinitions="5*,4*" Margin="0,10,0,0">
-      <Border Padding="6" CornerRadius="6" Background="#18FFFFFF" Margin="0,0,6,0">
+      <Border Padding="6" Classes="card" Margin="0,0,6,0">
         <ListBox ItemsSource="{Binding Bindings}" SelectedItem="{Binding SelectedBinding}" FontSize="12">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="gui:BindingEditor">
@@ -50,8 +50,7 @@
 
       <Border Grid.Column="1"
               Padding="10"
-              CornerRadius="6"
-              Background="#18FFFFFF"
+              Classes="card"
               Margin="6,0,0,0"
               IsEnabled="{Binding SelectedBinding, Converter={x:Static ObjectConverters.IsNotNull}}">
         <ScrollViewer>

@@ -6,11 +6,35 @@
 
 **CtrlAgent** is a Windows-first, open-source controller interface for AI coding agents.
 
-It turns an Xbox controller—especially the Xbox Elite controller—into a two-way agent control surface:
+It turns a game controller into a two-way agent control surface:
 
 - Controller inputs trigger actions such as submit, interrupt, review, approve, decline, and switch session.
 - Agent lifecycle events return to the controller as distinct haptic patterns.
-- A local mapping engine supports normal buttons, modifier chords, and independent Elite paddles when the GameInput bridge is available.
+- A local mapping engine supports normal buttons, modifier chords, gestures (tap, hold, double-press), and extra rear paddles where the hardware exposes them.
+
+## Support matrix
+
+Both sides of CtrlAgent are pluggable: controllers implement `IControllerDevice`, agent platforms implement `IAgentAdapter`. The goal is all popular controllers driving all popular agentic coding platforms.
+
+**Controllers**
+
+| Controller | Status |
+|---|---|
+| Xbox-family pads (XInput) | Supported — buttons, sticks, triggers, two-motor rumble |
+| Xbox Elite Series 2 (GameInput bridge) | Supported — adds four independent paddles and trigger rumble |
+| PlayStation 5 DualSense | Implemented — raw HID (buttons, sticks, triggers, rumble, cyan lightbar); USB and Bluetooth; hardware verification pending |
+| DualSense Edge | Implemented — rear paddles/Fn map to the four paddle controls; hardware verification pending |
+| Other popular pads (SDL/GameInput) | Planned |
+
+**Agent platforms**
+
+| Platform | Status |
+|---|---|
+| Mock (safe testing) | Supported |
+| OpenAI Codex (app-server JSONL) | Implemented — live verification pending |
+| Claude Code (stream-json) | Implemented — live verification pending |
+| Cursor (cursor-agent CLI) | Planned — protocol research needed |
+| Google Antigravity | Planned — integration path under research |
 
 > **Status:** pre-alpha MVP. The managed application, mappings, mock-agent loop, Codex app-server adapter, XInput fallback, tests, and CI are implemented. The native GameInput bridge still requires real Elite-controller validation.
 
@@ -54,8 +78,8 @@ Haptic scheduler <--------- Feedback router <- Agent events
 | Menu | Create a new session |
 | D-pad left/right | Previous/next session |
 | LB + A | Run tests and fix failures |
-| Elite paddles | Approve once / approve for session / decline / cancel |
-| RB + A/Y/X/B | XInput fallback for the four approval actions |
+| Rear paddles (where available) | Approve once / approve for session / decline / cancel |
+| RB + A/Y/X/B | Fallback chords for the four approval actions |
 
 Approval inputs do nothing unless an approval request is actually pending.
 
@@ -123,13 +147,13 @@ An Avalonia desktop app provides live controller/agent status, an approval banne
 dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
 ```
 
-The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--claude-path`, `--gameinput-bridge`, and `--profile` options as the console host. It lives in the system tray: closing the window hides it, the tray menu restores or exits. The built-in profile editor (Edit profile…) adds, edits, and removes bindings with live validation, applies the profile to the running host without a restart, and saves/loads profile JSON.
+The GUI accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--claude-path`, `--gameinput-bridge`, and `--profile` options as the console host (and remembers them, so later launches need no arguments). It lives in the system tray: closing the window hides it, the tray menu restores or exits. An always-on-top **overlay HUD** (Overlay button or tray menu) parks a compact strip beside your editor with the agent state, CTRL·BOT's current hint, and the approval buttons when a request is pending — drag its header to reposition. The built-in profile editor (Edit profile…) adds, edits, and removes bindings with live validation, applies the profile to the running host without a restart, and saves/loads profile JSON.
 
 Tagged releases (`v*`) publish a self-contained `CtrlAgent-<tag>-win-x64.zip` (console host, GUI, and GameInput bridge — no .NET install required) on the GitHub releases page.
 
 ## Run with the mock agent
 
-Connect an Xbox controller and run:
+Connect a controller and run:
 
 ```powershell
 dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock

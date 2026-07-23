@@ -72,4 +72,10 @@ Both adapters implement the same recovery behavior — new adapters should too:
 4. Honor the pending-approval lifecycle and the resilience pattern above.
 5. Add parser tests to `tests/CtrlAgent.Tests` (reference the adapter project) and document the protocol in this file.
 
-Candidates on the roadmap: OpenCode, generic process/webhook adapters.
+## Planned adapters
+
+- **Cursor** — `cursor-agent` has a headless CLI mode with JSON output, which fits the existing spawn-and-stream shape. Open questions before building: whether it emits a machine-readable event stream per turn, and whether tool approvals can be routed to the client (the approval loop is CtrlAgent's core value). Verify against an installed CLI first.
+- **Google Antigravity** — no public automation protocol is known yet (it is a VS Code-fork with an agent manager). Watch for a CLI, extension API, or MCP surface; do not guess a wire format. Track in the roadmap as research.
+- **OpenCode / generic process adapters** — stdio JSONL, same authoring checklist as above.
+
+The Codex and Claude Code adapters are the reference implementations: spawn the platform's headless mode, keep parsing pure and unit-tested, normalize into `AgentEvent`s, honor the pending-approval lifecycle, restart with capped backoff.

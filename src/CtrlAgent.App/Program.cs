@@ -64,7 +64,7 @@ internal static class Program
         Console.WriteLine($"Profile: {profile.Name} ({profile.Bindings.Count} bindings)");
         Console.WriteLine("Press Ctrl+C or type 'quit' to exit.");
         Console.WriteLine();
-        Console.WriteLine("Looking for an Xbox controller...");
+        Console.WriteLine("Looking for a controller...");
 
         var engine = new HostEngine(
             new WindowsControllerProvider(options.GameInputBridgeExecutable),
@@ -108,7 +108,7 @@ internal static class Program
         IControllerProvider provider,
         CancellationToken cancellationToken)
     {
-        Console.WriteLine("Looking for an Xbox controller...");
+        Console.WriteLine("Looking for a controller...");
 
         while (!cancellationToken.IsCancellationRequested)
         {

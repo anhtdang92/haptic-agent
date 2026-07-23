@@ -6,11 +6,21 @@
 
 **CtrlAgent** is a Windows-first, open-source controller interface for AI coding agents.
 
-It turns an Xbox controller—especially the Xbox Elite controller—into a two-way agent control surface:
+It turns a game controller into a two-way agent control surface:
 
 - Controller inputs trigger actions such as submit, interrupt, review, approve, decline, and switch session.
 - Agent lifecycle events return to the controller as distinct haptic patterns.
-- A local mapping engine supports normal buttons, modifier chords, and independent Elite paddles when the GameInput bridge is available.
+- A local mapping engine supports normal buttons, modifier chords, gestures (tap, hold, double-press), and extra rear paddles where the hardware exposes them.
+
+## Supported controllers
+
+One controller family today, many planned. The mapping engine, profiles, and haptics are controller-agnostic (`IControllerDevice`); adding a controller means adding a device adapter.
+
+| Controller | Status |
+|---|---|
+| Xbox-family pads (XInput) | Supported — buttons, sticks, triggers, two-motor rumble |
+| Xbox Elite Series 2 (GameInput bridge) | Supported — adds four independent paddles and trigger rumble |
+| DualSense, generic SDL/GameInput devices | Planned |
 
 > **Status:** pre-alpha MVP. The managed application, mappings, mock-agent loop, Codex app-server adapter, XInput fallback, tests, and CI are implemented. The native GameInput bridge still requires real Elite-controller validation.
 
@@ -54,8 +64,8 @@ Haptic scheduler <--------- Feedback router <- Agent events
 | Menu | Create a new session |
 | D-pad left/right | Previous/next session |
 | LB + A | Run tests and fix failures |
-| Elite paddles | Approve once / approve for session / decline / cancel |
-| RB + A/Y/X/B | XInput fallback for the four approval actions |
+| Rear paddles (where available) | Approve once / approve for session / decline / cancel |
+| RB + A/Y/X/B | Fallback chords for the four approval actions |
 
 Approval inputs do nothing unless an approval request is actually pending.
 
@@ -129,7 +139,7 @@ Tagged releases (`v*`) publish a self-contained `CtrlAgent-<tag>-win-x64.zip` (c
 
 ## Run with the mock agent
 
-Connect an Xbox controller and run:
+Connect a controller and run:
 
 ```powershell
 dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock

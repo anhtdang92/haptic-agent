@@ -44,7 +44,7 @@ public sealed class XInputControllerDevice : IControllerDevice
 
     public string Id => $"xinput:{_userIndex}";
 
-    public string DisplayName => $"Xbox Controller (XInput {_userIndex})";
+    public string DisplayName => $"Controller (XInput {_userIndex})";
 
     public ControllerCapabilities Capabilities { get; } = new(
         HasFourPaddles: false,

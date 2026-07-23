@@ -45,7 +45,7 @@ public sealed class GameInputBridgeControllerDevice : IControllerDevice
 
     public string Id => "gameinput:primary";
 
-    public string DisplayName => "Xbox Controller (GameInput v3)";
+    public string DisplayName => "Controller (GameInput v3)";
 
     public ControllerCapabilities Capabilities { get; private set; } = new(
         HasFourPaddles: true,

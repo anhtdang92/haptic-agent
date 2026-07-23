@@ -22,6 +22,7 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 | 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession were stubs | **Mostly done** — mock cycles sessions, Codex cycles live threads (D-pad switching works); remaining: Codex `thread/resume` after crash, Claude `--resume` design |
 | 9 | Profile layers and per-device matching | Deferred from Phase 3 | Design first |
 | 10 | OpenCode / generic process adapter | Phase 6 candidates | After #2 proves the pattern |
+| 11 | Additional controllers (DualSense, generic SDL/GameInput) | Product direction: many controllers, Xbox is just the first | Design after #1 hardware evidence |
 
 ## Phase ledger
 

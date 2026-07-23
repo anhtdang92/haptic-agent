@@ -119,7 +119,7 @@ public sealed class MainViewModel : ViewModelBase
         Buddy.SetProfile(engine.Profile);
         _approvalControls = ComputeApprovalControls(engine.Profile);
 
-        engine.LogEmitted += message => Post(() => AppendLog($"{DateTimeOffset.Now:HH:mm:ss} {message}"));
+        engine.LogEmitted += message => Post(() => AppendLog(message));
         engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
         engine.ControllerConnected += snapshot => Post(() =>
         {
@@ -179,7 +179,7 @@ public sealed class MainViewModel : ViewModelBase
             : engine.PlayPatternAsync(pattern).AsTask();
     }
 
-    public ObservableCollection<string> Log { get; } = [];
+    public ObservableCollection<LogEntry> Log { get; } = [];
 
     public ObservableCollection<string> Bindings { get; } = [];
 
@@ -283,7 +283,7 @@ public sealed class MainViewModel : ViewModelBase
 
     public void AppendLog(string message)
     {
-        Log.Add(message);
+        Log.Add(LogEntry.Create(message));
         while (Log.Count > MaxLogEntries)
         {
             Log.RemoveAt(0);

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\icon.png" />
+    <AvaloniaResource Include="Assets\logo.png" />
   </ItemGroup>
 
   <ItemGroup>

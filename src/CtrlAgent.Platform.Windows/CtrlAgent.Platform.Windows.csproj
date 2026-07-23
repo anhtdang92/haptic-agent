@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CtrlAgent.Core\CtrlAgent.Core.csproj" />
+    <ProjectReference Include="..\CtrlAgent.Controllers.DualSense\CtrlAgent.Controllers.DualSense.csproj" />
   </ItemGroup>
 </Project>

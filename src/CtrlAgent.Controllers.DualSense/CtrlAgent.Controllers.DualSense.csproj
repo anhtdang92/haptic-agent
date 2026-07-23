@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure DualSense wire protocol: no HID, no OS calls, fully unit-testable. -->
+
+</Project>

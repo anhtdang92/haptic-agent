@@ -22,7 +22,7 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 | 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession were stubs | **Mostly done** — mock cycles sessions, Codex cycles live threads (D-pad switching works); remaining: Codex `thread/resume` after crash, Claude `--resume` design |
 | 9 | Profile layers and per-device matching | Deferred from Phase 3 | Design first |
 | 10 | OpenCode / generic process adapter | Phase 6 candidates | After #2 proves the pattern |
-| 11 | PS5 DualSense adapter (raw HID) | First non-Xbox controller proves the pluggable story; community-documented HID format, no bridge process needed | Design ready; build after #1 hardware evidence |
+| 11 | PS5 DualSense adapter (raw HID) | First non-Xbox controller proves the pluggable story | **Implemented** — protocol unit-tested (USB/BT parse, Edge paddles, CRC); needs a real pad to verify |
 | 12 | Cursor adapter (`cursor-agent` CLI) | Third real agent platform | Blocked on protocol research against an installed CLI |
 | 13 | Antigravity adapter | Fourth platform target | Blocked on a public automation surface existing |
 
@@ -71,8 +71,8 @@ Target: all popular controllers × all popular agentic coding platforms. The lau
 | Controller | Path | Status |
 |---|---|---|
 | Xbox family | XInput (done) + GameInput bridge for Elite paddles (done, hardware validation pending) | Supported |
-| PS5 DualSense | Raw HID input reports + HID output for rumble/lightbar (community-documented format; no OS driver needed) | Planned next |
-| DualSense Edge | Same HID path; rear paddles map to the existing paddle controls | After DualSense |
+| PS5 DualSense | Raw HID input reports + HID output for rumble/lightbar (community-documented format; no OS driver needed) | Implemented — hardware verification pending |
+| DualSense Edge | Same HID path; rear paddles + Fn buttons map to the four paddle controls | Implemented — hardware verification pending |
 | Generic pads | SDL2 or GameInput enumeration | Candidate |
 
 Stream Deck / handheld / mobile frontends remain later-stage candidates.

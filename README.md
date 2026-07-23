@@ -22,7 +22,8 @@ Both sides of CtrlAgent are pluggable: controllers implement `IControllerDevice`
 |---|---|
 | Xbox-family pads (XInput) | Supported — buttons, sticks, triggers, two-motor rumble |
 | Xbox Elite Series 2 (GameInput bridge) | Supported — adds four independent paddles and trigger rumble |
-| PlayStation 5 DualSense | Planned next — raw HID adapter (buttons, sticks, rumble, lightbar as status) |
+| PlayStation 5 DualSense | Implemented — raw HID (buttons, sticks, triggers, rumble, cyan lightbar); USB and Bluetooth; hardware verification pending |
+| DualSense Edge | Implemented — rear paddles/Fn map to the four paddle controls; hardware verification pending |
 | Other popular pads (SDL/GameInput) | Planned |
 
 **Agent platforms**

@@ -36,7 +36,14 @@ public sealed class App : Application
 
             try
             {
-                options = GuiOptions.Parse(desktop.Args ?? []);
+                var args = desktop.Args ?? [];
+                options = GuiOptions.Parse(args);
+                if (args.Length == 0 && GuiSettings.TryLoad() is { } saved)
+                {
+                    // No CLI arguments: pick up where the user left off.
+                    options = saved.ApplyTo(options);
+                }
+
                 var profile = options.ProfilePath is null
                     ? ControllerProfile.Default
                     : ControllerProfileJson.Deserialize(File.ReadAllText(options.ProfilePath));
@@ -46,6 +53,8 @@ public sealed class App : Application
                     CreateAgentAdapter(options),
                     profile,
                     new HostEngineOptions(options.DefaultPrompt));
+
+                GuiSettings.TrySave(options);
             }
             catch (Exception exception)
             {

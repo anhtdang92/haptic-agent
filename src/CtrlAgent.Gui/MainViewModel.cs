@@ -53,6 +53,7 @@ public sealed class MainViewModel : ViewModelBase
     private const int MaxLogEntries = 400;
 
     private readonly HostEngine? _engine;
+    private IReadOnlyCollection<ControllerControl> _approvalControls = [];
 
     private string _controllerStatus = "Searching…";
     private string _agentStatus = "Starting…";
@@ -90,11 +91,16 @@ public sealed class MainViewModel : ViewModelBase
         }
 
         Buddy.SetProfile(engine.Profile);
+        _approvalControls = ComputeApprovalControls(engine.Profile);
 
         engine.LogEmitted += message => Post(() => AppendLog($"{DateTimeOffset.Now:HH:mm:ss} {message}"));
         engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
-        engine.ControllerConnected += snapshot => Post(() => ControllerStatus =
-            $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : " (XInput fallback)")}");
+        engine.ControllerConnected += snapshot => Post(() =>
+        {
+            ControllerStatus =
+                $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : string.Empty)}";
+            ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
+        });
         engine.ControllerInputReceived += inputEvent => Post(() => ControllerVisual.Apply(inputEvent));
         engine.AgentEventReceived += agentEvent => Post(() =>
         {
@@ -106,6 +112,9 @@ public sealed class MainViewModel : ViewModelBase
         {
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
+
+            // Light up the physical controls that can answer this approval.
+            ControllerVisual.SetApprovalHighlight(message is null ? null : _approvalControls);
         });
         engine.ProfileApplied += applied => Post(() =>
         {
@@ -117,6 +126,11 @@ public sealed class MainViewModel : ViewModelBase
             }
 
             Buddy.SetProfile(applied);
+            _approvalControls = ComputeApprovalControls(applied);
+            if (HasPendingApproval)
+            {
+                ControllerVisual.SetApprovalHighlight(_approvalControls);
+            }
         });
     }
 
@@ -233,6 +247,29 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     private static void Post(Action action) => Dispatcher.UIThread.Post(action);
+
+    private static IReadOnlyCollection<ControllerControl> ComputeApprovalControls(ControllerProfile profile)
+    {
+        var controls = new HashSet<ControllerControl>();
+        foreach (var binding in profile.Bindings)
+        {
+            if (!binding.RequiresPendingApproval)
+            {
+                continue;
+            }
+
+            controls.Add(binding.Control);
+            if (binding.Modifiers is { Count: > 0 })
+            {
+                foreach (var modifier in binding.Modifiers)
+                {
+                    controls.Add(modifier);
+                }
+            }
+        }
+
+        return controls;
+    }
 
     private static string DescribeBinding(InputBinding binding)
     {

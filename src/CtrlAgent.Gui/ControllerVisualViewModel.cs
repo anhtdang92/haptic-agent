@@ -1,79 +1,98 @@
-using System.Globalization;
-using Avalonia.Data.Converters;
 using Avalonia.Media;
 using CtrlAgent.Core;
 
 namespace CtrlAgent.Gui;
 
-/// <summary>Converts a pressed flag into the neon-lit or idle control brush.</summary>
-public sealed class PressedBrushConverter : IValueConverter
-{
-    public static readonly PressedBrushConverter Instance = new();
-
-    private static readonly IBrush PressedBrush = new SolidColorBrush(Color.Parse("#00D4FF"));
-    private static readonly IBrush IdleBrush = new SolidColorBrush(Color.Parse("#22314F"));
-
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is true ? PressedBrush : IdleBrush;
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        throw new NotSupportedException();
-}
-
 /// <summary>
-/// Mirrors the physical controller: booleans per button/paddle, trigger pulls
-/// as bar widths, and stick deflection as knob offsets. Fed from the engine's
-/// raw input stream on the UI thread.
+/// Mirrors the physical controller: per-control brushes (pressed cyan beats
+/// approval-highlight amber beats idle), trigger pulls as bar widths, stick
+/// deflection as knob offsets, and face-button labels that follow the
+/// connected controller's flavor (ABXY vs PlayStation shapes). Fed from the
+/// engine's raw input stream on the UI thread.
 /// </summary>
 public sealed class ControllerVisualViewModel : ViewModelBase
 {
     private const double TriggerBarWidth = 66;
     private const double StickTravel = 9;
 
-    private bool _a, _b, _x, _y;
-    private bool _menu, _view;
-    private bool _dPadUp, _dPadDown, _dPadLeft, _dPadRight;
-    private bool _leftShoulder, _rightShoulder;
-    private bool _leftThumb, _rightThumb;
-    private bool _paddleLeft1, _paddleLeft2, _paddleRight1, _paddleRight2;
+    private static readonly IBrush PressedBrush = new SolidColorBrush(Color.Parse("#00D4FF"));
+    private static readonly IBrush HighlightBrush = new SolidColorBrush(Color.Parse("#FFB020"));
+    private static readonly IBrush IdleBrush = new SolidColorBrush(Color.Parse("#22314F"));
+
+    private static readonly ControllerControl[] VisualControls =
+    [
+        ControllerControl.A,
+        ControllerControl.B,
+        ControllerControl.X,
+        ControllerControl.Y,
+        ControllerControl.Menu,
+        ControllerControl.View,
+        ControllerControl.DPadUp,
+        ControllerControl.DPadDown,
+        ControllerControl.DPadLeft,
+        ControllerControl.DPadRight,
+        ControllerControl.LeftShoulder,
+        ControllerControl.RightShoulder,
+        ControllerControl.LeftThumbstickButton,
+        ControllerControl.RightThumbstickButton,
+        ControllerControl.PaddleLeft1,
+        ControllerControl.PaddleLeft2,
+        ControllerControl.PaddleRight1,
+        ControllerControl.PaddleRight2,
+    ];
+
+    private readonly HashSet<ControllerControl> _pressed = [];
+    private readonly HashSet<ControllerControl> _highlighted = [];
     private float _leftTrigger, _rightTrigger;
     private float _leftStickX, _leftStickY, _rightStickX, _rightStickY;
+    private string _southLabel = "A";
+    private string _eastLabel = "B";
+    private string _westLabel = "X";
+    private string _northLabel = "Y";
 
-    public bool IsAPressed { get => _a; private set => Set(ref _a, value); }
+    public IBrush ABrush => BrushFor(ControllerControl.A);
 
-    public bool IsBPressed { get => _b; private set => Set(ref _b, value); }
+    public IBrush BBrush => BrushFor(ControllerControl.B);
 
-    public bool IsXPressed { get => _x; private set => Set(ref _x, value); }
+    public IBrush XBrush => BrushFor(ControllerControl.X);
 
-    public bool IsYPressed { get => _y; private set => Set(ref _y, value); }
+    public IBrush YBrush => BrushFor(ControllerControl.Y);
 
-    public bool IsMenuPressed { get => _menu; private set => Set(ref _menu, value); }
+    public IBrush MenuBrush => BrushFor(ControllerControl.Menu);
 
-    public bool IsViewPressed { get => _view; private set => Set(ref _view, value); }
+    public IBrush ViewBrush => BrushFor(ControllerControl.View);
 
-    public bool IsDPadUpPressed { get => _dPadUp; private set => Set(ref _dPadUp, value); }
+    public IBrush DPadUpBrush => BrushFor(ControllerControl.DPadUp);
 
-    public bool IsDPadDownPressed { get => _dPadDown; private set => Set(ref _dPadDown, value); }
+    public IBrush DPadDownBrush => BrushFor(ControllerControl.DPadDown);
 
-    public bool IsDPadLeftPressed { get => _dPadLeft; private set => Set(ref _dPadLeft, value); }
+    public IBrush DPadLeftBrush => BrushFor(ControllerControl.DPadLeft);
 
-    public bool IsDPadRightPressed { get => _dPadRight; private set => Set(ref _dPadRight, value); }
+    public IBrush DPadRightBrush => BrushFor(ControllerControl.DPadRight);
 
-    public bool IsLeftShoulderPressed { get => _leftShoulder; private set => Set(ref _leftShoulder, value); }
+    public IBrush LeftShoulderBrush => BrushFor(ControllerControl.LeftShoulder);
 
-    public bool IsRightShoulderPressed { get => _rightShoulder; private set => Set(ref _rightShoulder, value); }
+    public IBrush RightShoulderBrush => BrushFor(ControllerControl.RightShoulder);
 
-    public bool IsLeftThumbPressed { get => _leftThumb; private set => Set(ref _leftThumb, value); }
+    public IBrush LeftThumbBrush => BrushFor(ControllerControl.LeftThumbstickButton);
 
-    public bool IsRightThumbPressed { get => _rightThumb; private set => Set(ref _rightThumb, value); }
+    public IBrush RightThumbBrush => BrushFor(ControllerControl.RightThumbstickButton);
 
-    public bool IsPaddleLeft1Pressed { get => _paddleLeft1; private set => Set(ref _paddleLeft1, value); }
+    public IBrush PaddleLeft1Brush => BrushFor(ControllerControl.PaddleLeft1);
 
-    public bool IsPaddleLeft2Pressed { get => _paddleLeft2; private set => Set(ref _paddleLeft2, value); }
+    public IBrush PaddleLeft2Brush => BrushFor(ControllerControl.PaddleLeft2);
 
-    public bool IsPaddleRight1Pressed { get => _paddleRight1; private set => Set(ref _paddleRight1, value); }
+    public IBrush PaddleRight1Brush => BrushFor(ControllerControl.PaddleRight1);
 
-    public bool IsPaddleRight2Pressed { get => _paddleRight2; private set => Set(ref _paddleRight2, value); }
+    public IBrush PaddleRight2Brush => BrushFor(ControllerControl.PaddleRight2);
+
+    public string SouthLabel { get => _southLabel; private set => Set(ref _southLabel, value); }
+
+    public string EastLabel { get => _eastLabel; private set => Set(ref _eastLabel, value); }
+
+    public string WestLabel { get => _westLabel; private set => Set(ref _westLabel, value); }
+
+    public string NorthLabel { get => _northLabel; private set => Set(ref _northLabel, value); }
 
     public double LeftTriggerWidth => Math.Clamp(_leftTrigger, 0f, 1f) * TriggerBarWidth;
 
@@ -92,11 +111,19 @@ public sealed class ControllerVisualViewModel : ViewModelBase
         switch (inputEvent.Kind)
         {
             case ControllerInputEventKind.Pressed:
-                SetButton(inputEvent.Control, true);
+                if (_pressed.Add(inputEvent.Control))
+                {
+                    RaiseBrush(inputEvent.Control);
+                }
+
                 break;
 
             case ControllerInputEventKind.Released:
-                SetButton(inputEvent.Control, false);
+                if (_pressed.Remove(inputEvent.Control))
+                {
+                    RaiseBrush(inputEvent.Control);
+                }
+
                 break;
 
             case ControllerInputEventKind.ValueChanged:
@@ -109,58 +136,56 @@ public sealed class ControllerVisualViewModel : ViewModelBase
         }
     }
 
-    public void Reset()
+    /// <summary>
+    /// Highlights the physical controls that can answer the pending approval
+    /// (pass null or empty to clear). The controls come from the live profile,
+    /// so remapping changes what glows.
+    /// </summary>
+    public void SetApprovalHighlight(IReadOnlyCollection<ControllerControl>? controls)
     {
-        SetButton(ControllerControl.A, false);
-        SetButton(ControllerControl.B, false);
-        SetButton(ControllerControl.X, false);
-        SetButton(ControllerControl.Y, false);
-        SetButton(ControllerControl.Menu, false);
-        SetButton(ControllerControl.View, false);
-        SetButton(ControllerControl.DPadUp, false);
-        SetButton(ControllerControl.DPadDown, false);
-        SetButton(ControllerControl.DPadLeft, false);
-        SetButton(ControllerControl.DPadRight, false);
-        SetButton(ControllerControl.LeftShoulder, false);
-        SetButton(ControllerControl.RightShoulder, false);
-        SetButton(ControllerControl.LeftThumbstickButton, false);
-        SetButton(ControllerControl.RightThumbstickButton, false);
-        SetButton(ControllerControl.PaddleLeft1, false);
-        SetButton(ControllerControl.PaddleLeft2, false);
-        SetButton(ControllerControl.PaddleRight1, false);
-        SetButton(ControllerControl.PaddleRight2, false);
-        SetAxis(ControllerControl.LeftTrigger, 0f);
-        SetAxis(ControllerControl.RightTrigger, 0f);
-        SetAxis(ControllerControl.LeftThumbstickX, 0f);
-        SetAxis(ControllerControl.LeftThumbstickY, 0f);
-        SetAxis(ControllerControl.RightThumbstickX, 0f);
-        SetAxis(ControllerControl.RightThumbstickY, 0f);
+        _highlighted.Clear();
+        if (controls is not null)
+        {
+            foreach (var control in controls)
+            {
+                _highlighted.Add(control);
+            }
+        }
+
+        RaiseAllBrushes();
     }
 
-    private void SetButton(ControllerControl control, bool pressed)
+    /// <summary>Switches face-button labels between ABXY and PlayStation shapes.</summary>
+    public void SetPlayStationFlavor(bool isPlayStation)
     {
-        switch (control)
-        {
-            case ControllerControl.A: IsAPressed = pressed; break;
-            case ControllerControl.B: IsBPressed = pressed; break;
-            case ControllerControl.X: IsXPressed = pressed; break;
-            case ControllerControl.Y: IsYPressed = pressed; break;
-            case ControllerControl.Menu: IsMenuPressed = pressed; break;
-            case ControllerControl.View: IsViewPressed = pressed; break;
-            case ControllerControl.DPadUp: IsDPadUpPressed = pressed; break;
-            case ControllerControl.DPadDown: IsDPadDownPressed = pressed; break;
-            case ControllerControl.DPadLeft: IsDPadLeftPressed = pressed; break;
-            case ControllerControl.DPadRight: IsDPadRightPressed = pressed; break;
-            case ControllerControl.LeftShoulder: IsLeftShoulderPressed = pressed; break;
-            case ControllerControl.RightShoulder: IsRightShoulderPressed = pressed; break;
-            case ControllerControl.LeftThumbstickButton: IsLeftThumbPressed = pressed; break;
-            case ControllerControl.RightThumbstickButton: IsRightThumbPressed = pressed; break;
-            case ControllerControl.PaddleLeft1: IsPaddleLeft1Pressed = pressed; break;
-            case ControllerControl.PaddleLeft2: IsPaddleLeft2Pressed = pressed; break;
-            case ControllerControl.PaddleRight1: IsPaddleRight1Pressed = pressed; break;
-            case ControllerControl.PaddleRight2: IsPaddleRight2Pressed = pressed; break;
-        }
+        SouthLabel = isPlayStation ? "✕" : "A";
+        EastLabel = isPlayStation ? "◯" : "B";
+        WestLabel = isPlayStation ? "▢" : "X";
+        NorthLabel = isPlayStation ? "△" : "Y";
     }
+
+    public void Reset()
+    {
+        _pressed.Clear();
+        _leftTrigger = 0f;
+        _rightTrigger = 0f;
+        _leftStickX = 0f;
+        _leftStickY = 0f;
+        _rightStickX = 0f;
+        _rightStickY = 0f;
+        RaiseAllBrushes();
+        Raise(nameof(LeftTriggerWidth));
+        Raise(nameof(RightTriggerWidth));
+        Raise(nameof(LeftStickOffsetX));
+        Raise(nameof(LeftStickOffsetY));
+        Raise(nameof(RightStickOffsetX));
+        Raise(nameof(RightStickOffsetY));
+    }
+
+    private IBrush BrushFor(ControllerControl control) =>
+        _pressed.Contains(control) ? PressedBrush :
+        _highlighted.Contains(control) ? HighlightBrush :
+        IdleBrush;
 
     private void SetAxis(ControllerControl control, float value)
     {
@@ -190,6 +215,45 @@ public sealed class ControllerVisualViewModel : ViewModelBase
                 _rightStickY = value;
                 Raise(nameof(RightStickOffsetY));
                 break;
+        }
+    }
+
+    private void RaiseBrush(ControllerControl control)
+    {
+        var name = control switch
+        {
+            ControllerControl.A => nameof(ABrush),
+            ControllerControl.B => nameof(BBrush),
+            ControllerControl.X => nameof(XBrush),
+            ControllerControl.Y => nameof(YBrush),
+            ControllerControl.Menu => nameof(MenuBrush),
+            ControllerControl.View => nameof(ViewBrush),
+            ControllerControl.DPadUp => nameof(DPadUpBrush),
+            ControllerControl.DPadDown => nameof(DPadDownBrush),
+            ControllerControl.DPadLeft => nameof(DPadLeftBrush),
+            ControllerControl.DPadRight => nameof(DPadRightBrush),
+            ControllerControl.LeftShoulder => nameof(LeftShoulderBrush),
+            ControllerControl.RightShoulder => nameof(RightShoulderBrush),
+            ControllerControl.LeftThumbstickButton => nameof(LeftThumbBrush),
+            ControllerControl.RightThumbstickButton => nameof(RightThumbBrush),
+            ControllerControl.PaddleLeft1 => nameof(PaddleLeft1Brush),
+            ControllerControl.PaddleLeft2 => nameof(PaddleLeft2Brush),
+            ControllerControl.PaddleRight1 => nameof(PaddleRight1Brush),
+            ControllerControl.PaddleRight2 => nameof(PaddleRight2Brush),
+            _ => null,
+        };
+
+        if (name is not null)
+        {
+            Raise(name);
+        }
+    }
+
+    private void RaiseAllBrushes()
+    {
+        foreach (var control in VisualControls)
+        {
+            RaiseBrush(control);
         }
     }
 }

@@ -122,13 +122,13 @@ Decisions made since the original blueprint, with rationale:
 6. **Dependency-free test harness.** A console exe with a `(Name, Func<Task>)` table instead of xUnit — zero packages, trivially debuggable, exits nonzero on failure. Trade-off: no filtering/parallelism; acceptable at current scale.
 7. **Restart-with-capped-backoff for child processes.** Uniform pattern across the Codex and Claude adapters (and a defunct-bridge re-resolve on the controller side).
 8. **Claude Code integration via stream-json + `--permission-prompt-tool stdio`** rather than MCP or hooks: permission prompts arrive as `can_use_tool` control requests on the same pipe, which maps 1:1 onto the approval paddle flow.
+9. **Profile layers activate on device capability, not device identity.** A layer declares `always`/`requiresPaddles`/`withoutPaddles`; the engine follows whatever controller is connected (`SetDeviceCapabilities` on connect, carried across runtime profile swaps). Collision validation runs per capability "world" so mutually exclusive layers may share chords. Identity-based matching (per-VID/PID profiles) stays deferred until a real need shows up.
+10. **Session continuity leans on the platforms' own persistence.** Codex threads and Claude Code sessions both survive on disk, so crash recovery and session switching are `thread/resume` / `--resume` calls rather than any state mirrored in CtrlAgent. Trade-off: Claude session switching restarts the CLI process (one session per process).
 
 ## Still deferred
 
-- Tray process vs long-running service (the GUI is currently a plain window).
-- Profile layers and per-device profile matching.
+- Per-device profile matching by identity (VID/PID/name) — capability layers exist today.
 - Multi-controller arbitration.
-- Session navigation (multiple Codex threads / Claude session resume).
 - Remote or mobile control surfaces.
 - Third-party adapter packaging/discovery.
 

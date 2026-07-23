@@ -178,52 +178,8 @@ public sealed class AgentBuddyViewModel : ViewModelBase
     private static string? FindHint(ControllerProfile profile, AgentCommandKind command)
     {
         var binding = profile.Bindings.FirstOrDefault(candidate => candidate.Command == command);
-        return binding is null ? null : Describe(binding);
+        return binding is null ? null : ControlLabels.Chord(binding);
     }
-
-    private static string Describe(InputBinding binding)
-    {
-        var chord = binding.Modifiers is { Count: > 0 }
-            ? string.Join("+", binding.Modifiers.OrderBy(modifier => modifier).Select(Label)) + "+" + Label(binding.Control)
-            : Label(binding.Control);
-
-        var gesture = binding.Gesture switch
-        {
-            InputGesture.Tap => " (tap)",
-            InputGesture.Hold => " (hold)",
-            InputGesture.DoublePress => " (double)",
-            InputGesture.AxisThreshold => " (pull)",
-            InputGesture.Release => " (release)",
-            _ => string.Empty,
-        };
-
-        return chord + gesture;
-    }
-
-    private static string Label(ControllerControl control) => control switch
-    {
-        ControllerControl.A => "A",
-        ControllerControl.B => "B",
-        ControllerControl.X => "X",
-        ControllerControl.Y => "Y",
-        ControllerControl.Menu => "Menu",
-        ControllerControl.View => "View",
-        ControllerControl.LeftShoulder => "LB",
-        ControllerControl.RightShoulder => "RB",
-        ControllerControl.LeftTrigger => "LT",
-        ControllerControl.RightTrigger => "RT",
-        ControllerControl.LeftThumbstickButton => "LS",
-        ControllerControl.RightThumbstickButton => "RS",
-        ControllerControl.DPadUp => "D-Up",
-        ControllerControl.DPadDown => "D-Down",
-        ControllerControl.DPadLeft => "D-Left",
-        ControllerControl.DPadRight => "D-Right",
-        ControllerControl.PaddleLeft1 => "P1",
-        ControllerControl.PaddleLeft2 => "P2",
-        ControllerControl.PaddleRight1 => "P3",
-        ControllerControl.PaddleRight2 => "P4",
-        _ => control.ToString(),
-    };
 
     private static string Truncate(string? text)
     {

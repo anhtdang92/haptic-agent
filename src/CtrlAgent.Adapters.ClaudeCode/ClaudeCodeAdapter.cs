@@ -30,6 +30,8 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
     private Task? _stderrLoop;
     private long _nextControlId;
     private string? _sessionId;
+    private readonly List<string> _sessionIds = [];
+    private readonly object _sessionSync = new();
     private volatile bool _replacingProcess;
     private bool _disposed;
 
@@ -140,10 +142,11 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 break;
 
             case AgentCommandKind.NextSession:
+                await SwitchSessionAsync(+1, cancellationToken).ConfigureAwait(false);
+                break;
+
             case AgentCommandKind.PreviousSession:
-                Publish(
-                    AgentStateKind.Idle,
-                    "Claude Code runs one session per process; use NewSession for a fresh one.");
+                await SwitchSessionAsync(-1, cancellationToken).ConfigureAwait(false);
                 break;
 
             default:
@@ -185,7 +188,7 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         _events.Writer.TryComplete();
     }
 
-    private void Launch()
+    private void Launch(string? resumeSessionId = null)
     {
         var executable = string.IsNullOrWhiteSpace(_options.ExecutablePath)
             ? "claude"
@@ -210,6 +213,12 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         startInfo.ArgumentList.Add("--verbose");
         startInfo.ArgumentList.Add("--permission-prompt-tool");
         startInfo.ArgumentList.Add("stdio");
+
+        if (!string.IsNullOrWhiteSpace(resumeSessionId))
+        {
+            startInfo.ArgumentList.Add("--resume");
+            startInfo.ArgumentList.Add(resumeSessionId);
+        }
 
         if (_options.Environment is not null)
         {
@@ -249,7 +258,44 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         IsStarted = true;
     }
 
-    private async Task StartNewSessionAsync(CancellationToken cancellationToken)
+    private Task StartNewSessionAsync(CancellationToken cancellationToken) =>
+        RelaunchAsync(resumeSessionId: null, "New Claude Code session starting.", cancellationToken);
+
+    /// <summary>
+    /// Cycles between the sessions this adapter has seen. The CLI runs one
+    /// session per process, so switching restarts the process with
+    /// <c>--resume &lt;session-id&gt;</c>; the target's history is reloaded
+    /// from Claude Code's on-disk session store.
+    /// </summary>
+    private async Task SwitchSessionAsync(int direction, CancellationToken cancellationToken)
+    {
+        string? target = null;
+        var position = 0;
+        int count;
+
+        lock (_sessionSync)
+        {
+            count = _sessionIds.Count;
+            if (count > 1)
+            {
+                var index = _sessionId is null ? -1 : _sessionIds.IndexOf(_sessionId);
+                var next = ((index < 0 ? 0 : index) + direction + count) % count;
+                target = _sessionIds[next];
+                position = next + 1;
+            }
+        }
+
+        if (target is null)
+        {
+            Publish(AgentStateKind.Idle, "No other Claude Code session to switch to; use NewSession to create one.");
+            return;
+        }
+
+        await RelaunchAsync(target, $"Resuming Claude Code session {position}/{count}: {target}.", cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task RelaunchAsync(string? resumeSessionId, string message, CancellationToken cancellationToken)
     {
         await _startGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -268,8 +314,8 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 }
             }
 
-            Launch();
-            Publish(AgentStateKind.Idle, "New Claude Code session starting.");
+            Launch(resumeSessionId);
+            Publish(AgentStateKind.Idle, message);
         }
         finally
         {
@@ -428,6 +474,14 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         {
             case ClaudeStreamMessage.SessionInit init:
                 _sessionId = init.SessionId;
+                lock (_sessionSync)
+                {
+                    if (!_sessionIds.Contains(init.SessionId))
+                    {
+                        _sessionIds.Add(init.SessionId);
+                    }
+                }
+
                 Publish(AgentStateKind.Idle, $"Claude Code session {init.SessionId} ready.");
                 break;
 
@@ -502,6 +556,10 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
             return;
         }
 
+        // Resume the session that was live when the process died; its history
+        // survives in Claude Code's on-disk session store.
+        var resumeSessionId = _sessionId;
+
         try
         {
             for (var attempt = 1; attempt <= MaxRestartAttempts && !_disposed; attempt++)
@@ -518,10 +576,12 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
 
                 try
                 {
-                    Launch();
+                    Launch(resumeSessionId);
                     Publish(
                         AgentStateKind.Idle,
-                        $"Claude Code restarted after {attempt} attempt(s); a fresh session will initialize.");
+                        resumeSessionId is null
+                            ? $"Claude Code restarted after {attempt} attempt(s); a fresh session will initialize."
+                            : $"Claude Code restarted after {attempt} attempt(s), resuming session {resumeSessionId}.");
                     return;
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)

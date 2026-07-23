@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
@@ -52,6 +53,12 @@ public sealed class MainViewModel : ViewModelBase
 {
     private const int MaxLogEntries = 400;
 
+    private static readonly IBrush DotGood = new SolidColorBrush(Color.Parse("#34F5A4"));
+    private static readonly IBrush DotBusy = new SolidColorBrush(Color.Parse("#00D4FF"));
+    private static readonly IBrush DotWarn = new SolidColorBrush(Color.Parse("#FFB020"));
+    private static readonly IBrush DotBad = new SolidColorBrush(Color.Parse("#FF5A78"));
+    private static readonly IBrush DotOff = new SolidColorBrush(Color.Parse("#5A7099"));
+
     private HostEngine? _engine;
     private IReadOnlyCollection<ControllerControl> _approvalControls = [];
 
@@ -63,6 +70,9 @@ public sealed class MainViewModel : ViewModelBase
     private string _promptText = string.Empty;
     private string _pendingApprovalMessage = string.Empty;
     private bool _hasPendingApproval;
+    private IBrush _controllerDotBrush = DotWarn;
+    private IBrush _agentDotBrush = DotOff;
+    private IBrush _profileDotBrush = DotOff;
     private bool _isSetupVisible;
     private string _setupAgent = "mock";
     private string _setupWorkingDirectory = Environment.CurrentDirectory;
@@ -111,20 +121,26 @@ public sealed class MainViewModel : ViewModelBase
         _engine = engine;
         IsSetupVisible = false;
         ProfileName = engine.Profile.Name;
+        ProfileDotBrush = DotGood;
         foreach (var binding in engine.Profile.Bindings)
         {
-            Bindings.Add(DescribeBinding(binding));
+            Bindings.Add(BindingRow.From(binding));
         }
 
         Buddy.SetProfile(engine.Profile);
         _approvalControls = ComputeApprovalControls(engine.Profile);
 
         engine.LogEmitted += message => Post(() => AppendLog(message));
-        engine.ControllerStatusChanged += status => Post(() => ControllerStatus = status);
+        engine.ControllerStatusChanged += status => Post(() =>
+        {
+            ControllerStatus = status;
+            ControllerDotBrush = status.StartsWith("Disconnected", StringComparison.Ordinal) ? DotBad : DotWarn;
+        });
         engine.ControllerConnected += snapshot => Post(() =>
         {
             ControllerStatus =
                 $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : string.Empty)}";
+            ControllerDotBrush = DotGood;
             ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
         });
         engine.ControllerInputReceived += inputEvent => Post(() => ControllerVisual.Apply(inputEvent));
@@ -132,6 +148,14 @@ public sealed class MainViewModel : ViewModelBase
         {
             AgentState = agentEvent.State.ToString();
             SessionId = agentEvent.SessionId;
+            AgentDotBrush = agentEvent.State switch
+            {
+                AgentStateKind.Working => DotBusy,
+                AgentStateKind.ApprovalRequired or AgentStateKind.WaitingForInput => DotWarn,
+                AgentStateKind.Error => DotBad,
+                AgentStateKind.Completed or AgentStateKind.Idle => DotGood,
+                _ => DotOff,
+            };
             Buddy.OnAgentEvent(agentEvent);
         });
         engine.PendingApprovalChanged += message => Post(() =>
@@ -148,7 +172,7 @@ public sealed class MainViewModel : ViewModelBase
             Bindings.Clear();
             foreach (var binding in applied.Bindings)
             {
-                Bindings.Add(DescribeBinding(binding));
+                Bindings.Add(BindingRow.From(binding));
             }
 
             Buddy.SetProfile(applied);
@@ -181,7 +205,7 @@ public sealed class MainViewModel : ViewModelBase
 
     public ObservableCollection<LogEntry> Log { get; } = [];
 
-    public ObservableCollection<string> Bindings { get; } = [];
+    public ObservableCollection<BindingRow> Bindings { get; } = [];
 
     public ControllerVisualViewModel ControllerVisual { get; } = new();
 
@@ -281,6 +305,24 @@ public sealed class MainViewModel : ViewModelBase
         set => Set(ref _pendingApprovalMessage, value);
     }
 
+    public IBrush ControllerDotBrush
+    {
+        get => _controllerDotBrush;
+        set => Set(ref _controllerDotBrush, value);
+    }
+
+    public IBrush AgentDotBrush
+    {
+        get => _agentDotBrush;
+        set => Set(ref _agentDotBrush, value);
+    }
+
+    public IBrush ProfileDotBrush
+    {
+        get => _profileDotBrush;
+        set => Set(ref _profileDotBrush, value);
+    }
+
     public void AppendLog(string message)
     {
         Log.Add(LogEntry.Create(message));
@@ -343,13 +385,4 @@ public sealed class MainViewModel : ViewModelBase
         return controls;
     }
 
-    private static string DescribeBinding(InputBinding binding)
-    {
-        var chord = binding.Modifiers is { Count: > 0 }
-            ? string.Join("+", binding.Modifiers.OrderBy(modifier => modifier)) + "+" + binding.Control
-            : binding.Control.ToString();
-        var gesture = binding.Gesture == InputGesture.Press ? string.Empty : $" [{binding.Gesture}]";
-        var approval = binding.RequiresPendingApproval ? " •approval" : string.Empty;
-        return $"{chord}{gesture} → {binding.Command}{approval}";
-    }
 }

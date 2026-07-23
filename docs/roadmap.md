@@ -19,8 +19,8 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 | 5 | GUI phase 2: tray icon, minimize-to-tray, mapping editor with live validation | Phase 5 exit gate needs profile editing without hand-written JSON | **Done** — tray + hide-on-close + editor with live validation, runtime apply, JSON save/load |
 | 6 | Release packaging: self-contained win-x64 zip (App + Gui + bridge) on tags | Install without a dev environment | **Done** — release workflow on `v*` tags |
 | 7 | Haptic pattern tuning pass | Depends on #1 evidence | Blocked on #1 |
-| 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession were stubs | **Mostly done** — mock cycles sessions, Codex cycles live threads (D-pad switching works); remaining: Codex `thread/resume` after crash, Claude `--resume` design |
-| 9 | Profile layers and per-device matching | Deferred from Phase 3 | Design first |
+| 8 | Session navigation (Codex threads, Claude `--resume`) | Next/PreviousSession were stubs | **Done** — mock cycles sessions; Codex cycles threads and resumes the active thread after a crash (`thread/resume`); Claude cycles sessions via process restart with `--resume` and resumes after a crash. Live verification pending with #2 |
+| 9 | Profile layers and per-device matching | Deferred from Phase 3 | **Done (first pass)** — named layers with capability activation (`always`/`requiresPaddles`/`withoutPaddles`), collision checks scoped to co-active layers, engine follows the connected device. Richer match criteria (per-device id/name) remain future work |
 | 10 | OpenCode / generic process adapter | Phase 6 candidates | After #2 proves the pattern |
 | 11 | PS5 DualSense adapter (raw HID) | First non-Xbox controller proves the pluggable story | **Implemented** — protocol unit-tested (USB/BT parse, Edge paddles, CRC); needs a real pad to verify |
 | 12 | Cursor adapter (`cursor-agent` CLI) | Third real agent platform | Blocked on protocol research against an installed CLI |
@@ -42,7 +42,7 @@ Bridge client, `IControllerDevice`, serialized cancellable haptics, capability r
 
 ### Phase 3 — Mapping engine — **Largely complete**
 
-Delivered: versioned JSON profiles, press/release/tap/hold/double-press/axis-threshold gestures, chords, collision detection, enforced approval safeguards, import/export. Remaining: layers, per-device match criteria, haptic cue overrides in profiles.
+Delivered: versioned JSON profiles, press/release/tap/hold/double-press/axis-threshold gestures, chords, collision detection, enforced approval safeguards, import/export, capability-activated layers. Remaining: per-device match criteria beyond paddle capability, haptic cue overrides in profiles.
 
 ### Phase 4 — Codex adapter — **Implemented, pending live verification**
 
@@ -79,7 +79,7 @@ Stream Deck / handheld / mobile frontends remain later-stage candidates.
 
 ## Release targets
 
-- **v0.1.0 — Hardware proof:** software is ready (`--validate` is the inspector/test utility); tag once per-transport validation reports exist. ← *next release*
+- **v0.1.0 — Hardware proof:** tagged to exercise the release pipeline (self-contained win-x64 zip); the *hardware-proof* claim still needs the per-transport `--validate` reports committed under `validation/`. ← *current*
 - **v0.2.0 — Mock two-way loop:** functionality complete today (profiles + physical feedback via mock agent); tag alongside v0.1 evidence.
 - **v0.3.0 — Agent technical preview:** Codex and Claude Code verified against live installs; known protocol gaps closed.
 - **v0.5.0 — Usable Windows preview:** tray app, mapping editor, starter profiles, packaged zip, validation wizard integrated in GUI.

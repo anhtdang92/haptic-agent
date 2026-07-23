@@ -31,6 +31,7 @@ public sealed class HostEngine : IAsyncDisposable
     private MappingEngine _mapping;
     private string? _pendingSessionId;
     private string? _pendingRequestId;
+    private ControllerCapabilities? _lastCapabilities;
     private bool _disposed;
 
     public HostEngine(
@@ -152,6 +153,7 @@ public sealed class HostEngine : IAsyncDisposable
         lock (_sync)
         {
             mapping.SetPendingApproval(_pendingSessionId, _pendingRequestId);
+            mapping.SetDeviceCapabilities(_lastCapabilities);
             _mapping = mapping;
             _profile = profile;
         }
@@ -202,6 +204,13 @@ public sealed class HostEngine : IAsyncDisposable
 
             var scheduler = new HapticScheduler(controller);
             _haptics.Attach(scheduler);
+            lock (_sync)
+            {
+                // Capability-gated profile layers follow the connected device.
+                _lastCapabilities = controller.Capabilities;
+                _mapping.SetDeviceCapabilities(controller.Capabilities);
+            }
+
             ControllerConnected?.Invoke(new ControllerSnapshot(
                 controller.Id,
                 controller.DisplayName,

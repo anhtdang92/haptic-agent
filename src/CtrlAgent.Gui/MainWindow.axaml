@@ -9,6 +9,7 @@
         MinWidth="740"
         MinHeight="560">
 
+  <Panel>
   <DockPanel Margin="16">
 
     <!-- Hero -->
@@ -322,4 +323,41 @@
     </Grid>
 
   </DockPanel>
+
+  <!-- First-run setup overlay -->
+  <Border IsVisible="{Binding IsSetupVisible}" Background="#E0060B14">
+    <Border Classes="card" MaxWidth="480" Padding="26" VerticalAlignment="Center" HorizontalAlignment="Center">
+      <StackPanel Spacing="12">
+        <TextBlock Text="WELCOME TO CTRLAGENT" Classes="label" FontSize="12" HorizontalAlignment="Center" />
+        <TextBlock Text="One-time setup: pick the agent to drive and the repository to work in. Saved for next launch — command-line flags always override."
+                   FontSize="12"
+                   Foreground="#9FB7DF"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="Agent platform" FontSize="11" Opacity="0.6" />
+        <ComboBox ItemsSource="{x:Static gui:MainViewModel.SetupAgents}"
+                  SelectedItem="{Binding SetupAgent}"
+                  HorizontalAlignment="Stretch" />
+        <TextBlock Text="Working directory (your repository)" FontSize="11" Opacity="0.6" />
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Browse…" Margin="6,0,0,0" Click="OnBrowseWorkingDirectory" />
+          <TextBox Text="{Binding SetupWorkingDirectory}" />
+        </DockPanel>
+        <TextBlock Text="{Binding SetupError}"
+                   Foreground="#FF7A6E"
+                   FontSize="12"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding SetupError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <Button Content="Start"
+                Classes="accent"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Command="{Binding StartSetupCommand}" />
+        <TextBlock Text="mock is the safe demo agent (no real AI calls). codex and claude need their CLI installed and authenticated."
+                   FontSize="11"
+                   Opacity="0.5"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+  </Border>
+  </Panel>
 </Window>

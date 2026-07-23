@@ -52,7 +52,7 @@ public sealed class MainViewModel : ViewModelBase
 {
     private const int MaxLogEntries = 400;
 
-    private readonly HostEngine? _engine;
+    private HostEngine? _engine;
     private IReadOnlyCollection<ControllerControl> _approvalControls = [];
 
     private string _controllerStatus = "Searching…";
@@ -63,11 +63,18 @@ public sealed class MainViewModel : ViewModelBase
     private string _promptText = string.Empty;
     private string _pendingApprovalMessage = string.Empty;
     private bool _hasPendingApproval;
+    private bool _isSetupVisible;
+    private string _setupAgent = "mock";
+    private string _setupWorkingDirectory = Environment.CurrentDirectory;
+    private string _setupError = string.Empty;
+    private GuiOptions _options;
 
     public MainViewModel(HostEngine? engine, GuiOptions options)
     {
-        _engine = engine;
+        _options = options;
         _agentStatus = options.Agent;
+        _setupAgent = options.Agent;
+        _setupWorkingDirectory = options.WorkingDirectory;
 
         SubmitPromptCommand = new RelayCommand(_ => Fire(e => e.SubmitPromptAsync(PromptText)));
         InterruptCommand = new RelayCommand(_ => Fire(e => e.InterruptAsync()));
@@ -78,13 +85,32 @@ public sealed class MainViewModel : ViewModelBase
         DeclineCommand = new RelayCommand(_ => Fire(e => e.RespondToApprovalAsync(AgentCommandKind.Decline)));
         CancelCommand = new RelayCommand(_ => Fire(e => e.CancelAsync()));
         PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
+        StartSetupCommand = new RelayCommand(_ => CompleteSetup());
 
-        if (engine is null)
+        if (engine is not null)
+        {
+            AttachEngine(engine);
+        }
+    }
+
+    /// <summary>Raised when the first-run setup is submitted with valid values.</summary>
+    public event Action<GuiOptions>? SetupCompleted;
+
+    /// <summary>
+    /// Wires the running engine into this view model. Called at startup when
+    /// options are already known, or after first-run setup completes.
+    /// </summary>
+    public void AttachEngine(HostEngine engine)
+    {
+        ArgumentNullException.ThrowIfNull(engine);
+        if (_engine is not null)
         {
             return;
         }
 
-        _profileName = engine.Profile.Name;
+        _engine = engine;
+        IsSetupVisible = false;
+        ProfileName = engine.Profile.Name;
         foreach (var binding in engine.Profile.Bindings)
         {
             Bindings.Add(DescribeBinding(binding));
@@ -179,6 +205,34 @@ public sealed class MainViewModel : ViewModelBase
 
     public ICommand PlayPatternCommand { get; }
 
+    public ICommand StartSetupCommand { get; }
+
+    public static string[] SetupAgents { get; } = ["mock", "codex", "claude"];
+
+    public bool IsSetupVisible
+    {
+        get => _isSetupVisible;
+        set => Set(ref _isSetupVisible, value);
+    }
+
+    public string SetupAgent
+    {
+        get => _setupAgent;
+        set => Set(ref _setupAgent, value);
+    }
+
+    public string SetupWorkingDirectory
+    {
+        get => _setupWorkingDirectory;
+        set => Set(ref _setupWorkingDirectory, value);
+    }
+
+    public string SetupError
+    {
+        get => _setupError;
+        set => Set(ref _setupError, value);
+    }
+
     public string ControllerStatus
     {
         get => _controllerStatus;
@@ -244,6 +298,24 @@ public sealed class MainViewModel : ViewModelBase
         }
 
         _ = Task.Run(() => action(_engine));
+    }
+
+    private void CompleteSetup()
+    {
+        var directory = SetupWorkingDirectory.Trim();
+        if (!Directory.Exists(directory))
+        {
+            SetupError = $"Directory does not exist: {directory}";
+            return;
+        }
+
+        SetupError = string.Empty;
+        _options = _options with
+        {
+            Agent = SetupAgent.ToLowerInvariant(),
+            WorkingDirectory = Path.GetFullPath(directory),
+        };
+        SetupCompleted?.Invoke(_options);
     }
 
     private static void Post(Action action) => Dispatcher.UIThread.Post(action);

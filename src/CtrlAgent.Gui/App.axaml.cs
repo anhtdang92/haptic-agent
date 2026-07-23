@@ -28,6 +28,7 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var startupError = default(string);
+            var firstRun = false;
             var options = new GuiOptions(
                 "mock",
                 Environment.CurrentDirectory,
@@ -41,31 +42,25 @@ public sealed class App : Application
             {
                 var args = desktop.Args ?? [];
                 options = GuiOptions.Parse(args);
-                if (args.Length == 0 && GuiSettings.TryLoad() is { } saved)
+                if (args.Length == 0)
                 {
-                    // No CLI arguments: pick up where the user left off.
-                    options = saved.ApplyTo(options);
+                    if (GuiSettings.TryLoad() is { } saved)
+                    {
+                        // No CLI arguments: pick up where the user left off.
+                        options = saved.ApplyTo(options);
+                    }
+                    else
+                    {
+                        firstRun = true;
+                    }
                 }
-
-                var profile = options.ProfilePath is null
-                    ? ControllerProfile.Default
-                    : ControllerProfileJson.Deserialize(File.ReadAllText(options.ProfilePath));
-
-                _engine = new HostEngine(
-                    new WindowsControllerProvider(options.GameInputBridgeExecutable),
-                    CreateAgentAdapter(options),
-                    profile,
-                    new HostEngineOptions(options.DefaultPrompt));
-
-                GuiSettings.TrySave(options);
             }
             catch (Exception exception)
             {
                 startupError = exception.Message;
-                _engine = null;
             }
 
-            var viewModel = new MainViewModel(_engine, options);
+            var viewModel = new MainViewModel(null, options);
             if (startupError is not null)
             {
                 viewModel.AppendLog($"Startup failed: {startupError}");
@@ -96,25 +91,68 @@ public sealed class App : Application
             SetUpTrayIcon(desktop, mainWindow, icon);
             mainWindow.Show();
 
-            if (_engine is not null)
+            viewModel.SetupCompleted += StartWithOptions;
+            if (startupError is null)
             {
-                var engine = _engine;
-                _ = Task.Run(async () =>
+                if (firstRun)
                 {
-                    try
-                    {
-                        await engine.StartAsync().ConfigureAwait(false);
-                    }
-                    catch (Exception exception)
-                    {
-                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                            viewModel.AppendLog($"Host failed to start: {exception.Message}"));
-                    }
-                });
+                    viewModel.IsSetupVisible = true;
+                }
+                else
+                {
+                    StartWithOptions(options);
+                }
             }
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Creates and starts the engine for the given options (initial
+    /// launch or first-run setup submission).</summary>
+    private void StartWithOptions(GuiOptions options)
+    {
+        if (_viewModel is null || _engine is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            var profile = options.ProfilePath is null
+                ? ControllerProfile.Default
+                : ControllerProfileJson.Deserialize(File.ReadAllText(options.ProfilePath));
+
+            var engine = new HostEngine(
+                new WindowsControllerProvider(options.GameInputBridgeExecutable),
+                CreateAgentAdapter(options),
+                profile,
+                new HostEngineOptions(options.DefaultPrompt));
+
+            _engine = engine;
+            _viewModel.AttachEngine(engine);
+            _viewModel.AgentStatus = options.Agent;
+            GuiSettings.TrySave(options);
+
+            var viewModel = _viewModel;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await engine.StartAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        viewModel.AppendLog($"Host failed to start: {exception.Message}"));
+                }
+            });
+        }
+        catch (Exception exception)
+        {
+            _viewModel.AppendLog($"Startup failed: {exception.Message}");
+            _viewModel.IsSetupVisible = true;
+        }
     }
 
     private void SetUpTrayIcon(

@@ -64,6 +64,19 @@
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="13,7" />
       <Setter Property="FontSize" Value="13" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.08" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <!-- Micro-interaction: buttons compress slightly on press -->
+    <Style Selector="Button:pressed">
+      <Setter Property="RenderTransform" Value="scale(0.96)" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="0.45" />
     </Style>
     <!-- Hover/press states glide instead of snapping -->
     <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter">

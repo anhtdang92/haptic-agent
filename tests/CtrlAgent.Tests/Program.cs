@@ -26,6 +26,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
+    ("Executable resolver probes PATH and PATHEXT", TestExecutableResolverAsync),
     ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
     ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
@@ -763,6 +764,50 @@ static ControllerInputEvent At(
     ControllerInputEventKind kind,
     DateTimeOffset timestamp) =>
     new("test-controller", control, kind, kind == ControllerInputEventKind.Released ? 0f : 1f, timestamp);
+
+static Task TestExecutableResolverAsync()
+{
+    var windowsPathExt = ".COM;.EXE;.BAT;.CMD;.PS1";
+    var binDir = "bin";
+    var npmDir = "npm";
+    var searchPath = binDir + Path.PathSeparator + npmDir;
+
+    // npm installs provide only a .cmd shim; the resolver must find it.
+    var shim = Path.Combine(npmDir, "claude.cmd");
+    AssertEqual(shim, AgentExecutableResolver.Resolve(
+        "claude", searchPath, windowsPathExt, path => path == shim));
+
+    // Within one directory, PATHEXT order applies: .exe beats .cmd.
+    var exe = Path.Combine(npmDir, "claude.exe");
+    AssertEqual(exe, AgentExecutableResolver.Resolve(
+        "claude", searchPath, windowsPathExt, path => path == shim || path == exe));
+
+    // Across directories, PATH order wins even when a later dir has an .exe.
+    var earlyShim = Path.Combine(binDir, "claude.cmd");
+    AssertEqual(earlyShim, AgentExecutableResolver.Resolve(
+        "claude", searchPath, windowsPathExt, path => path == earlyShim || path == exe));
+
+    // .ps1 shims are never selected: CreateProcess cannot launch them.
+    var ps1 = Path.Combine(npmDir, "claude.ps1");
+    AssertEqual("claude", AgentExecutableResolver.Resolve(
+        "claude", searchPath, windowsPathExt, path => path == ps1));
+
+    // Explicit paths pass through untouched.
+    var explicitPath = Path.Combine("tools", "claude.cmd");
+    AssertEqual(explicitPath, AgentExecutableResolver.Resolve(
+        explicitPath, searchPath, windowsPathExt, _ => false));
+
+    // Without PATHEXT (non-Windows), the bare name is probed as-is.
+    var unixBinary = Path.Combine(binDir, "claude");
+    AssertEqual(unixBinary, AgentExecutableResolver.Resolve(
+        "claude", searchPath, null, path => path == unixBinary));
+
+    // Unresolvable names fall back to the original for a natural failure.
+    AssertEqual("claude", AgentExecutableResolver.Resolve(
+        "claude", searchPath, windowsPathExt, _ => false));
+
+    return Task.CompletedTask;
+}
 
 static void Assert(bool condition, string message)
 {

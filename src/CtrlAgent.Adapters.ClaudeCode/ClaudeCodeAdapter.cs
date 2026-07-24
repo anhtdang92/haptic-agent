@@ -190,9 +190,8 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
 
     private void Launch(string? resumeSessionId = null)
     {
-        var executable = string.IsNullOrWhiteSpace(_options.ExecutablePath)
-            ? "claude"
-            : _options.ExecutablePath;
+        var executable = AgentExecutableResolver.Resolve(
+            string.IsNullOrWhiteSpace(_options.ExecutablePath) ? "claude" : _options.ExecutablePath);
 
         var startInfo = new ProcessStartInfo
         {

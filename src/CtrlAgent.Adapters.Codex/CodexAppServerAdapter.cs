@@ -74,9 +74,8 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
 
     private async Task LaunchAsync(CancellationToken cancellationToken)
     {
-        var executable = string.IsNullOrWhiteSpace(_options.ExecutablePath)
-            ? "codex"
-            : _options.ExecutablePath;
+        var executable = AgentExecutableResolver.Resolve(
+            string.IsNullOrWhiteSpace(_options.ExecutablePath) ? "codex" : _options.ExecutablePath);
 
         var startInfo = new ProcessStartInfo
         {

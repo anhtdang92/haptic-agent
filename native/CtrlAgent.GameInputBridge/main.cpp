@@ -70,9 +70,16 @@ namespace
 
     void EmitReady()
     {
+        // hasFourPaddles is false by evidence, not omission: on Windows the
+        // GameInput redistributable never populates the GameInputGamepadPaddle*
+        // flags (or any raw controller-button slot) for the Elite Series 2 over
+        // USB. Unmapped paddles transmit nothing; mapped paddles arrive as the
+        // face buttons assigned in the Xbox Accessories profile. Verified
+        // 2026-07-24 (Win 11 26200, redist 3.x). The paddle bindings below stay
+        // so paddles light up automatically if a future redist adds support.
         std::cout
             << "{\"type\":\"ready\",\"apiVersion\":" << GAMEINPUT_API_VERSION << ","
-            << "\"hasFourPaddles\":true,"
+            << "\"hasFourPaddles\":false,"
             << "\"hasLowFrequencyRumble\":true,"
             << "\"hasHighFrequencyRumble\":true,"
             << "\"hasLeftTriggerRumble\":true,"
@@ -251,18 +258,30 @@ int main()
     bool connected = false;
     bool hadState = false;
     GameInputGamepadState previousState{};
+    HRESULT lastLoggedFailure = S_OK;
 
     while (g_running)
     {
         const auto device = GetDeviceSnapshot();
         ComPtr<IGameInputReading> reading;
         const HRESULT result = gameInput->GetCurrentReading(
-            GameInputKindGamepad,
+            static_cast<GameInputKind>(GameInputKindGamepad | GameInputKindController),
             device.Get(),
             &reading);
 
         if (FAILED(result))
         {
+            // Log each distinct failure once so the managed host's stderr
+            // drain shows why no gamepad reading is available (e.g. reading
+            // not yet generated vs. device unsupported by this transport).
+            if (result != lastLoggedFailure)
+            {
+                lastLoggedFailure = result;
+                std::cerr << "GetCurrentReading failed with HRESULT 0x"
+                          << std::hex << static_cast<unsigned long>(result)
+                          << std::dec << std::endl;
+            }
+
             if (connected)
             {
                 connected = false;

@@ -12,11 +12,16 @@ Connection matrix:
 
 | Transport | Priority | Result |
 |---|---:|---|
-| USB-C cable | 1 | Not tested |
+| USB-C cable | 1 | **Partially tested 2026-07-24** — discovery, standard buttons, and initial state verified through the bridge; paddles are never reported (see Test 3 findings) |
 | Xbox Wireless Adapter | 2 | Not tested |
-| Bluetooth | 3 | Not tested |
+| Bluetooth | 3 | **Tested 2026-07-24** — the GameInput redistributable does not enumerate Bluetooth Xbox controllers at all (`GetCurrentReading` fails with `0x838A0003` DEVICE_NOT_FOUND); the XInput fallback works fully over Bluetooth |
 
 USB is first because it removes wireless pairing and transport variables.
+
+Two cross-transport findings from the 2026-07-24 session (Windows 11 26200, GameInput redistributable 3.x, Elite Series 2 on current firmware):
+
+- **Focus gating:** GameInput delivers state changes only while a window owned by the reading process tree has focus. The bridge run as a windowless child received the connect event and initial snapshot but no input until its host application (the GUI) was focused. Console-window wrappers (`cmd`, terminals) do not count — the foreground window belongs to the terminal process, not the bridge.
+- **Steam:** Steam's "Xbox Controller Enhanced Features" driver was present during testing; exiting Steam changed nothing in these results, but keep it in mind when reproducing.
 
 ## Required environment
 
@@ -77,6 +82,12 @@ Run this test with a dedicated Xbox Accessories profile. Record whether a paddle
 4. no reading.
 
 Repeat for every transport. This behavior determines whether CtrlAgent can safely treat the paddles as independent controls or needs mapping guidance in its setup wizard.
+
+**Findings 2026-07-24 (USB, Windows 11 26200, GameInput redistributable 3.x):** outcome is (3)/(4) in every configuration — the paddles are never independently visible on PC.
+
+- Default profile (no slot light): paddles are firmware-mapped to A/B/X/Y and arrive as those face buttons only. No paddle flag is ever set.
+- Dedicated profile with all four paddles unmapped (primary and shift): paddles transmit **nothing** — no `GameInputGamepadPaddle*` flag, and no bit in the raw 18-slot controller-button array (`GetControllerButtonState`), while a control press of A registers normally in both views.
+- Conclusion: the paddle flags in the GameInput API are not populated by the PC redistributable for the Elite Series 2; remapping happens entirely inside controller firmware. The bridge therefore reports `hasFourPaddles: false`, which activates the `withoutPaddles` XInput-style chord layer. Practical paddle use on PC is limited to mirroring standard controls via an Xbox Accessories profile (e.g. mapping paddles to otherwise-unused controls such as thumbstick clicks and binding those with hold gestures for approvals).
 
 ## Test 4: simultaneous input
 

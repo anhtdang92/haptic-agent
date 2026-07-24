@@ -37,6 +37,7 @@ These are enforced by tests and/or documented contracts; changes touching them n
 3. **Non-blocking haptics.** `HapticScheduler.PlayAsync` returns after scheduling; looping cues must never block the agent event loop. Devices zero rumble in `finally` and on dispose.
 4. **Resilient loops.** Controller loss, agent-process death, and command failures produce events/logs and recovery — never a host crash.
 5. **Deterministic gestures.** Gesture math uses event timestamps, not wall-clock reads.
+6. **Layer activation follows the device.** Profile layers activate on the connected controller's capabilities (`SetDeviceCapabilities` on every connect, carried across runtime profile swaps); with no device known, every layer is active. Collision validation runs per capability world — mutually exclusive layers may share chords, base bindings collide with everything.
 
 ## Conventions
 

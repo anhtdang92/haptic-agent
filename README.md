@@ -36,37 +36,40 @@ Both sides of CtrlAgent are pluggable: controllers implement `IControllerDevice`
 | Cursor (cursor-agent CLI) | Planned — protocol research needed |
 | Google Antigravity | Planned — integration path under research |
 
-> **Status:** pre-alpha MVP. The managed application, mappings, mock-agent loop, Codex app-server adapter, XInput fallback, tests, and CI are implemented. The native GameInput bridge still requires real Elite-controller validation.
+> **Status:** pre-alpha MVP. The full software stack is implemented and unit-tested: mapping engine with gestures and profile layers, three agent adapters (Mock, Codex, Claude Code) with crash restart and session resume, three controller paths (GameInput bridge, DualSense raw HID, XInput), the Avalonia desktop app, the validation wizard, release packaging, and CI. What remains is **evidence**: real-controller validation runs and live Codex/Claude verification.
 
 ## Data flow
 
 ```text
-Xbox controller
+Game controller
       |
       v
-GameInput bridge or XInput -> Mapping engine -> Agent adapter
-      ^                            |                 |
-      |                            v                 v
-Haptic scheduler <--------- Feedback router <- Agent events
+Controller adapter          -> Mapping engine -> Agent adapter
+(GameInput bridge,                 |                 |
+ DualSense HID, or XInput)         v                 v
+      ^                     Feedback router  <- Agent events
+      |                            |
+Haptic scheduler <-----------------+
 ```
 
 ## Implemented
 
-- .NET 10 managed host and platform-independent core
+- .NET 10 managed host and platform-independent core, with a shared `HostEngine` hosting layer under both the console host and the GUI
 - XInput controller discovery, buttons, sticks, triggers, reconnect handling, and two-motor rumble
 - Native GameInput v3 bridge for four Elite paddles and four-channel rumble
+- PS5 DualSense/DualSense Edge over raw HID: USB and Bluetooth input reports, rumble, lightbar, Edge rear paddles (protocol fully unit-tested; real-pad verification pending)
 - XInput fallback approval chords when independent paddles are unavailable
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
-- Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, collision detection, and validated approval safeguards
-- Crash resilience: Codex app-server restart with backoff, controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
-- Avalonia desktop GUI with live status, approval actions, prompt submission, haptic preview, and event log
+- Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, capability-activated layers, collision detection, and validated approval safeguards
+- Crash resilience: agent-process restart with backoff plus session resume (Codex `thread/resume`, Claude Code `--resume`), controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
+- Avalonia desktop GUI: live status with pulsing indicators, a one-to-one Elite Series 2 input mirror, CTRL·BOT shortcut coaching, severity-tinted event stream with filtering, floating approval banner, prompt submission, haptic preview, tray app with overlay HUD and notification toasts, first-run setup, and a live-validating profile editor
 - Guided hardware validation wizard (`--validate`) that generates the per-transport evidence reports
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
-- Mock agent adapter for end-to-end testing without Codex
+- Mock agent adapter for end-to-end testing without a real agent
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, approval responses, D-pad thread switching, and thread resume after a crash
 - Claude Code stream-json adapter with prompt turns, interrupt, controller-answered tool-permission prompts, and multi-session switching/crash recovery via `--resume`
-- Dependency-free automated test harness
-- Windows GitHub Actions builds for managed and native components
+- Dependency-free automated test harness (23 tests)
+- Windows GitHub Actions builds for managed and native components, and tag-triggered self-contained release packaging
 
 ## Default controller mappings
 
@@ -141,7 +144,7 @@ msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /rest
 
 ## Run the desktop GUI
 
-An Avalonia desktop app provides live controller/agent status, an approval banner with the four approval actions, prompt submission, a haptic-pattern preview, the active profile's bindings, an event log, and notification toasts (with approve/decline) when its windows are hidden:
+An Avalonia desktop app provides live controller/agent status with pulsing indicators, a one-to-one Elite Series 2 mirror that lights up with your physical inputs (and highlights the controls that can answer a pending approval), CTRL·BOT — a robot companion that teaches the active profile's shortcuts — a floating approval banner, prompt submission (Enter submits), a haptic-pattern preview, the active bindings as chord→action rows, a severity-tinted event stream with a controller-input filter, and notification toasts (with approve/decline) when its windows are hidden:
 
 ```powershell
 dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
@@ -211,23 +214,27 @@ native/
   CtrlAgent.GameInputBridge/   GameInput v3 Elite-paddle and rumble bridge
 
 src/
-  CtrlAgent.Core/              Contracts, mappings, feedback, and haptics
+  CtrlAgent.Core/              Contracts, mappings, layers, feedback, haptics
   CtrlAgent.Hosting/           Shared HostEngine used by console host and GUI
-  CtrlAgent.Platform.Windows/  GameInput bridge client and XInput fallback
+  CtrlAgent.Platform.Windows/  GameInput bridge client, DualSense HID device,
+                               and XInput fallback
+  CtrlAgent.Controllers.DualSense/ Pure DualSense wire protocol (no OS calls)
   CtrlAgent.Adapters.Mock/     Safe simulated agent
   CtrlAgent.Adapters.Codex/    Codex app-server adapter
   CtrlAgent.Adapters.ClaudeCode/ Claude Code stream-json adapter
   CtrlAgent.App/               End-to-end Windows console host
-  CtrlAgent.Gui/               Avalonia desktop app (status, approvals, log)
+  CtrlAgent.Gui/               Avalonia desktop app (tray, overlay, editor)
   CtrlAgent.Demo/              Haptic-pattern demonstration
 
 tests/
   CtrlAgent.Tests/             Dependency-free automated tests
 
 docs/
-  architecture.md
-  controller-validation.md
-  roadmap.md
+  architecture.md              As-built design, threading model, decision log
+  profiles.md                  Profile JSON reference, gestures, layers
+  adapters.md                  Adapter protocols and authoring guide
+  roadmap.md                   Phase ledger, backlog, release targets
+  controller-validation.md     Hardware validation plan and wizard
 ```
 
 ## Hardware validation still required
@@ -254,4 +261,4 @@ CtrlAgent is licensed under the [MIT License](LICENSE).
 
 ## Trademark notice
 
-Xbox and Xbox Elite are trademarks of Microsoft. Codex is a trademark of OpenAI. CtrlAgent is an independent open-source project and is not affiliated with or endorsed by Microsoft or OpenAI.
+Xbox and Xbox Elite are trademarks of Microsoft. PlayStation and DualSense are trademarks of Sony Interactive Entertainment. Codex is a trademark of OpenAI. Claude is a trademark of Anthropic. CtrlAgent is an independent open-source project and is not affiliated with or endorsed by Microsoft, Sony, OpenAI, or Anthropic.

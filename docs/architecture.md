@@ -1,6 +1,6 @@
 # CtrlAgent Architecture
 
-Status: **As-built** (updated 2026-07-22). This describes the implemented system; open questions live in the decision log at the bottom. The original pre-implementation blueprint is in this file's git history.
+Status: **As-built** (updated 2026-07-23). This describes the implemented system; open questions live in the decision log at the bottom. The original pre-implementation blueprint is in this file's git history.
 
 ## Product loop
 
@@ -35,11 +35,17 @@ CtrlAgent has two directions through one pipeline:
 | CtrlAgent.Platform.   |     |     CtrlAgent.Core       |     | CtrlAgent.Adapters.*    |
 | Windows               |     | contracts, MappingEngine,|     | Mock / Codex /          |
 | GameInput bridge      |     | profiles + validation,   |     | ClaudeCode              |
-| client, XInput        |     | FeedbackRouter, haptics, |     | (stdio JSONL processes) |
-| fallback              |     | validation reports       |     |                         |
-+-----------+-----------+     +--------------------------+     +-------------------------+
-            |
-+-----------v----------------+
+| client, DualSense HID |     | FeedbackRouter, haptics, |     | (stdio JSONL processes) |
+| device, XInput        |     | validation reports       |     |                         |
+| fallback              |     +--------------------------+     +-------------------------+
++-----+-----------+-----+
+      |           |
+      |     +-----v----------------------+
+      |     | CtrlAgent.Controllers.     |
+      |     | DualSense (pure wire       |
+      |     | protocol, no OS calls)     |
+      |     +----------------------------+
++-----v----------------------+
 | native/CtrlAgent.          |
 | GameInputBridge (C++ exe,  |
 | GameInput v3, spawned via  |
@@ -50,6 +56,7 @@ CtrlAgent has two directions through one pipeline:
 Dependency rules:
 
 - **CtrlAgent.Core** is platform-independent and referenced by everything. It must not reference GameInput, XInput, Codex, Claude Code, UI frameworks, or keyboard injection. BCL-only (System.Text.Json is fine).
+- **CtrlAgent.Controllers.DualSense** is the pure DualSense wire protocol (input-report parsing, output-report building, Bluetooth CRC) with no OS calls, so it is fully unit-testable; `Platform.Windows` wraps it with SetupAPI/hid.dll I/O.
 - **CtrlAgent.Hosting** references Core only: `HostEngine` takes `IControllerProvider` + `IAgentAdapter` from the host, owns their disposal, runs the controller-session and agent-event loops, and raises events (log, controller status, agent events, pending approval). It is fully testable with fake providers/adapters.
 - Hosts (App, Gui) are the only projects that reference platform and adapters together; they construct concrete providers/adapters and hand them to the engine.
 - Adapters reference Core only. Platform.Windows references Core only.
@@ -59,7 +66,8 @@ Dependency rules:
 `WindowsControllerProvider` resolves the primary controller:
 
 1. **GameInput bridge** (preferred): spawns the native C++ exe and speaks newline-delimited JSON over stdio. Path resolution: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app. The bridge is the only path that exposes the four Elite paddles and trigger rumble.
-2. **XInput fallback**: P/Invoke polling (8 ms connected, 250 ms disconnected). No paddles, two motors only; approval actions fall back to RB chords.
+2. **DualSense over raw HID**: enumerates Sony VID `0x054C` (DualSense `0x0CE6`, DualSense Edge `0x0DF2`) via SetupAPI and reads/writes HID reports directly — USB report `0x01`, Bluetooth report `0x31` (CRC32-protected). Buttons map positionally (Cross→A, Circle→B, Square→X, Triangle→Y); Edge rear paddles and Fn map to the four paddle controls. Byte layout is community-documented and still needs real-pad verification.
+3. **XInput fallback**: P/Invoke polling (8 ms connected, 250 ms disconnected). No paddles, two motors only; approval actions fall back to RB chords.
 
 Bridge wire protocol (one JSON object per line):
 
@@ -72,9 +80,10 @@ A bridge whose process died reports `IsDefunct`; the provider disposes it, allow
 
 `MappingEngine.Process` is a pure state machine over the input event stream:
 
-1. **Structural match** — control, gesture, and (for chords) currently-held modifiers. Gestures: `Press`, `Release`, `AxisThreshold`, `Tap`, `Hold`, `DoublePress`. Tap/hold split on press-to-release duration; double-press on press-to-press interval — both measured **from event timestamps**, never wall-clock reads, so resolution is deterministic and clock-free in tests.
-2. **Specificity** — only bindings with the highest modifier count survive (chords beat plain buttons).
-3. **Eligibility** — `RequiresPendingApproval` bindings fire only while an approval request is pending. Eligibility runs *after* specificity so an ineligible chord produces no command rather than falling through to the plain-button action.
+1. **Layer filter** — bindings in inactive layers are dropped first. Layers activate on device capability (`always` / `requiresPaddles` / `withoutPaddles`); the host calls `SetDeviceCapabilities` on every controller connect, and with no device known every layer is active.
+2. **Structural match** — control, gesture, and (for chords) currently-held modifiers. Gestures: `Press`, `Release`, `AxisThreshold`, `Tap`, `Hold`, `DoublePress`. Tap/hold split on press-to-release duration; double-press on press-to-press interval — both measured **from event timestamps**, never wall-clock reads, so resolution is deterministic and clock-free in tests.
+3. **Specificity** — only bindings with the highest modifier count survive (chords beat plain buttons).
+4. **Eligibility** — `RequiresPendingApproval` bindings fire only while an approval request is pending. Eligibility runs *after* specificity so an ineligible chord produces no command rather than falling through to the plain-button action.
 
 Profiles are versioned JSON (`ControllerProfileJson`, version 1) validated by `ControllerProfileValidator` at engine construction and on every load — an unsafe or ambiguous profile can never run. See [profiles.md](profiles.md) for the full reference and safety rules.
 
@@ -91,6 +100,15 @@ The pending-approval contract: an `ApprovalRequired`/`WaitingForInput` event car
 - `HapticSchedulerHub` sits between consumers (agent loop, GUI preview) and whichever controller is currently attached. Detached = silent no-op; device-loss exceptions are swallowed. This isolates event loops from controller churn.
 - Device implementations must zero rumble in a `finally` when playback ends and on dispose. `AgentStateKind.Idle` stops haptics instead of routing a pattern.
 - Catalog values are provisional pending real-device validation.
+
+## Desktop GUI
+
+`CtrlAgent.Gui` (Avalonia, compiled bindings, dark neon design system in `App.axaml`) is a thin shell over `HostEngine`:
+
+- `MainViewModel` subscribes to engine events and marshals them onto the UI thread with `Dispatcher.UIThread.Post`; it owns the severity-tinted event stream (`LogEntry`), the binding rows (`BindingRow`, chip labels shared with CTRL·BOT via `ControlLabels`), and the status-dot/pulse state.
+- The main window extends its client area into the title bar (hero band = drag handle), mirrors live input on an Elite Series 2 vector (`ControllerVisualViewModel`: pressed > approval-highlight > idle brushes, PS face labels on DualSense), and hosts CTRL·BOT (`AgentBuddyViewModel`: profile-derived coaching, animated moods).
+- It is a tray app: closing hides the window (`ShutdownMode.OnExplicitShutdown`); the tray menu restores it, toggles the overlay, or exits. `OverlayWindow` (frameless, topmost) and `ToastWindow` (bottom-right notifications with approve/decline) share the same `MainViewModel`, so every surface stays in sync.
+- `ProfileEditorWindow` edits bindings with live `ControllerProfileValidator` feedback and applies via `HostEngine.TryApplyProfile`; `GuiSettings` persists last-used launch options to `%AppData%/CtrlAgent`; a first-run setup overlay collects agent + working directory so no CLI flags are needed.
 
 ## Threading and lifecycle model
 

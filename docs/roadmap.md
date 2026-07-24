@@ -13,7 +13,7 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 | # | Item | Why | Status |
 |---|---|---|---|
 | 1 | Hardware validation runs (`--validate`, per transport) | Gates the paddle decision and haptic tuning; everything Elite-specific is provisional until this exists | **Partial evidence 2026-07-24**: Bluetooth = GameInput unsupported (XInput fallback verified); USB = input verified, paddles never reported by the PC redist (bridge now reports no paddles; see `docs/controller-validation.md`). Formal `--validate` reports still to be run |
-| 2 | Live verification of Codex + Claude Code adapters | Wire shapes follow documented protocols; first real run is the compatibility test | Blocked on installed CLIs |
+| 2 | Live verification of Codex + Claude Code adapters | Wire shapes follow documented protocols; first real run is the compatibility test | **Claude Code verified 2026-07-24** (CLI 2.1.150: session init, prompt turns, controller-answered approve and deny, error events; found and fixed the Windows bare-name spawn bug — see `docs/adapters.md`). Codex still blocked on an installed CLI |
 | 3 | Shared hosting layer (`CtrlAgent.Hosting`) | App and Gui ran parallel copies of the same loops | **Done** — both hosts run on `HostEngine`, covered by an end-to-end test |
 | 4 | Claude Code approve-for-session | Wire session-wide permission rules (`updatedPermissions`) instead of degrading to approve-once | **Done** — session-scoped tool allow rule, wire shape unit-tested |
 | 5 | GUI phase 2: tray icon, minimize-to-tray, mapping editor with live validation | Phase 5 exit gate needs profile editing without hand-written JSON | **Done** — tray + hide-on-close + editor with live validation, runtime apply, JSON save/load |

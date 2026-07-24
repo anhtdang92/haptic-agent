@@ -65,7 +65,7 @@ Dependency rules:
 
 `WindowsControllerProvider` resolves the primary controller:
 
-1. **GameInput bridge** (preferred): spawns the native C++ exe and speaks newline-delimited JSON over stdio. Path resolution: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app. The bridge is the only path that exposes the four Elite paddles and trigger rumble.
+1. **GameInput bridge** (preferred): spawns the native C++ exe and speaks newline-delimited JSON over stdio. Path resolution: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app. The bridge is the trigger-rumble path and the *intended* paddle path — but hardware validation (2026-07-24) showed the PC GameInput redistributable never reports Elite Series 2 paddles (unmapped paddles are silent; mapped ones arrive as face buttons) and does not enumerate Bluetooth Xbox controllers at all, so the bridge reports `hasFourPaddles: false` (activating the `withoutPaddles` chord layer) and paddle support is experimental pending a raw-report path. GameInput also gates input on window focus. See `controller-validation.md` for the evidence.
 2. **DualSense over raw HID**: enumerates Sony VID `0x054C` (DualSense `0x0CE6`, DualSense Edge `0x0DF2`) via SetupAPI and reads/writes HID reports directly — USB report `0x01`, Bluetooth report `0x31` (CRC32-protected). Buttons map positionally (Cross→A, Circle→B, Square→X, Triangle→Y); Edge rear paddles and Fn map to the four paddle controls. Byte layout is community-documented and still needs real-pad verification.
 3. **XInput fallback**: P/Invoke polling (8 ms connected, 250 ms disconnected). No paddles, two motors only; approval actions fall back to RB chords.
 
@@ -89,7 +89,7 @@ Profiles are versioned JSON (`ControllerProfileJson`, version 1) validated by `C
 
 ## Agent side
 
-`IAgentAdapter` exposes `StartAsync`, `ReadEventsAsync` (an async stream of `AgentEvent`s), and `ExecuteAsync(AgentCommand)`. Adapters own their child process and normalize its protocol into `AgentStateKind` events; hosts never see raw protocol. See [adapters.md](adapters.md) for per-adapter protocol detail and the authoring guide.
+`IAgentAdapter` exposes `StartAsync`, `ReadEventsAsync` (an async stream of `AgentEvent`s), and `ExecuteAsync(AgentCommand)`. Adapters own their child process and normalize its protocol into `AgentStateKind` events; hosts never see raw protocol. Bare CLI names (`codex`, `claude`) are resolved through PATH/PATHEXT by `AgentExecutableResolver` in Core, because `Process.Start` with `UseShellExecute=false` does not search PATH on Windows. See [adapters.md](adapters.md) for per-adapter protocol detail and the authoring guide.
 
 The pending-approval contract: an `ApprovalRequired`/`WaitingForInput` event carries `RequestId` (and `SessionId`); the host stores them, arms the mapping engine, and hydrates approval commands with those ids. `Completed`, `Error`, or a `Working` event that carries a `RequestId` clears the pending state.
 

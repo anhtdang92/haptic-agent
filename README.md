@@ -21,7 +21,7 @@ Both sides of CtrlAgent are pluggable: controllers implement `IControllerDevice`
 | Controller | Status |
 |---|---|
 | Xbox-family pads (XInput) | Supported — buttons, sticks, triggers, two-motor rumble |
-| Xbox Elite Series 2 (GameInput bridge) | Supported — adds four independent paddles and trigger rumble |
+| Xbox Elite Series 2 (GameInput bridge) | Supported over USB — adds trigger rumble. Paddles are **experimental**: hardware validation (2026-07-24) showed the PC GameInput redistributable never reports them, so fallback chords activate instead. Bluetooth uses the XInput path |
 | PlayStation 5 DualSense | Implemented — raw HID (buttons, sticks, triggers, rumble, cyan lightbar); USB and Bluetooth; hardware verification pending |
 | DualSense Edge | Implemented — rear paddles/Fn map to the four paddle controls; hardware verification pending |
 | Other popular pads (SDL/GameInput) | Planned |
@@ -32,11 +32,11 @@ Both sides of CtrlAgent are pluggable: controllers implement `IControllerDevice`
 |---|---|
 | Mock (safe testing) | Supported |
 | OpenAI Codex (app-server JSONL) | Implemented — live verification pending |
-| Claude Code (stream-json) | Implemented — live verification pending |
+| Claude Code (stream-json) | **Verified live** — approval loop end to end against CLI 2.1.150 |
 | Cursor (cursor-agent CLI) | Planned — protocol research needed |
 | Google Antigravity | Planned — integration path under research |
 
-> **Status:** pre-alpha MVP. The full software stack is implemented and unit-tested: mapping engine with gestures and profile layers, three agent adapters (Mock, Codex, Claude Code) with crash restart and session resume, three controller paths (GameInput bridge, DualSense raw HID, XInput), the Avalonia desktop app, the validation wizard, release packaging, and CI. What remains is **evidence**: real-controller validation runs and live Codex/Claude verification.
+> **Status:** pre-alpha MVP. The full software stack is implemented and unit-tested: mapping engine with gestures and profile layers, three agent adapters (Mock, Codex, Claude Code) with crash restart and session resume, three controller paths (GameInput bridge, DualSense raw HID, XInput), the Avalonia desktop app, the validation wizard, release packaging, and CI. Evidence is accumulating: the Claude Code approval loop is verified live end to end (approve and decline from controller chords), and Elite Series 2 testing produced first findings — trigger input works over USB, but the PC GameInput redistributable never reports paddles and does not enumerate Bluetooth Xbox controllers (XInput covers Bluetooth). Still to run: formal `--validate` reports, Codex live verification, and a real DualSense.
 
 ## Data flow
 
@@ -56,7 +56,7 @@ Haptic scheduler <-----------------+
 
 - .NET 10 managed host and platform-independent core, with a shared `HostEngine` hosting layer under both the console host and the GUI
 - XInput controller discovery, buttons, sticks, triggers, reconnect handling, and two-motor rumble
-- Native GameInput v3 bridge for four Elite paddles and four-channel rumble
+- Native GameInput v3 bridge for four-channel rumble (Elite paddle support is experimental — the PC GameInput redistributable never reports the paddles, per hardware validation, so the bridge honestly reports no paddles and the fallback chord layer activates)
 - PS5 DualSense/DualSense Edge over raw HID: USB and Bluetooth input reports, rumble, lightbar, Edge rear paddles (protocol fully unit-tested; real-pad verification pending)
 - XInput fallback approval chords when independent paddles are unavailable
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
@@ -172,7 +172,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- \
   --cwd C:\path\to\your\repository
 ```
 
-The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the paddles — approve once allows the request, approve-for-session additionally adds a session-wide allow rule for that tool, decline denies. Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable.
+The adapter drives the Claude Code CLI over its stream-json protocol: A submits a prompt, B interrupts, and tool-permission prompts surface as approval requests you answer from the controller — approve once allows the request, approve-for-session additionally adds a session-wide allow rule for that tool, decline denies. **Verified live** against Claude Code CLI 2.1.150: the full approval loop ran on real hardware, with a Write permission approved via the RB+A chord and declined via RB+X in a separate run. Requires Claude Code installed and authenticated; use `--claude-path` for an explicit executable.
 
 ## Run with Codex
 
@@ -193,7 +193,7 @@ Useful options:
 --verbose                 Print analog controller changes
 ```
 
-When the native bridge is not supplied or cannot start, CtrlAgent automatically falls back to XInput. Place `CtrlAgent.GameInputBridge.exe` beside the managed application, set `CTRL_AGENT_GAMEINPUT_BRIDGE`, or pass `--gameinput-bridge` to enable independent paddles and trigger rumble.
+When the native bridge is not supplied or cannot start, CtrlAgent automatically falls back to XInput. Place `CtrlAgent.GameInputBridge.exe` beside the managed application, set `CTRL_AGENT_GAMEINPUT_BRIDGE`, or pass `--gameinput-bridge` to enable trigger rumble over USB. Independent Elite paddles remain experimental: the PC GameInput redistributable does not report them (see [the controller validation plan](docs/controller-validation.md)), so approval actions use the RB fallback chords.
 
 ## Documentation
 
@@ -237,23 +237,17 @@ docs/
   controller-validation.md     Hardware validation plan and wizard
 ```
 
-## Hardware validation still required
+## Hardware validation status
 
-Software builds cannot prove how every Elite firmware and connection mode behaves. A guided wizard walks through the validation plan on a real controller and writes the evidence report to `validation/<date>-elite-series-2-<transport>.md`, including a go/no-go recommendation:
+First real-device findings (2026-07-24, Elite Series 2, Windows 11): USB discovery, standard buttons, and initial state work through the bridge; the paddles are **never** reported by the PC GameInput redistributable (unmapped paddles are silent, mapped ones arrive as their firmware-assigned face buttons); Bluetooth Xbox controllers are not enumerated by GameInput at all, while the XInput fallback works fully over Bluetooth. GameInput also gates input on window focus. Full details in [the controller validation plan](docs/controller-validation.md).
+
+Still to run — the formal wizard reports per transport, plus rumble/reconnect/soak coverage:
 
 ```powershell
 dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --validate
 ```
 
-Run it once per transport (USB, Xbox Wireless Adapter, Bluetooth). The first real-device pass must verify:
-
-- all four paddles over USB, Xbox Wireless, and Bluetooth;
-- low/high and trigger-rumble channels;
-- focus/background behavior;
-- disconnect and reconnect behavior;
-- paddle behavior with Xbox Accessories profiles.
-
-See [the controller validation plan](docs/controller-validation.md).
+The wizard writes the evidence report to `validation/<date>-elite-series-2-<transport>.md` with a go/no-go recommendation. Run it once per transport (USB, Xbox Wireless Adapter, Bluetooth); a DualSense first-pass checklist is in the same plan.
 
 ## License
 

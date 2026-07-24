@@ -2,11 +2,11 @@
 
 The project advances through evidence-based gates: each phase produces something testable before the next layer is added. This file carries two views — the phase ledger (what the gates were and where they stand) and the prioritized near-term backlog (what to pick up next).
 
-## Snapshot (2026-07-23)
+## Snapshot (2026-07-24)
 
-Implemented and unit-tested: platform-independent core, mapping engine with gestures, capability-activated profile layers, and validated JSON profiles, haptic scheduler + hub, XInput fallback, native GameInput bridge (code complete), DualSense raw-HID adapter (protocol unit-tested), Mock/Codex/Claude Code adapters with crash restart and session resume, shared `HostEngine` hosting layer, console host with reconnect resilience, Avalonia GUI (tray, overlay HUD, toasts, first-run setup, profile editor, live Elite mirror, CTRL·BOT, motion polish), hardware validation wizard, release packaging on tags, Windows CI. 23 tests passing.
+Implemented and unit-tested: platform-independent core, mapping engine with gestures, capability-activated profile layers, and validated JSON profiles, haptic scheduler + hub, XInput fallback, native GameInput bridge (code complete), DualSense raw-HID adapter (protocol unit-tested), Mock/Codex/Claude Code adapters with crash restart and session resume, shared `HostEngine` hosting layer, console host with reconnect resilience, Avalonia GUI (tray, overlay HUD, toasts, first-run setup, profile editor, live Elite mirror, CTRL·BOT, motion polish), hardware validation wizard, release packaging on tags, Windows CI. 24 tests passing.
 
-**The critical path is now evidence, not code.** Nothing hardware- or agent-facing has been verified against a real Elite controller, a real Codex install, or a real Claude Code install.
+**The critical path is evidence, and it has started landing.** Verified so far: the Claude Code approval loop end to end on a live CLI (2.1.150), and first Elite Series 2 hardware findings — USB input works through the bridge, but the PC GameInput redistributable never reports paddles and does not enumerate Bluetooth Xbox controllers (the XInput fallback covers Bluetooth). Still unverified: Codex against a live install, formal per-transport `--validate` reports, DualSense on a real pad, and the haptic tuning pass.
 
 ## Near-term backlog (priority order)
 
@@ -32,9 +32,9 @@ Implemented and unit-tested: platform-independent core, mapping engine with gest
 
 Contracts, haptic model, feedback cues, architecture doc, validation plan, mock demo. Exit gate met.
 
-### Phase 1 — Native GameInput hardware spike — **Code complete, awaiting hardware validation**
+### Phase 1 — Native GameInput hardware spike — **Partially validated; paddle outcome resolved negatively**
 
-The bridge builds in CI and implements discovery, paddle flags, and four-channel rumble. Exit gate (reliable USB input, documented paddle behavior, distinct cues, clean reconnect) **requires real-device evidence** — run `--validate` per transport and commit the reports under `validation/`.
+The bridge builds in CI and implements discovery, capability reporting, and four-channel rumble. First real-device evidence (2026-07-24): USB discovery/input verified; **the PC GameInput redistributable never surfaces Elite paddles** (the bridge now reports `hasFourPaddles: false`, activating the fallback chord layer) and does not enumerate Bluetooth Xbox controllers (XInput covers Bluetooth). Remaining for the exit gate: rumble-cue distinctness, reconnect behavior, and the formal per-transport `--validate` reports committed under `validation/`.
 
 ### Phase 2 — Managed GameInput adapter — **Complete in software, pending hardware sign-off**
 
@@ -61,7 +61,7 @@ Target: all popular controllers × all popular agentic coding platforms. The lau
 | Platform | Path | Status |
 |---|---|---|
 | Codex | app-server JSONL over stdio | Implemented, live verification pending |
-| Claude Code | stream-json + `--permission-prompt-tool stdio` | Implemented, live verification pending |
+| Claude Code | stream-json + `--permission-prompt-tool stdio` | **Verified live** (CLI 2.1.150, 2026-07-24): approval loop end to end; approve-for-session wire shape unit-tested but not yet exercised live |
 | Cursor | `cursor-agent` CLI headless mode; JSON output exists — approval/permission wire protocol needs research | Planned |
 | Google Antigravity | No public automation protocol known yet (VS Code-fork agent manager); watch for CLI/extension/MCP surface | Research |
 | OpenCode / generic process adapters | stdio JSONL, same shape as existing adapters | Candidate |
@@ -70,7 +70,7 @@ Target: all popular controllers × all popular agentic coding platforms. The lau
 
 | Controller | Path | Status |
 |---|---|---|
-| Xbox family | XInput (done) + GameInput bridge for Elite paddles (done, hardware validation pending) | Supported |
+| Xbox family | XInput (done) + GameInput bridge for trigger rumble (done); Elite paddles experimental — the PC redistributable never reports them (2026-07-24 evidence), pending a raw-report path | Supported |
 | PS5 DualSense | Raw HID input reports + HID output for rumble/lightbar (community-documented format; no OS driver needed) | Implemented — hardware verification pending |
 | DualSense Edge | Same HID path; rear paddles + Fn buttons map to the four paddle controls | Implemented — hardware verification pending |
 | Generic pads | SDL2 or GameInput enumeration | Candidate |

@@ -157,6 +157,7 @@ public sealed class BigPictureViewModel : ViewModelBase
             case "Escape": Back(); break;
             case "F1": ToggleShortcuts(); break;
             case "F2": StartVoice(); break;
+            case "F11": CloseRequested?.Invoke(); break;
         }
     }
 

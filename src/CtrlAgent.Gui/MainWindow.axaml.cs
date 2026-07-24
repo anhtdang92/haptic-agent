@@ -15,6 +15,16 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += (_, _) => ObserveLog();
+
+        // F11 = enter Big Picture, the standard fullscreen key.
+        KeyDown += (_, eventArgs) =>
+        {
+            if (eventArgs.Key == Key.F11)
+            {
+                eventArgs.Handled = true;
+                (Avalonia.Application.Current as App)?.ShowBigPicture();
+            }
+        };
     }
 
     // Keeps the event stream pinned to the newest entry.

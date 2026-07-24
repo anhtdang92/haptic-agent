@@ -95,6 +95,7 @@ public sealed class App : Application
             mainWindow.Show();
 
             viewModel.SetupCompleted += StartWithOptions;
+            viewModel.BigPictureRequested += ShowBigPicture;
             if (startupError is null)
             {
                 if (firstRun)

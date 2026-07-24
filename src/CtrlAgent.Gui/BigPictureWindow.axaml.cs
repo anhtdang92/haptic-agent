@@ -14,6 +14,14 @@ public sealed partial class BigPictureWindow : Window
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
+        Opened += async (_, _) =>
+        {
+            // Steam-style boot moment: chime + badge/ring animation, then the
+            // overlay collapses out of the way of input rendering.
+            BootChime.Play();
+            await Task.Delay(TimeSpan.FromSeconds(2.6));
+            IntroOverlay.IsVisible = false;
+        };
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
@@ -31,6 +39,7 @@ public sealed partial class BigPictureWindow : Window
             Key.Escape => "Escape",
             Key.F1 => "F1",
             Key.F2 => "F2",
+            Key.F11 => "F11",
             _ => null,
         };
 

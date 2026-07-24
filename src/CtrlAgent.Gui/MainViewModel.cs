@@ -79,6 +79,7 @@ public sealed class MainViewModel : ViewModelBase
     private bool _isBindingsEmpty = true;
     private bool _showControllerEvents = true;
     private readonly List<LogEntry> _logHistory = [];
+    private DateTimeOffset _lastViewPress = DateTimeOffset.MinValue;
     private bool _isSetupVisible;
     private string _setupAgent = "mock";
     private string _setupWorkingDirectory = Environment.CurrentDirectory;
@@ -115,6 +116,13 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Raised when the first-run setup is submitted with valid values.</summary>
     public event Action<GuiOptions>? SetupCompleted;
+
+    /// <summary>
+    /// Raised by the controller fullscreen shortcut: double-press View.
+    /// Deliberately not the Xbox/Guide button — Steam owns that for its own
+    /// Big Picture, and neither XInput nor the bridge reports it anyway.
+    /// </summary>
+    public event Action? BigPictureRequested;
 
     /// <summary>
     /// Wires the running engine into this view model. Called at startup when
@@ -157,7 +165,26 @@ public sealed class MainViewModel : ViewModelBase
             IsControllerSearching = false;
             ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
         });
-        engine.ControllerInputReceived += inputEvent => Post(() => ControllerVisual.Apply(inputEvent));
+        engine.ControllerInputReceived += inputEvent => Post(() =>
+        {
+            ControllerVisual.Apply(inputEvent);
+
+            // Double-press View = enter Big Picture (View is unbound in the
+            // default profile). Interval math uses event timestamps.
+            if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
+                inputEvent.Control == ControllerControl.View)
+            {
+                if (inputEvent.Timestamp - _lastViewPress <= TimeSpan.FromMilliseconds(400))
+                {
+                    _lastViewPress = DateTimeOffset.MinValue;
+                    BigPictureRequested?.Invoke();
+                }
+                else
+                {
+                    _lastViewPress = inputEvent.Timestamp;
+                }
+            }
+        });
         engine.AgentEventReceived += agentEvent => Post(() =>
         {
             AgentState = agentEvent.State.ToString();

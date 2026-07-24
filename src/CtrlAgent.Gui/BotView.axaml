@@ -7,22 +7,86 @@
 
   <!-- CTRL·BOT, the tamagotchi companion. One shared drawing used by the
        main window and Big Picture; consumers wrap it in a Viewbox to scale.
-       Click/tap pokes the bot. -->
+       Click/tap pokes the bot. Whole-body mood animations live here:
+       idle breathes, happy hops and waves, alert bounces urgently,
+       error trembles. -->
+  <UserControl.Styles>
+    <!-- Gentle idle bob whenever nothing dramatic is happening -->
+    <Style Selector="Canvas.botRig:not(.moodHappy):not(.moodAlert):not(.moodError)">
+      <Style.Animations>
+        <Animation Duration="0:0:5" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="TranslateTransform.Y" Value="-2.5" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- Happy: a double hop, like a tamagotchi celebrating -->
+    <Style Selector="Canvas.botRig.moodHappy">
+      <Style.Animations>
+        <Animation Duration="0:0:0.95" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="22%"><Setter Property="TranslateTransform.Y" Value="-9" /></KeyFrame>
+          <KeyFrame Cue="42%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="60%"><Setter Property="TranslateTransform.Y" Value="-4" /></KeyFrame>
+          <KeyFrame Cue="75%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- …with both arms waving -->
+    <Style Selector="Canvas.botRig.moodHappy > Border.armL">
+      <Style.Animations>
+        <Animation Duration="0:0:0.45" IterationCount="Infinite" PlaybackDirection="Alternate">
+          <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="16" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="52" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Canvas.botRig.moodHappy > Border.armR">
+      <Style.Animations>
+        <Animation Duration="0:0:0.45" IterationCount="Infinite" PlaybackDirection="Alternate">
+          <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="-16" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="-52" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- Alert: quick urgent bounces — answer me! -->
+    <Style Selector="Canvas.botRig.moodAlert">
+      <Style.Animations>
+        <Animation Duration="0:0:0.55" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="35%"><Setter Property="TranslateTransform.Y" Value="-5" /></KeyFrame>
+          <KeyFrame Cue="70%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- Error: a worried tremble -->
+    <Style Selector="Canvas.botRig.moodError">
+      <Style.Animations>
+        <Animation Duration="0:0:0.5" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.X" Value="0" /></KeyFrame>
+          <KeyFrame Cue="20%"><Setter Property="TranslateTransform.X" Value="-3" /></KeyFrame>
+          <KeyFrame Cue="40%"><Setter Property="TranslateTransform.X" Value="3" /></KeyFrame>
+          <KeyFrame Cue="60%"><Setter Property="TranslateTransform.X" Value="-2" /></KeyFrame>
+          <KeyFrame Cue="80%"><Setter Property="TranslateTransform.X" Value="2" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.X" Value="0" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </UserControl.Styles>
+
   <StackPanel Spacing="4" HorizontalAlignment="Center">
-    <Canvas Width="92" Height="122" Classes="botRig" Background="Transparent"
+    <Canvas Width="92" Height="122" Background="Transparent"
+            Classes="botRig"
+            Classes.moodHappy="{Binding IsHappy}"
+            Classes.moodAlert="{Binding IsAlert}"
+            Classes.moodError="{Binding IsError}"
             Cursor="Hand" PointerPressed="OnPoke">
-      <Canvas.Styles>
-        <!-- Gentle idle bob keeps the bot feeling alive -->
-        <Style Selector="Canvas.botRig">
-          <Style.Animations>
-            <Animation Duration="0:0:5" IterationCount="Infinite">
-              <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-              <KeyFrame Cue="50%"><Setter Property="TranslateTransform.Y" Value="-2.5" /></KeyFrame>
-              <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-            </Animation>
-          </Style.Animations>
-        </Style>
-      </Canvas.Styles>
 
       <!-- Ground shadow -->
       <Ellipse Canvas.Left="24" Canvas.Top="113" Width="44" Height="7" Fill="#33000000" />
@@ -38,13 +102,21 @@
       <Border Canvas.Left="81" Canvas.Top="41" Width="7" Height="20" CornerRadius="0,3,3,0"
               Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
 
-      <!-- Stubby arms -->
-      <Border Canvas.Left="2" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
+      <!-- Stubby arms (waved via RotateTransform when happy) -->
+      <Border Classes="armL" Canvas.Left="2" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
               Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1.5"
-              RenderTransform="rotate(16deg)" />
-      <Border Canvas.Left="81" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
+              RenderTransformOrigin="50%,10%">
+        <Border.RenderTransform>
+          <RotateTransform Angle="16" />
+        </Border.RenderTransform>
+      </Border>
+      <Border Classes="armR" Canvas.Left="81" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
               Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1.5"
-              RenderTransform="rotate(-16deg)" />
+              RenderTransformOrigin="50%,10%">
+        <Border.RenderTransform>
+          <RotateTransform Angle="-16" />
+        </Border.RenderTransform>
+      </Border>
 
       <!-- Head: gradient shell with a soft mood aura -->
       <Border Canvas.Left="10" Canvas.Top="22" Width="72" Height="60"

@@ -44,150 +44,8 @@
                     VerticalAlignment="Center"
                     DataContext="{Binding Buddy}"
                     x:DataType="gui:AgentBuddyViewModel">
-          <Viewbox Height="80" Stretch="Uniform">
-          <Canvas Width="88" Height="112" Classes="botRig">
-            <Canvas.Styles>
-              <!-- Whole bot bobs gently so it reads as alive even when idle -->
-              <Style Selector="Canvas.botRig">
-                <Style.Animations>
-                  <Animation Duration="0:0:5" IterationCount="Infinite">
-                    <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-                    <KeyFrame Cue="50%"><Setter Property="TranslateTransform.Y" Value="-2" /></KeyFrame>
-                    <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-                  </Animation>
-                </Style.Animations>
-              </Style>
-            </Canvas.Styles>
-
-            <!-- Antenna: stem + halo + mood-colored tip -->
-            <Border Canvas.Left="42" Canvas.Top="10" Width="4" Height="13" CornerRadius="2" Background="#2E4A78" />
-            <Ellipse Canvas.Left="35" Canvas.Top="-3" Width="18" Height="18" Fill="{Binding AccentBrush}" Opacity="0.22" />
-            <Ellipse Canvas.Left="39" Canvas.Top="1" Width="10" Height="10" Fill="{Binding AccentBrush}" />
-
-            <!-- Side ears -->
-            <Border Canvas.Left="2" Canvas.Top="41" Width="7" Height="20" CornerRadius="3,0,0,3"
-                    Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
-            <Border Canvas.Left="79" Canvas.Top="41" Width="7" Height="20" CornerRadius="0,3,3,0"
-                    Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
-
-            <!-- Head: gradient shell with a soft mood aura -->
-            <Border Canvas.Left="8" Canvas.Top="22" Width="72" Height="60"
-                    CornerRadius="18"
-                    BorderBrush="{Binding AccentBrush}"
-                    BorderThickness="2"
-                    BoxShadow="0 4 18 0 #3300D4FF">
-              <Border.Background>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                  <GradientStop Color="#1A2A47" Offset="0" />
-                  <GradientStop Color="#0B1322" Offset="1" />
-                </LinearGradientBrush>
-              </Border.Background>
-            </Border>
-            <!-- Face screen with bezel -->
-            <Border Canvas.Left="16" Canvas.Top="31" Width="56" Height="37"
-                    CornerRadius="9"
-                    BorderBrush="#1C3050"
-                    BorderThickness="1">
-              <Border.Background>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                  <GradientStop Color="#04070E" Offset="0" />
-                  <GradientStop Color="#081426" Offset="1" />
-                </LinearGradientBrush>
-              </Border.Background>
-            </Border>
-
-            <!-- Eyes: one variant per mood; idle eyes blink every few seconds -->
-            <Canvas IsVisible="{Binding IsIdle}">
-              <Canvas.Styles>
-                <Style Selector="Border.eye">
-                  <Style.Animations>
-                    <Animation Duration="0:0:4.6" IterationCount="Infinite">
-                      <KeyFrame Cue="0%">
-                        <Setter Property="Opacity" Value="1" />
-                      </KeyFrame>
-                      <KeyFrame Cue="91%">
-                        <Setter Property="Opacity" Value="1" />
-                      </KeyFrame>
-                      <KeyFrame Cue="94%">
-                        <Setter Property="Opacity" Value="0" />
-                      </KeyFrame>
-                      <KeyFrame Cue="97%">
-                        <Setter Property="Opacity" Value="1" />
-                      </KeyFrame>
-                    </Animation>
-                  </Style.Animations>
-                </Style>
-              </Canvas.Styles>
-              <Border Classes="eye" Canvas.Left="24" Canvas.Top="45" Width="13" Height="5" CornerRadius="2" Background="#2E6E8E" />
-              <Border Classes="eye" Canvas.Left="49" Canvas.Top="45" Width="13" Height="5" CornerRadius="2" Background="#2E6E8E" />
-            </Canvas>
-            <!-- Working eyes throb like a busy indicator -->
-            <Canvas IsVisible="{Binding IsWorking}">
-              <Canvas.Styles>
-                <Style Selector="Ellipse">
-                  <Style.Animations>
-                    <Animation Duration="0:0:1.1" IterationCount="Infinite">
-                      <KeyFrame Cue="0%">
-                        <Setter Property="Opacity" Value="1" />
-                      </KeyFrame>
-                      <KeyFrame Cue="50%">
-                        <Setter Property="Opacity" Value="0.4" />
-                      </KeyFrame>
-                      <KeyFrame Cue="100%">
-                        <Setter Property="Opacity" Value="1" />
-                      </KeyFrame>
-                    </Animation>
-                  </Style.Animations>
-                </Style>
-              </Canvas.Styles>
-              <Ellipse Canvas.Left="21" Canvas.Top="37" Width="19" Height="19" Fill="#3300D4FF" />
-              <Ellipse Canvas.Left="46" Canvas.Top="37" Width="19" Height="19" Fill="#3300D4FF" />
-              <Ellipse Canvas.Left="24" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
-              <Ellipse Canvas.Left="49" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
-            </Canvas>
-            <!-- Alert eyes pulse urgently — something needs an answer -->
-            <Canvas IsVisible="{Binding IsAlert}">
-              <Canvas.Styles>
-                <Style Selector="Ellipse">
-                  <Style.Animations>
-                    <Animation Duration="0:0:0.7" IterationCount="Infinite">
-                      <KeyFrame Cue="0%">
-                        <Setter Property="Opacity" Value="1" />
-                      </KeyFrame>
-                      <KeyFrame Cue="50%">
-                        <Setter Property="Opacity" Value="0.5" />
-                      </KeyFrame>
-                      <KeyFrame Cue="100%">
-                        <Setter Property="Opacity" Value="1" />
-                      </KeyFrame>
-                    </Animation>
-                  </Style.Animations>
-                </Style>
-              </Canvas.Styles>
-              <Ellipse Canvas.Left="23" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
-              <Ellipse Canvas.Left="48" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
-            </Canvas>
-            <Canvas IsVisible="{Binding IsHappy}">
-              <Path Canvas.Left="24" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
-              <Path Canvas.Left="49" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
-            </Canvas>
-            <Canvas IsVisible="{Binding IsError}">
-              <Path Canvas.Left="24" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
-              <Path Canvas.Left="49" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
-            </Canvas>
-
-            <!-- Mouth glows with the mood -->
-            <Border Canvas.Left="37" Canvas.Top="59" Width="14" Height="3" CornerRadius="1.5"
-                    Background="{Binding AccentBrush}" Opacity="0.55" />
-
-            <!-- Neck + chassis with a mood LED strip -->
-            <Border Canvas.Left="38" Canvas.Top="82" Width="12" Height="6" CornerRadius="2" Background="#16233C" />
-            <Border Canvas.Left="23" Canvas.Top="88" Width="42" Height="13" CornerRadius="7"
-                    Background="#0B1322" BorderBrush="#2E4A78" BorderThickness="1.5" />
-            <Border Canvas.Left="33" Canvas.Top="93" Width="22" Height="3" CornerRadius="1.5"
-                    Background="{Binding AccentBrush}" Opacity="0.8" />
-            <TextBlock Canvas.Left="21" Canvas.Top="103" Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5" />
-          </Canvas>
+          <Viewbox Height="88" Stretch="Uniform">
+            <gui:BotView />
           </Viewbox>
 
           <!-- Speech bubble: fixed width so the text can never reflow the band -->
@@ -381,79 +239,201 @@
                 <TextBlock Canvas.Left="136" Canvas.Top="18" Text="LB" FontSize="8" Foreground="#8FA9D6" IsHitTestVisible="False" />
                 <TextBlock Canvas.Left="272" Canvas.Top="18" Text="RB" FontSize="8" Foreground="#8FA9D6" IsHitTestVisible="False" />
 
-                <!-- Grips: flared, angled outward like the real shell -->
+                <!-- Cast shadow grounds the whole controller -->
+                <Ellipse Canvas.Left="70" Canvas.Top="176" Width="280" Height="26" Opacity="0.55">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush>
+                      <GradientStop Color="#66000000" Offset="0" />
+                      <GradientStop Color="#00000000" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
+
+                <!-- Grips: flared, lit from above like molded plastic -->
                 <Ellipse Canvas.Left="38" Canvas.Top="58" Width="96" Height="152"
-                         Fill="#10182A" Stroke="#2C3B5E" StrokeThickness="1.5"
-                         RenderTransform="rotate(-18deg)" />
+                         Stroke="#2C3B5E" StrokeThickness="1.5"
+                         RenderTransform="rotate(-18deg)">
+                  <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="30%,0%" EndPoint="70%,100%">
+                      <GradientStop Color="#1E2C49" Offset="0" />
+                      <GradientStop Color="#10182A" Offset="0.45" />
+                      <GradientStop Color="#080D18" Offset="1" />
+                    </LinearGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
                 <Ellipse Canvas.Left="286" Canvas.Top="58" Width="96" Height="152"
-                         Fill="#10182A" Stroke="#2C3B5E" StrokeThickness="1.5"
-                         RenderTransform="rotate(18deg)" />
+                         Stroke="#2C3B5E" StrokeThickness="1.5"
+                         RenderTransform="rotate(18deg)">
+                  <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="70%,0%" EndPoint="30%,100%">
+                      <GradientStop Color="#1E2C49" Offset="0" />
+                      <GradientStop Color="#10182A" Offset="0.45" />
+                      <GradientStop Color="#080D18" Offset="1" />
+                    </LinearGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
 
                 <!-- Body shell: navy glass with a faint cyan underglow -->
                 <Border Canvas.Left="78" Canvas.Top="30" Width="264" Height="120" CornerRadius="46"
                         BorderBrush="#33456B" BorderThickness="1.5"
-                        BoxShadow="0 6 24 0 #2200D4FF">
+                        BoxShadow="0 8 26 0 #2200D4FF">
                   <Border.Background>
                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                      <GradientStop Color="#1C2942" Offset="0" />
-                      <GradientStop Color="#101A2E" Offset="1" />
+                      <GradientStop Color="#243554" Offset="0" />
+                      <GradientStop Color="#16233C" Offset="0.4" />
+                      <GradientStop Color="#0C1424" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+                <!-- Top sheen: light catching the shell's curve -->
+                <Border Canvas.Left="94" Canvas.Top="34" Width="232" Height="26" CornerRadius="24"
+                        IsHitTestVisible="False">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                      <GradientStop Color="#26FFFFFF" Offset="0" />
+                      <GradientStop Color="#00FFFFFF" Offset="1" />
                     </LinearGradientBrush>
                   </Border.Background>
                 </Border>
 
-                <!-- Guide button (nexus) -->
+                <!-- Guide button (nexus): domed with a glow -->
                 <Ellipse Canvas.Left="188" Canvas.Top="16" Width="44" Height="44" Fill="#3300D4FF" />
-                <Ellipse Canvas.Left="194" Canvas.Top="22" Width="32" Height="32" Fill="#0B111E" Stroke="#3D5578" StrokeThickness="1.5" />
-                <Ellipse Canvas.Left="200" Canvas.Top="28" Width="20" Height="20" Fill="#D7E9FF" Opacity="0.9" />
-
-                <!-- Left stick: high-left, Elite notched ring -->
-                <Ellipse Canvas.Left="118" Canvas.Top="60" Width="58" Height="58"
-                         Fill="#0B111E" Stroke="#3D5578" StrokeThickness="5" StrokeDashArray="1.2,0.6" />
-                <Ellipse Canvas.Left="131" Canvas.Top="73" Width="32" Height="32"
-                         Fill="{Binding LeftThumbBrush}" Stroke="#7DD3FC" StrokeThickness="1">
-                  <Ellipse.RenderTransform>
-                    <TranslateTransform X="{Binding LeftStickOffsetX}" Y="{Binding LeftStickOffsetY}" />
-                  </Ellipse.RenderTransform>
+                <Ellipse Canvas.Left="194" Canvas.Top="22" Width="32" Height="32" Stroke="#3D5578" StrokeThickness="1.5">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush Center="35%,30%" GradientOrigin="35%,30%">
+                      <GradientStop Color="#1B2740" Offset="0" />
+                      <GradientStop Color="#070C16" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
                 </Ellipse>
+                <Ellipse Canvas.Left="200" Canvas.Top="28" Width="20" Height="20" Opacity="0.95">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush Center="35%,30%" GradientOrigin="35%,30%">
+                      <GradientStop Color="#FFFFFF" Offset="0" />
+                      <GradientStop Color="#9FD8F2" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
+
+                <!-- Left stick: high-left, Elite notched ring; the knob and
+                     its gloss ride one transform so the shine tracks it -->
+                <Ellipse Canvas.Left="118" Canvas.Top="60" Width="58" Height="58"
+                         Stroke="#3D5578" StrokeThickness="5" StrokeDashArray="1.2,0.6">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush>
+                      <GradientStop Color="#04070D" Offset="0" />
+                      <GradientStop Color="#101B30" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
+                <Ellipse Canvas.Left="133" Canvas.Top="79" Width="30" Height="26" Fill="#66000000" />
+                <Canvas Canvas.Left="131" Canvas.Top="73" Width="32" Height="32">
+                  <Canvas.RenderTransform>
+                    <TranslateTransform X="{Binding LeftStickOffsetX}" Y="{Binding LeftStickOffsetY}" />
+                  </Canvas.RenderTransform>
+                  <Ellipse Width="32" Height="32"
+                           Fill="{Binding LeftThumbBrush}" Stroke="#7DD3FC" StrokeThickness="1" />
+                  <Ellipse Canvas.Left="5" Canvas.Top="3" Width="18" Height="11" IsHitTestVisible="False">
+                    <Ellipse.Fill>
+                      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#59FFFFFF" Offset="0" />
+                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                      </LinearGradientBrush>
+                    </Ellipse.Fill>
+                  </Ellipse>
+                  <Ellipse Canvas.Left="6" Canvas.Top="6" Width="20" Height="20"
+                           Stroke="#33000000" StrokeThickness="2" IsHitTestVisible="False" />
+                </Canvas>
 
                 <!-- View / Menu / profile switch -->
                 <Ellipse Canvas.Left="184" Canvas.Top="82" Width="14" Height="14" Fill="{Binding ViewBrush}" />
                 <Ellipse Canvas.Left="222" Canvas.Top="82" Width="14" Height="14" Fill="{Binding MenuBrush}" />
                 <Ellipse Canvas.Left="205" Canvas.Top="104" Width="10" Height="10" Fill="#1B2740" Stroke="#33456B" StrokeThickness="1" />
 
-                <!-- Face buttons: Xbox letter colors on dark caps -->
+                <!-- Face buttons: recessed wells, glossy caps, Xbox letter colors -->
+                <Ellipse Canvas.Left="278" Canvas.Top="51" Width="30" Height="30" Fill="#59000000" />
+                <Ellipse Canvas.Left="250" Canvas.Top="78" Width="30" Height="30" Fill="#59000000" />
+                <Ellipse Canvas.Left="306" Canvas.Top="78" Width="30" Height="30" Fill="#59000000" />
+                <Ellipse Canvas.Left="278" Canvas.Top="105" Width="30" Height="30" Fill="#59000000" />
                 <Ellipse Canvas.Left="280" Canvas.Top="52" Width="26" Height="26" Fill="{Binding YBrush}" Stroke="#33456B" StrokeThickness="1" />
                 <Ellipse Canvas.Left="252" Canvas.Top="79" Width="26" Height="26" Fill="{Binding XBrush}" Stroke="#33456B" StrokeThickness="1" />
                 <Ellipse Canvas.Left="308" Canvas.Top="79" Width="26" Height="26" Fill="{Binding BBrush}" Stroke="#33456B" StrokeThickness="1" />
                 <Ellipse Canvas.Left="280" Canvas.Top="106" Width="26" Height="26" Fill="{Binding ABrush}" Stroke="#33456B" StrokeThickness="1" />
+                <!-- Gloss caps (never intercept the bound fills underneath) -->
+                <Ellipse Canvas.Left="284" Canvas.Top="54" Width="18" Height="9" Fill="#40FFFFFF" IsHitTestVisible="False" />
+                <Ellipse Canvas.Left="256" Canvas.Top="81" Width="18" Height="9" Fill="#40FFFFFF" IsHitTestVisible="False" />
+                <Ellipse Canvas.Left="312" Canvas.Top="81" Width="18" Height="9" Fill="#40FFFFFF" IsHitTestVisible="False" />
+                <Ellipse Canvas.Left="284" Canvas.Top="108" Width="18" Height="9" Fill="#40FFFFFF" IsHitTestVisible="False" />
                 <TextBlock Canvas.Left="288" Canvas.Top="56" Text="{Binding NorthLabel}" FontSize="12" FontWeight="Bold" Foreground="#E8C531" />
                 <TextBlock Canvas.Left="260" Canvas.Top="83" Text="{Binding WestLabel}" FontSize="12" FontWeight="Bold" Foreground="#4C8DF5" />
                 <TextBlock Canvas.Left="316" Canvas.Top="83" Text="{Binding EastLabel}" FontSize="12" FontWeight="Bold" Foreground="#E85555" />
                 <TextBlock Canvas.Left="288" Canvas.Top="110" Text="{Binding SouthLabel}" FontSize="12" FontWeight="Bold" Foreground="#6EBE45" />
 
-                <!-- Hybrid d-pad: low-left disc with cross -->
-                <Ellipse Canvas.Left="136" Canvas.Top="120" Width="54" Height="54" Fill="#0B111E" Stroke="#33456B" StrokeThickness="1.5" />
+                <!-- Hybrid d-pad: dished disc with a domed pivot -->
+                <Ellipse Canvas.Left="136" Canvas.Top="120" Width="54" Height="54" Stroke="#33456B" StrokeThickness="1.5">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush>
+                      <GradientStop Color="#05080F" Offset="0" />
+                      <GradientStop Color="#141F36" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
                 <Border Canvas.Left="155" Canvas.Top="126" Width="16" Height="14" CornerRadius="3" Background="{Binding DPadUpBrush}" />
                 <Border Canvas.Left="155" Canvas.Top="154" Width="16" Height="14" CornerRadius="3" Background="{Binding DPadDownBrush}" />
                 <Border Canvas.Left="141" Canvas.Top="140" Width="14" Height="14" CornerRadius="3" Background="{Binding DPadLeftBrush}" />
                 <Border Canvas.Left="171" Canvas.Top="140" Width="14" Height="14" CornerRadius="3" Background="{Binding DPadRightBrush}" />
                 <Border Canvas.Left="155" Canvas.Top="140" Width="16" Height="14" Background="#131B2C" />
+                <Ellipse Canvas.Left="158" Canvas.Top="142" Width="10" Height="10" IsHitTestVisible="False">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush Center="35%,30%" GradientOrigin="35%,30%">
+                      <GradientStop Color="#2E4064" Offset="0" />
+                      <GradientStop Color="#10192B" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
 
                 <!-- Right stick: low-center-right, notched ring -->
                 <Ellipse Canvas.Left="226" Canvas.Top="118" Width="58" Height="58"
-                         Fill="#0B111E" Stroke="#3D5578" StrokeThickness="5" StrokeDashArray="1.2,0.6" />
-                <Ellipse Canvas.Left="239" Canvas.Top="131" Width="32" Height="32"
-                         Fill="{Binding RightThumbBrush}" Stroke="#7DD3FC" StrokeThickness="1">
-                  <Ellipse.RenderTransform>
-                    <TranslateTransform X="{Binding RightStickOffsetX}" Y="{Binding RightStickOffsetY}" />
-                  </Ellipse.RenderTransform>
+                         Stroke="#3D5578" StrokeThickness="5" StrokeDashArray="1.2,0.6">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush>
+                      <GradientStop Color="#04070D" Offset="0" />
+                      <GradientStop Color="#101B30" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
                 </Ellipse>
+                <Ellipse Canvas.Left="241" Canvas.Top="137" Width="30" Height="26" Fill="#66000000" />
+                <Canvas Canvas.Left="239" Canvas.Top="131" Width="32" Height="32">
+                  <Canvas.RenderTransform>
+                    <TranslateTransform X="{Binding RightStickOffsetX}" Y="{Binding RightStickOffsetY}" />
+                  </Canvas.RenderTransform>
+                  <Ellipse Width="32" Height="32"
+                           Fill="{Binding RightThumbBrush}" Stroke="#7DD3FC" StrokeThickness="1" />
+                  <Ellipse Canvas.Left="5" Canvas.Top="3" Width="18" Height="11" IsHitTestVisible="False">
+                    <Ellipse.Fill>
+                      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#59FFFFFF" Offset="0" />
+                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                      </LinearGradientBrush>
+                    </Ellipse.Fill>
+                  </Ellipse>
+                  <Ellipse Canvas.Left="6" Canvas.Top="6" Width="20" Height="20"
+                           Stroke="#33000000" StrokeThickness="2" IsHitTestVisible="False" />
+                </Canvas>
 
-                <!-- Rear paddles: long/short blade pairs as on the real back -->
-                <Border Canvas.Left="158" Canvas.Top="196" Width="13" Height="42" CornerRadius="6" Background="{Binding PaddleLeft1Brush}" />
-                <Border Canvas.Left="177" Canvas.Top="200" Width="13" Height="32" CornerRadius="6" Background="{Binding PaddleLeft2Brush}" />
-                <Border Canvas.Left="230" Canvas.Top="200" Width="13" Height="32" CornerRadius="6" Background="{Binding PaddleRight2Brush}" />
-                <Border Canvas.Left="249" Canvas.Top="196" Width="13" Height="42" CornerRadius="6" Background="{Binding PaddleRight1Brush}" />
+                <!-- Rear paddles: metal-edged blade pairs as on the real back -->
+                <Border Canvas.Left="158" Canvas.Top="196" Width="13" Height="42" CornerRadius="6"
+                        Background="{Binding PaddleLeft1Brush}" BorderBrush="#3D5578" BorderThickness="1"
+                        BoxShadow="0 3 6 0 #66000000" />
+                <Border Canvas.Left="177" Canvas.Top="200" Width="13" Height="32" CornerRadius="6"
+                        Background="{Binding PaddleLeft2Brush}" BorderBrush="#3D5578" BorderThickness="1"
+                        BoxShadow="0 3 6 0 #66000000" />
+                <Border Canvas.Left="230" Canvas.Top="200" Width="13" Height="32" CornerRadius="6"
+                        Background="{Binding PaddleRight2Brush}" BorderBrush="#3D5578" BorderThickness="1"
+                        BoxShadow="0 3 6 0 #66000000" />
+                <Border Canvas.Left="249" Canvas.Top="196" Width="13" Height="42" CornerRadius="6"
+                        Background="{Binding PaddleRight1Brush}" BorderBrush="#3D5578" BorderThickness="1"
+                        BoxShadow="0 3 6 0 #66000000" />
                 <TextBlock Canvas.Left="157" Canvas.Top="238" Text="P1" FontSize="8" Foreground="#5A7099" />
                 <TextBlock Canvas.Left="176" Canvas.Top="238" Text="P2" FontSize="8" Foreground="#5A7099" />
                 <TextBlock Canvas.Left="229" Canvas.Top="238" Text="P4" FontSize="8" Foreground="#5A7099" />

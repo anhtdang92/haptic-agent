@@ -1,0 +1,192 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:gui="using:CtrlAgent.Gui"
+             x:Class="CtrlAgent.Gui.BotView"
+             x:DataType="gui:AgentBuddyViewModel"
+             ToolTip.Tip="{Binding StatsSummary}">
+
+  <!-- CTRL·BOT, the tamagotchi companion. One shared drawing used by the
+       main window and Big Picture; consumers wrap it in a Viewbox to scale.
+       Click/tap pokes the bot. -->
+  <StackPanel Spacing="4" HorizontalAlignment="Center">
+    <Canvas Width="92" Height="122" Classes="botRig" Background="Transparent"
+            Cursor="Hand" PointerPressed="OnPoke">
+      <Canvas.Styles>
+        <!-- Gentle idle bob keeps the bot feeling alive -->
+        <Style Selector="Canvas.botRig">
+          <Style.Animations>
+            <Animation Duration="0:0:5" IterationCount="Infinite">
+              <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+              <KeyFrame Cue="50%"><Setter Property="TranslateTransform.Y" Value="-2.5" /></KeyFrame>
+              <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+            </Animation>
+          </Style.Animations>
+        </Style>
+      </Canvas.Styles>
+
+      <!-- Ground shadow -->
+      <Ellipse Canvas.Left="24" Canvas.Top="113" Width="44" Height="7" Fill="#33000000" />
+
+      <!-- Antenna: stem + halo + mood-colored tip -->
+      <Border Canvas.Left="44" Canvas.Top="10" Width="4" Height="13" CornerRadius="2" Background="#2E4A78" />
+      <Ellipse Canvas.Left="37" Canvas.Top="-3" Width="18" Height="18" Fill="{Binding AccentBrush}" Opacity="0.22" />
+      <Ellipse Canvas.Left="41" Canvas.Top="1" Width="10" Height="10" Fill="{Binding AccentBrush}" />
+
+      <!-- Side ears -->
+      <Border Canvas.Left="4" Canvas.Top="41" Width="7" Height="20" CornerRadius="3,0,0,3"
+              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
+      <Border Canvas.Left="81" Canvas.Top="41" Width="7" Height="20" CornerRadius="0,3,3,0"
+              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
+
+      <!-- Stubby arms -->
+      <Border Canvas.Left="2" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
+              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1.5"
+              RenderTransform="rotate(16deg)" />
+      <Border Canvas.Left="81" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
+              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1.5"
+              RenderTransform="rotate(-16deg)" />
+
+      <!-- Head: gradient shell with a soft mood aura -->
+      <Border Canvas.Left="10" Canvas.Top="22" Width="72" Height="60"
+              CornerRadius="20"
+              BorderBrush="{Binding AccentBrush}"
+              BorderThickness="2"
+              BoxShadow="0 4 18 0 #3300D4FF">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#1A2A47" Offset="0" />
+            <GradientStop Color="#0B1322" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+      <!-- Face screen with bezel -->
+      <Border Canvas.Left="18" Canvas.Top="31" Width="56" Height="39"
+              CornerRadius="10"
+              BorderBrush="#1C3050"
+              BorderThickness="1">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#04070E" Offset="0" />
+            <GradientStop Color="#081426" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+
+      <!-- Blush cheeks: always faintly there, part of the charm -->
+      <Ellipse Canvas.Left="20" Canvas.Top="58" Width="12" Height="7" Fill="#FF9EC4" Opacity="0.32" />
+      <Ellipse Canvas.Left="60" Canvas.Top="58" Width="12" Height="7" Fill="#FF9EC4" Opacity="0.32" />
+
+      <!-- Idle: big glossy eyes with glints; blink every few seconds -->
+      <Canvas IsVisible="{Binding IsIdle}">
+        <Canvas.Styles>
+          <Style Selector="Border.eye">
+            <Style.Animations>
+              <Animation Duration="0:0:4.6" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                <KeyFrame Cue="91%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                <KeyFrame Cue="94%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+                <KeyFrame Cue="97%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+              </Animation>
+            </Style.Animations>
+          </Style>
+        </Canvas.Styles>
+        <Border Classes="eye" Canvas.Left="27" Canvas.Top="40" Width="14" Height="12" CornerRadius="6" Background="#6FC7EE">
+          <Ellipse Width="4" Height="4" Fill="#EFFBFF" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2.5,2,0,0" />
+        </Border>
+        <Border Classes="eye" Canvas.Left="51" Canvas.Top="40" Width="14" Height="12" CornerRadius="6" Background="#6FC7EE">
+          <Ellipse Width="4" Height="4" Fill="#EFFBFF" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2.5,2,0,0" />
+        </Border>
+      </Canvas>
+
+      <!-- Working: throbbing focus eyes -->
+      <Canvas IsVisible="{Binding IsWorking}">
+        <Canvas.Styles>
+          <Style Selector="Ellipse.beam">
+            <Style.Animations>
+              <Animation Duration="0:0:1.1" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.4" /></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+              </Animation>
+            </Style.Animations>
+          </Style>
+        </Canvas.Styles>
+        <Ellipse Classes="beam" Canvas.Left="24" Canvas.Top="37" Width="19" Height="19" Fill="#3300D4FF" />
+        <Ellipse Classes="beam" Canvas.Left="49" Canvas.Top="37" Width="19" Height="19" Fill="#3300D4FF" />
+        <Ellipse Classes="beam" Canvas.Left="27" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
+        <Ellipse Classes="beam" Canvas.Left="52" Canvas.Top="40" Width="13" Height="13" Fill="#00D4FF" />
+        <Ellipse Canvas.Left="30" Canvas.Top="42" Width="4" Height="4" Fill="#EFFBFF" />
+        <Ellipse Canvas.Left="55" Canvas.Top="42" Width="4" Height="4" Fill="#EFFBFF" />
+      </Canvas>
+
+      <!-- Alert: wide eyes + "!" — something needs an answer -->
+      <Canvas IsVisible="{Binding IsAlert}">
+        <Canvas.Styles>
+          <Style Selector="Ellipse.ping">
+            <Style.Animations>
+              <Animation Duration="0:0:0.7" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.5" /></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+              </Animation>
+            </Style.Animations>
+          </Style>
+        </Canvas.Styles>
+        <Ellipse Classes="ping" Canvas.Left="26" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
+        <Ellipse Classes="ping" Canvas.Left="51" Canvas.Top="38" Width="15" Height="15" Fill="#FFB020" />
+        <Ellipse Canvas.Left="29" Canvas.Top="40" Width="4" Height="4" Fill="#FFF4DC" />
+        <Ellipse Canvas.Left="54" Canvas.Top="40" Width="4" Height="4" Fill="#FFF4DC" />
+        <TextBlock Canvas.Left="68" Canvas.Top="24" Text="!" FontSize="15" FontWeight="Bold" Foreground="#FFB020" />
+      </Canvas>
+
+      <!-- Happy: closed smiling eyes -->
+      <Canvas IsVisible="{Binding IsHappy}">
+        <Path Canvas.Left="27" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
+        <Path Canvas.Left="52" Canvas.Top="42" Data="M 0,6 Q 6,-3 13,6" Stroke="#34F5A4" StrokeThickness="3" />
+      </Canvas>
+
+      <!-- Error: dizzy eyes + a sweat drop -->
+      <Canvas IsVisible="{Binding IsError}">
+        <Path Canvas.Left="27" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
+        <Path Canvas.Left="52" Canvas.Top="40" Data="M 0,0 L 12,12 M 12,0 L 0,12" Stroke="#FF5A78" StrokeThickness="3" />
+        <Ellipse Canvas.Left="72" Canvas.Top="32" Width="5" Height="8" Fill="#7DD3FC" Opacity="0.75" />
+      </Canvas>
+
+      <!-- Little smile, tinted by mood -->
+      <Path Canvas.Left="40" Canvas.Top="61" Data="M 0,0 Q 6,5 12,0"
+            Stroke="{Binding AccentBrush}" StrokeThickness="2" Opacity="0.75" />
+
+      <!-- Neck + chassis with a mood LED strip -->
+      <Border Canvas.Left="40" Canvas.Top="82" Width="12" Height="6" CornerRadius="2" Background="#16233C" />
+      <Border Canvas.Left="25" Canvas.Top="88" Width="42" Height="13" CornerRadius="7"
+              Background="#0B1322" BorderBrush="#2E4A78" BorderThickness="1.5" />
+      <Border Canvas.Left="35" Canvas.Top="93" Width="22" Height="3" CornerRadius="1.5"
+              Background="{Binding AccentBrush}" Opacity="0.8" />
+
+      <!-- Feet -->
+      <Border Canvas.Left="30" Canvas.Top="101" Width="13" Height="10" CornerRadius="5"
+              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
+      <Border Canvas.Left="49" Canvas.Top="101" Width="13" Height="10" CornerRadius="5"
+              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
+    </Canvas>
+
+    <!-- Name, level, and XP toward the next level -->
+    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+      <TextBlock Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5" VerticalAlignment="Center" />
+      <Border Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1" CornerRadius="4" Padding="4,0">
+        <TextBlock Text="{Binding LevelText}" FontSize="8" FontWeight="Bold" Foreground="#7DD3FC" />
+      </Border>
+      <Border Width="58" Height="5" CornerRadius="2.5" Background="#141F36"
+              BorderBrush="#552E4A78" BorderThickness="1" VerticalAlignment="Center">
+        <Border Width="{Binding XpBarWidth}" Height="3" CornerRadius="1.5" HorizontalAlignment="Left">
+          <Border.Background>
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+              <GradientStop Color="#00D4FF" Offset="0" />
+              <GradientStop Color="#34F5A4" Offset="1" />
+            </LinearGradientBrush>
+          </Border.Background>
+        </Border>
+      </Border>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

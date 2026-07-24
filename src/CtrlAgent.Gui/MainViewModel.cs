@@ -92,7 +92,11 @@ public sealed class MainViewModel : ViewModelBase
         _setupAgent = options.Agent;
         _setupWorkingDirectory = options.WorkingDirectory;
 
-        SubmitPromptCommand = new RelayCommand(_ => Fire(e => e.SubmitPromptAsync(PromptText)));
+        SubmitPromptCommand = new RelayCommand(_ =>
+        {
+            Buddy.CountPromptSent();
+            Fire(e => e.SubmitPromptAsync(PromptText));
+        });
         InterruptCommand = new RelayCommand(_ => Fire(e => e.InterruptAsync()));
         NewSessionCommand = new RelayCommand(_ => Fire(e => e.NewSessionAsync()));
         ReviewCommand = new RelayCommand(_ => Fire(e => e.ReviewChangesAsync()));
@@ -174,6 +178,12 @@ public sealed class MainViewModel : ViewModelBase
         });
         engine.PendingApprovalChanged += message => Post(() =>
         {
+            if (message is null && HasPendingApproval)
+            {
+                // Answered from anywhere — controller, GUI, overlay, or toast.
+                Buddy.CountApprovalResolved();
+            }
+
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
 

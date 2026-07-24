@@ -251,18 +251,30 @@ int main()
     bool connected = false;
     bool hadState = false;
     GameInputGamepadState previousState{};
+    HRESULT lastLoggedFailure = S_OK;
 
     while (g_running)
     {
         const auto device = GetDeviceSnapshot();
         ComPtr<IGameInputReading> reading;
         const HRESULT result = gameInput->GetCurrentReading(
-            GameInputKindGamepad,
+            static_cast<GameInputKind>(GameInputKindGamepad | GameInputKindController),
             device.Get(),
             &reading);
 
         if (FAILED(result))
         {
+            // Log each distinct failure once so the managed host's stderr
+            // drain shows why no gamepad reading is available (e.g. reading
+            // not yet generated vs. device unsupported by this transport).
+            if (result != lastLoggedFailure)
+            {
+                lastLoggedFailure = result;
+                std::cerr << "GetCurrentReading failed with HRESULT 0x"
+                          << std::hex << static_cast<unsigned long>(result)
+                          << std::dec << std::endl;
+            }
+
             if (connected)
             {
                 connected = false;
@@ -292,6 +304,59 @@ int main()
         GameInputGamepadState currentState{};
         if (reading->GetGamepadState(&currentState))
         {
+            // TEMP DIAGNOSTIC: log raw button mask changes to %TEMP% so paddle
+            // bits can be inspected even when stdio is owned by the host app.
+            static FILE* debugLog = nullptr;
+            if (debugLog == nullptr)
+            {
+                char path[MAX_PATH]{};
+                if (GetEnvironmentVariableA("TEMP", path, MAX_PATH) > 0)
+                {
+                    std::string logPath = std::string(path) + "\\ctrlagent-bridge-buttons.log";
+                    debugLog = _fsopen(logPath.c_str(), "w", _SH_DENYNO);
+                }
+            }
+            if (debugLog != nullptr && (!hadState || currentState.buttons != previousState.buttons))
+            {
+                fprintf(debugLog, "buttons=0x%08X\n", static_cast<unsigned int>(currentState.buttons));
+                fflush(debugLog);
+            }
+
+            // TEMP DIAGNOSTIC: also dump the raw controller-button array, where
+            // paddles may surface as extra button indexes beyond the gamepad view.
+            if (debugLog != nullptr)
+            {
+                constexpr uint32_t maxRawButtons = 64;
+                static bool previousRaw[maxRawButtons]{};
+                static bool hadRaw = false;
+                bool raw[maxRawButtons]{};
+                const uint32_t rawCount = reading->GetControllerButtonState(maxRawButtons, raw);
+                if (rawCount > 0)
+                {
+                    bool changed = !hadRaw;
+                    for (uint32_t i = 0; i < rawCount && i < maxRawButtons; ++i)
+                    {
+                        if (raw[i] != previousRaw[i])
+                        {
+                            changed = true;
+                        }
+                    }
+
+                    if (changed)
+                    {
+                        fprintf(debugLog, "raw[%u]=", rawCount);
+                        for (uint32_t i = 0; i < rawCount && i < maxRawButtons; ++i)
+                        {
+                            fputc(raw[i] ? '1' : '0', debugLog);
+                            previousRaw[i] = raw[i];
+                        }
+                        fputc('\n', debugLog);
+                        fflush(debugLog);
+                        hadRaw = true;
+                    }
+                }
+            }
+
             EmitButtonChanges(previousState.buttons, currentState.buttons, hadState);
             EmitAxisChanges(previousState, currentState, hadState);
             previousState = currentState;

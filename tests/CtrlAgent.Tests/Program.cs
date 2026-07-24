@@ -30,6 +30,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
     ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
+    ("Captured input passes only approval commands", TestInputCaptureFilterAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
@@ -426,6 +427,21 @@ static async Task TestHapticHubAsync()
     await hub.StopAsync(timeout.Token).ConfigureAwait(false);
 
     Assert(controller.StopCount > 0, "Disposing the scheduler should stop controller haptics.");
+}
+
+static Task TestInputCaptureFilterAsync()
+{
+    // While a fullscreen controller UI owns the input, only the approval
+    // family may reach the agent — everything else navigates the menu.
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.ApproveOnce), "ApproveOnce must bypass capture.");
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.ApproveForSession), "ApproveForSession must bypass capture.");
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.Decline), "Decline must bypass capture.");
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.Cancel), "Cancel must bypass capture.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.SubmitPrompt), "SubmitPrompt must be captured.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.Interrupt), "Interrupt must be captured.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.NewSession), "NewSession must be captured.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.ReviewChanges), "ReviewChanges must be captured.");
+    return Task.CompletedTask;
 }
 
 static async Task TestHostEngineEndToEndAsync()

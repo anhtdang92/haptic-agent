@@ -220,6 +220,9 @@
 
         <!-- Utility cluster: window-level tools live up here, off the action row -->
         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button Content="Big Picture"
+                  Click="OnShowBigPicture"
+                  ToolTip.Tip="Fullscreen controller-first mode: navigate with the pad, speak prompts, see every shortcut" />
           <Button Content="Overlay" Click="OnToggleOverlay" ToolTip.Tip="Toggle the always-on-top HUD" />
           <Button Content="Profile…" Click="OnEditProfile" ToolTip.Tip="Edit controller bindings with live validation" />
           <Button Content="Validate…" Click="OnValidateHardware" ToolTip.Tip="Run the guided hardware validation wizard" />

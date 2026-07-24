@@ -19,6 +19,7 @@ public sealed class App : Application
     private MainViewModel? _viewModel;
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlay;
+    private BigPictureWindow? _bigPicture;
     private ToastWindow? _toast;
     private bool _toastIsApproval;
     private bool _exiting;
@@ -180,12 +181,16 @@ public sealed class App : Application
         var overlayItem = new NativeMenuItem("Toggle overlay");
         overlayItem.Click += (_, _) => ToggleOverlay();
 
+        var bigPictureItem = new NativeMenuItem("Big Picture mode");
+        bigPictureItem.Click += (_, _) => ShowBigPicture();
+
         var exitItem = new NativeMenuItem("Exit");
         exitItem.Click += (_, _) => Exit(desktop);
 
         var menu = new NativeMenu();
         menu.Items.Add(showItem);
         menu.Items.Add(overlayItem);
+        menu.Items.Add(bigPictureItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(exitItem);
 
@@ -220,7 +225,8 @@ public sealed class App : Application
 
         var mainVisible = _mainWindow is { IsVisible: true } && _mainWindow.WindowState != WindowState.Minimized;
         var overlayVisible = _overlay is { IsVisible: true };
-        if (mainVisible || overlayVisible)
+        var bigPictureVisible = _bigPicture is { IsVisible: true };
+        if (mainVisible || overlayVisible || bigPictureVisible)
         {
             return;
         }
@@ -272,6 +278,47 @@ public sealed class App : Application
         _toast = toast;
         _toastIsApproval = approval;
         toast.Show();
+    }
+
+    /// <summary>
+    /// Opens (or focuses) the fullscreen controller-first Big Picture mode.
+    /// While it is open the engine captures controller input for UI
+    /// navigation; approval bindings keep working. Closing releases capture.
+    /// </summary>
+    public void ShowBigPicture()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        if (_viewModel.Engine is null)
+        {
+            _viewModel.AppendLog("Finish the first-run setup before entering Big Picture mode.");
+            return;
+        }
+
+        if (_bigPicture is not null)
+        {
+            _bigPicture.Activate();
+            return;
+        }
+
+        var viewModel = new BigPictureViewModel(_viewModel);
+        var window = new BigPictureWindow { DataContext = viewModel };
+        viewModel.CloseRequested += window.Close;
+        window.Closed += (_, _) =>
+        {
+            viewModel.Detach();
+            if (ReferenceEquals(_bigPicture, window))
+            {
+                _bigPicture = null;
+            }
+        };
+
+        _bigPicture = window;
+        window.Show();
+        window.Activate();
     }
 
     /// <summary>Shows or hides the always-on-top HUD strip.</summary>
@@ -336,6 +383,9 @@ public sealed class App : Application
         _exiting = true;
         _toast?.Close();
         _toast = null;
+
+        _bigPicture?.Close();
+        _bigPicture = null;
 
         if (_overlay is not null)
         {

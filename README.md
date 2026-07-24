@@ -63,6 +63,7 @@ Haptic scheduler <-----------------+
 - Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, capability-activated layers, collision detection, and validated approval safeguards
 - Crash resilience: agent-process restart with backoff plus session resume (Codex `thread/resume`, Claude Code `--resume`), controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
 - Avalonia desktop GUI: live status with pulsing indicators, a one-to-one Elite Series 2 input mirror, CTRL·BOT shortcut coaching, severity-tinted event stream with filtering, floating approval banner, prompt submission, haptic preview, tray app with overlay HUD and notification toasts, first-run setup, and a live-validating profile editor
+- Big Picture mode: a Steam-style fullscreen controller-first UI — navigate tiles with the d-pad or stick (A select, B back), speak prompts with offline voice dictation (Y), see every controller shortcut on one screen (X), and watch CTRL·BOT relay the agent's responses; approval paddles/chords stay live the whole time
 - Guided hardware validation wizard (`--validate`) that generates the per-transport evidence reports
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns
 - Mock agent adapter for end-to-end testing without a real agent
@@ -149,6 +150,8 @@ An Avalonia desktop app provides live controller/agent status with pulsing indic
 ```powershell
 dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
 ```
+
+**Big Picture mode** (button in the header, or the tray menu) turns CtrlAgent into a Steam-style fullscreen controller UI: a tile rail navigated with the d-pad or left stick (A selects, B backs out), CTRL·BOT front and center relaying the agent's responses in large type, a voice-prompt overlay (press Y, speak, review the transcript, A sends — offline Windows dictation), and a fullscreen shortcuts screen (X) showing every binding in the active profile with a persistent button legend along the bottom. While Big Picture is open the controller drives the UI instead of firing bindings — with one deliberate exception: approval paddles and chords always work, so a permission prompt can be answered instantly from anywhere. When an approval arrives, approve/decline tiles jump to the front of the rail.
 
 On first launch the GUI walks you through a one-time setup (choose the agent, browse to your repository) — no CLI flags or JSON required. It also accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--claude-path`, `--gameinput-bridge`, and `--profile` options as the console host (and remembers them, so later launches need no arguments). It lives in the system tray: closing the window hides it, the tray menu restores or exits. An always-on-top **overlay HUD** (Overlay button or tray menu) parks a compact strip beside your editor with the agent state, CTRL·BOT's current hint, and the approval buttons when a request is pending — drag its header to reposition. The built-in profile editor (Edit profile…) adds, edits, and removes bindings with live validation, applies the profile to the running host without a restart, and saves/loads profile JSON.
 

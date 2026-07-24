@@ -103,6 +103,9 @@ public sealed partial class MainWindow : Window
     private void OnToggleOverlay(object? sender, RoutedEventArgs eventArgs) =>
         (Avalonia.Application.Current as App)?.ToggleOverlay();
 
+    private void OnShowBigPicture(object? sender, RoutedEventArgs eventArgs) =>
+        (Avalonia.Application.Current as App)?.ShowBigPicture();
+
     private async void OnEditProfile(object? sender, RoutedEventArgs eventArgs)
     {
         if (DataContext is not MainViewModel viewModel || viewModel.Engine is null)

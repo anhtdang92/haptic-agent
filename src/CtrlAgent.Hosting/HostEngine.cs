@@ -32,6 +32,7 @@ public sealed class HostEngine : IAsyncDisposable
     private string? _pendingSessionId;
     private string? _pendingRequestId;
     private ControllerCapabilities? _lastCapabilities;
+    private volatile bool _inputCaptured;
     private bool _disposed;
 
     public HostEngine(
@@ -69,6 +70,24 @@ public sealed class HostEngine : IAsyncDisposable
     public ControllerProfile Profile => _profile;
 
     public string AdapterId => _adapter.Id;
+
+    /// <summary>True while a controller-navigated UI owns the input.</summary>
+    public bool InputCaptured => _inputCaptured;
+
+    /// <summary>
+    /// Routes controller input to the UI instead of the mapping engine (raw
+    /// events keep flowing through <see cref="ControllerInputReceived"/>).
+    /// Approval commands still execute — a fullscreen menu must never take
+    /// away the ability to answer a pending approval from the controller.
+    /// </summary>
+    public void SetInputCapture(bool captured) => _inputCaptured = captured;
+
+    /// <summary>Commands that bypass input capture (the approval family).</summary>
+    public static bool IsAllowedWhileCaptured(AgentCommandKind kind) => kind is
+        AgentCommandKind.ApproveOnce or
+        AgentCommandKind.ApproveForSession or
+        AgentCommandKind.Decline or
+        AgentCommandKind.Cancel;
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -234,6 +253,11 @@ public sealed class HostEngine : IAsyncDisposable
 
                     foreach (var command in _mapping.Process(inputEvent))
                     {
+                        if (_inputCaptured && !IsAllowedWhileCaptured(command.Kind))
+                        {
+                            continue;
+                        }
+
                         var hydrated = command;
                         if (command.Kind == AgentCommandKind.SubmitPrompt && string.IsNullOrWhiteSpace(command.Text))
                         {

@@ -24,7 +24,7 @@ The native GameInput bridge is a separate C++ project (not in the .sln) and need
 msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
 ```
 
-It pins `Microsoft.GameInput` 3.4.x (`GameInputPackageVersion` in the .vcxproj) and compiles against the package-selected `GAMEINPUT_API_VERSION`. CI (`.github/workflows/ci.yml`) runs both halves on `windows-latest` and uploads build logs as artifacts.
+It pins `Microsoft.GameInput` 3.4.x (`GameInputPackageVersion` in the .vcxproj) and compiles against the package-selected `GAMEINPUT_API_VERSION`. CI (`.github/workflows/ci.yml`) runs both halves on `windows-latest` and uploads build logs as artifacts. Tagged releases (`.github/workflows/release.yml`, `v*` tags) publish a portable self-contained zip and an Inno Setup installer (`installer/CtrlAgent.iss` — per-user default, Start Menu + optional desktop/startup shortcuts).
 
 Run the app end-to-end without real agent risk: `dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock` (or `--agent codex --cwd <repo>`). `src/CtrlAgent.Demo` plays the haptic patterns standalone. `--validate` runs the guided hardware wizard (`ValidationWizard` in the App; report model/gates in Core's `Validation.cs`) and writes `validation/<date>-elite-series-2-<transport>.md`.
 

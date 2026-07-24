@@ -120,7 +120,16 @@ Supported gestures: `press`, `release`, `tap`, `hold`, `doublePress`, and `axisT
 
 Profiles are validated before they load. Ambiguous combinations (for example `press` and `hold` on the same chord) are rejected, `approveOnce`/`approveForSession`/`decline` bindings must set `requiresPendingApproval`, and approvals must sit on a paddle, a chord, or a hold gesture so a single accidental face-button press can never approve anything.
 
-## Requirements
+## Install on Windows
+
+No .NET or dev tools required — releases are fully self-contained:
+
+1. **Installer (recommended):** download `CtrlAgent-Setup-<version>.exe` from the [releases page](https://github.com/anhtdang92/haptic-agent/releases) and run it. It installs per-user (no admin prompt), adds Start Menu entries (CtrlAgent, the console host, and the hardware validation wizard), an optional desktop shortcut, and an optional start-with-Windows toggle for the tray app, plus a normal uninstaller.
+2. **Portable zip:** download `CtrlAgent-<version>-win-x64.zip`, unzip anywhere, and double-click `CtrlAgent.Gui.exe`. Nothing is written outside the folder except settings in `%AppData%\CtrlAgent`.
+
+Building from source instead? `dotnet publish src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true` produces the same single-file exe.
+
+## Requirements (building from source)
 
 - Windows 10 19H1 or newer
 - .NET 10 SDK `10.0.302` or a compatible later .NET 10 SDK
@@ -155,7 +164,7 @@ dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
 
 On first launch the GUI walks you through a one-time setup (choose the agent, browse to your repository) — no CLI flags or JSON required. It also accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--claude-path`, `--gameinput-bridge`, and `--profile` options as the console host (and remembers them, so later launches need no arguments). It lives in the system tray: closing the window hides it, the tray menu restores or exits. An always-on-top **overlay HUD** (Overlay button or tray menu) parks a compact strip beside your editor with the agent state, CTRL·BOT's current hint, and the approval buttons when a request is pending — drag its header to reposition. The built-in profile editor (Profile…) adds, edits, and removes bindings and capability-activated layers with live validation, applies the profile to the running host without a restart, and saves/loads profile JSON.
 
-Tagged releases (`v*`) publish a self-contained `CtrlAgent-<tag>-win-x64.zip` (console host, GUI, and GameInput bridge — no .NET install required) on the GitHub releases page.
+Tagged releases (`v*`) publish both a Windows installer (`CtrlAgent-Setup-<tag>.exe`) and a portable self-contained `CtrlAgent-<tag>-win-x64.zip` (console host, GUI, and GameInput bridge — no .NET install required) on the GitHub releases page.
 
 ## Run with the mock agent
 

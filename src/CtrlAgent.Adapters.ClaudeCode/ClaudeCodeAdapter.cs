@@ -32,6 +32,8 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
     private string? _sessionId;
     private readonly List<string> _sessionIds = [];
     private readonly object _sessionSync = new();
+    private readonly System.Text.StringBuilder _streamedText = new();
+    private DateTimeOffset _lastDeltaPublish = DateTimeOffset.MinValue;
     private volatile bool _replacingProcess;
     private bool _disposed;
 
@@ -212,6 +214,9 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         startInfo.ArgumentList.Add("--verbose");
         startInfo.ArgumentList.Add("--permission-prompt-tool");
         startInfo.ArgumentList.Add("stdio");
+        // Claude-app-style live streaming: emit partial-message events so
+        // the response can render as it is written.
+        startInfo.ArgumentList.Add("--include-partial-messages");
 
         if (!string.IsNullOrWhiteSpace(resumeSessionId))
         {
@@ -481,14 +486,39 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                     }
                 }
 
-                Publish(AgentStateKind.Idle, $"Claude Code session {init.SessionId} ready.");
+                Publish(
+                    AgentStateKind.Idle,
+                    init.Model is { Length: > 0 }
+                        ? $"Claude Code session {init.SessionId} ready ({init.Model})."
+                        : $"Claude Code session {init.SessionId} ready.");
+                break;
+
+            case ClaudeStreamMessage.ThinkingStarted:
+                Publish(AgentStateKind.Working, "Thinking…");
+                break;
+
+            case ClaudeStreamMessage.TextDelta delta:
+                // Accumulate the streamed response; publish a rolling snapshot
+                // at most every 250 ms so consumers can render live text
+                // without the event stream drowning.
+                _streamedText.Append(delta.Text);
+                var now = DateTimeOffset.UtcNow;
+                if (now - _lastDeltaPublish >= TimeSpan.FromMilliseconds(250))
+                {
+                    _lastDeltaPublish = now;
+                    Publish(AgentStateKind.Working, SnapshotStreamedText());
+                }
+
                 break;
 
             case ClaudeStreamMessage.AssistantActivity activity:
+                // The complete message supersedes any streamed snapshot.
+                _streamedText.Clear();
                 Publish(AgentStateKind.Working, activity.Summary);
                 break;
 
             case ClaudeStreamMessage.TurnResult result:
+                _streamedText.Clear();
                 Publish(result.IsError ? AgentStateKind.Error : AgentStateKind.Completed, result.Summary);
                 break;
 
@@ -606,6 +636,14 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
             {
             }
         }
+    }
+
+    /// <summary>Rolling view of the streamed response: the last ~500 chars.</summary>
+    private string SnapshotStreamedText()
+    {
+        const int WindowLength = 500;
+        var text = _streamedText.ToString().ReplaceLineEndings(" ").Trim();
+        return text.Length <= WindowLength ? text : "…" + text[^WindowLength..];
     }
 
     private void Publish(AgentStateKind state, string message, string? requestId = null)

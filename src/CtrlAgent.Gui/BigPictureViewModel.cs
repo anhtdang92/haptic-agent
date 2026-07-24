@@ -59,6 +59,7 @@ public sealed class BigPictureViewModel : ViewModelBase
     private string _voiceStatus = string.Empty;
     private string _transcript = string.Empty;
     private string _latestResponse = "Waiting for the agent…";
+    private bool _lastResponseWasWorking;
     private bool _detached;
 
     public BigPictureViewModel(MainViewModel main)
@@ -354,12 +355,24 @@ public sealed class BigPictureViewModel : ViewModelBase
             return;
         }
 
-        Responses.Add(agentEvent.Message);
-        while (Responses.Count > MaxResponses)
+        // Streaming turns publish rolling Working snapshots; render them in
+        // place (Claude-app style) instead of appending every snapshot.
+        if (agentEvent.State == AgentStateKind.Working &&
+            _lastResponseWasWorking &&
+            Responses.Count > 0)
         {
-            Responses.RemoveAt(0);
+            Responses[^1] = agentEvent.Message;
+        }
+        else
+        {
+            Responses.Add(agentEvent.Message);
+            while (Responses.Count > MaxResponses)
+            {
+                Responses.RemoveAt(0);
+            }
         }
 
+        _lastResponseWasWorking = agentEvent.State == AgentStateKind.Working;
         LatestResponse = agentEvent.Message;
     }
 

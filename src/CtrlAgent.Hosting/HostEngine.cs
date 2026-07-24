@@ -309,11 +309,24 @@ public sealed class HostEngine : IAsyncDisposable
 
     private async Task RunAgentLoopAsync(CancellationToken cancellationToken)
     {
+        AgentStateKind? previousState = null;
         try
         {
             await foreach (var agentEvent in _adapter.ReadEventsAsync(cancellationToken).ConfigureAwait(false))
             {
-                Log($"[agent] {agentEvent.State}: {agentEvent.Message}");
+                // Streaming adapters publish many Working events per turn
+                // (partial text). The UI wants each one (live rendering); the
+                // log and the haptic loop only care about the state change.
+                var isRepeatWorking =
+                    agentEvent.State == AgentStateKind.Working &&
+                    previousState == AgentStateKind.Working;
+                previousState = agentEvent.State;
+
+                if (!isRepeatWorking)
+                {
+                    Log($"[agent] {agentEvent.State}: {agentEvent.Message}");
+                }
+
                 AgentEventReceived?.Invoke(agentEvent);
 
                 if (agentEvent.State is AgentStateKind.ApprovalRequired or AgentStateKind.WaitingForInput)
@@ -341,6 +354,11 @@ public sealed class HostEngine : IAsyncDisposable
 
                     mapping.SetPendingApproval(null, null);
                     PendingApprovalChanged?.Invoke(null);
+                }
+
+                if (isRepeatWorking)
+                {
+                    continue;
                 }
 
                 var pattern = _feedback.Route(agentEvent);

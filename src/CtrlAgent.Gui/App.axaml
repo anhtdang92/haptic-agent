@@ -55,16 +55,29 @@
       <Setter Property="BoxShadow" Value="0 0 28 0 #33FFA020" />
     </Style>
 
-    <!-- Base buttons: ghost slate with neon hover -->
+    <!-- ==== Buttons: frosted glass over the dark field ====
+         Valve's Big Picture confidence (dark, quiet surfaces with a focus
+         state you cannot miss) fused with Apple's material language:
+         translucent glass fills, hairline light borders, continuous
+         curves, and a press that physically gives. One system, every
+         window. -->
     <Style Selector="Button">
-      <Setter Property="Background" Value="#B0141F36" />
-      <Setter Property="Foreground" Value="#DDE9FF" />
-      <Setter Property="BorderBrush" Value="#552E4A78" />
+      <Setter Property="Foreground" Value="#E8F1FF" />
+      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="7" />
-      <Setter Property="Padding" Value="13,7" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="14,7" />
       <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Medium" />
       <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#B31E2B48" Offset="0" />
+            <GradientStop Color="#B3141E36" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
       <Setter Property="Transitions">
         <Transitions>
           <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.08" />
@@ -88,22 +101,31 @@
       </Setter>
     </Style>
     <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#1E2E52" />
-      <Setter Property="BorderBrush" Value="#9900D4FF" />
-    </Style>
-    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#27407A" />
-    </Style>
-
-    <!-- Primary action: neon cyan-to-blue -->
-    <Style Selector="Button.accent">
-      <Setter Property="Foreground" Value="#041220" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Background">
         <Setter.Value>
-          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-            <GradientStop Color="#00D4FF" Offset="0" />
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#CC2A3A5E" Offset="0" />
+            <GradientStop Color="#CC1C2A48" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#8C7DD3FC" />
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#E0101A30" />
+      <Setter Property="BorderBrush" Value="#B37DD3FC" />
+    </Style>
+
+    <!-- Primary action: the one vivid element on the surface -->
+    <Style Selector="Button.accent">
+      <Setter Property="Foreground" Value="#03101E" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="BorderBrush" Value="#59FFFFFF" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#33E1FF" Offset="0" />
+            <GradientStop Color="#00D4FF" Offset="0.45" />
             <GradientStop Color="#3B82F6" Offset="1" />
           </LinearGradientBrush>
         </Setter.Value>
@@ -112,51 +134,55 @@
     <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background">
         <Setter.Value>
-          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-            <GradientStop Color="#54E4FF" Offset="0" />
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#66EAFF" Offset="0" />
+            <GradientStop Color="#38DDFF" Offset="0.45" />
             <GradientStop Color="#659EFF" Offset="1" />
           </LinearGradientBrush>
         </Setter.Value>
       </Setter>
+      <Setter Property="BorderBrush" Value="#8CFFFFFF" />
     </Style>
 
-    <!-- Approve / deny actions -->
+    <!-- Approve / deny: tinted glass — the color is the material, not a
+         paint bucket (visionOS-style translucent tints) -->
     <Style Selector="Button.approve">
-      <Setter Property="Foreground" Value="#06170D" />
+      <Setter Property="Foreground" Value="#8CFFCF" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Background">
-        <Setter.Value>
-          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-            <GradientStop Color="#34F5A4" Offset="0" />
-            <GradientStop Color="#00D4FF" Offset="1" />
-          </LinearGradientBrush>
-        </Setter.Value>
-      </Setter>
+      <Setter Property="Background" Value="#2634F5A4" />
+      <Setter Property="BorderBrush" Value="#6634F5A4" />
     </Style>
     <Style Selector="Button.approve:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#66FFC4" />
+      <Setter Property="Background" Value="#4D34F5A4" />
+      <Setter Property="BorderBrush" Value="#CC34F5A4" />
+    </Style>
+    <Style Selector="Button.approve:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#6634F5A4" />
     </Style>
     <Style Selector="Button.deny">
-      <Setter Property="Background" Value="#B03A1420" />
       <Setter Property="Foreground" Value="#FFB4C0" />
-      <Setter Property="BorderBrush" Value="#66FF5A78" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Background" Value="#26FF5A78" />
+      <Setter Property="BorderBrush" Value="#59FF5A78" />
     </Style>
     <Style Selector="Button.deny:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#5A2030" />
-      <Setter Property="BorderBrush" Value="#FF5A78" />
+      <Setter Property="Background" Value="#4DFF5A78" />
+      <Setter Property="BorderBrush" Value="#CCFF5A78" />
+    </Style>
+    <Style Selector="Button.deny:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#66FF5A78" />
     </Style>
 
-    <!-- Inputs: keep the glass background in every state, glow cyan on focus -->
+    <!-- Inputs: same glass material — hairline at rest, cyan when focused -->
     <Style Selector="TextBox">
       <Setter Property="Background" Value="#A00C1424" />
       <Setter Property="Foreground" Value="#E4EEFF" />
-      <Setter Property="BorderBrush" Value="#552E4A78" />
-      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+      <Setter Property="CornerRadius" Value="9" />
     </Style>
     <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
       <Setter Property="Background" Value="#A00C1424" />
-      <Setter Property="BorderBrush" Value="#883D6FA5" />
+      <Setter Property="BorderBrush" Value="#40FFFFFF" />
     </Style>
     <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
       <Setter Property="Background" Value="#A00C1424" />
@@ -165,8 +191,8 @@
     <Style Selector="ComboBox">
       <Setter Property="Background" Value="#A00C1424" />
       <Setter Property="Foreground" Value="#E4EEFF" />
-      <Setter Property="BorderBrush" Value="#552E4A78" />
-      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+      <Setter Property="CornerRadius" Value="9" />
     </Style>
 
     <!-- Lists sit flush inside cards -->
@@ -174,15 +200,24 @@
       <Setter Property="Background" Value="Transparent" />
     </Style>
 
-    <!-- Tiny filter chips (event-stream toggles) -->
+    <!-- Tiny filter chips (event-stream toggles): pill glass -->
     <Style Selector="ToggleButton.chip">
       <Setter Property="Background" Value="#80141F36" />
       <Setter Property="Foreground" Value="#5A7099" />
-      <Setter Property="BorderBrush" Value="#552E4A78" />
+      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="9" />
-      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="10,2" />
       <Setter Property="FontSize" Value="10" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.08" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ToggleButton.chip:pressed">
+      <Setter Property="RenderTransform" Value="scale(0.94)" />
     </Style>
     <Style Selector="ToggleButton.chip:checked /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="#33194B66" />
@@ -210,6 +245,21 @@
     </Style>
 
     <!-- Live status dots breathe while their subsystem wants attention -->
+    <Style Selector="TextBlock.pulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.4" IterationCount="Infinite">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="0.35" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
     <Style Selector="Ellipse.pulse">
       <Style.Animations>
         <Animation Duration="0:0:1.4" IterationCount="Infinite">

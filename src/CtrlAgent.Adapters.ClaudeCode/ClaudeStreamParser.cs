@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace CtrlAgent.Adapters.ClaudeCode;
@@ -8,9 +9,16 @@ namespace CtrlAgent.Adapters.ClaudeCode;
 /// </summary>
 public abstract record ClaudeStreamMessage
 {
-    public sealed record SessionInit(string SessionId) : ClaudeStreamMessage;
+    public sealed record SessionInit(string SessionId, string? Model) : ClaudeStreamMessage;
 
     public sealed record AssistantActivity(string Summary) : ClaudeStreamMessage;
+
+    /// <summary>A streamed chunk of assistant text (requires
+    /// <c>--include-partial-messages</c>); consumers accumulate these.</summary>
+    public sealed record TextDelta(string Text) : ClaudeStreamMessage;
+
+    /// <summary>The assistant started an extended-thinking block.</summary>
+    public sealed record ThinkingStarted : ClaudeStreamMessage;
 
     public sealed record TurnResult(bool IsError, string Summary) : ClaudeStreamMessage;
 
@@ -26,6 +34,7 @@ public abstract record ClaudeStreamMessage
 public static class ClaudeStreamParser
 {
     private const int SummaryLength = 160;
+    private const int ResponseLength = 700;
 
     public static ClaudeStreamMessage Parse(JsonElement root)
     {
@@ -35,6 +44,7 @@ public static class ClaudeStreamParser
         {
             "system" => ParseSystem(root),
             "assistant" => ParseAssistant(root),
+            "stream_event" => ParseStreamEvent(root),
             "result" => ParseResult(root),
             "control_request" => ParseControlRequest(root),
             "control_cancel_request" => ParseControlCancel(root),
@@ -48,7 +58,7 @@ public static class ClaudeStreamParser
         if (GetString(root, "subtype") == "init" &&
             GetString(root, "session_id") is { Length: > 0 } sessionId)
         {
-            return new ClaudeStreamMessage.SessionInit(sessionId);
+            return new ClaudeStreamMessage.SessionInit(sessionId, GetString(root, "model"));
         }
 
         return new ClaudeStreamMessage.Ignored();
@@ -63,18 +73,143 @@ public static class ClaudeStreamParser
             return new ClaudeStreamMessage.Ignored();
         }
 
+        // A message can carry prose and several tool calls; keep the prose
+        // when present (it is what the user wants to read), otherwise
+        // describe the tool calls concretely.
+        var text = new StringBuilder();
+        var tools = new List<string>();
         foreach (var block in content.EnumerateArray())
         {
             switch (GetString(block, "type"))
             {
-                case "text" when GetString(block, "text") is { Length: > 0 } text:
-                    return new ClaudeStreamMessage.AssistantActivity(Truncate(text));
+                case "text" when GetString(block, "text") is { Length: > 0 } blockText:
+                    if (text.Length > 0)
+                    {
+                        text.Append(' ');
+                    }
+
+                    text.Append(blockText);
+                    break;
+
                 case "tool_use" when GetString(block, "name") is { Length: > 0 } tool:
-                    return new ClaudeStreamMessage.AssistantActivity($"Using tool: {tool}");
+                    tools.Add(DescribeTool(tool, block));
+                    break;
             }
         }
 
+        if (text.Length > 0)
+        {
+            return new ClaudeStreamMessage.AssistantActivity(Clean(text.ToString(), ResponseLength));
+        }
+
+        return tools.Count > 0
+            ? new ClaudeStreamMessage.AssistantActivity(string.Join(" · ", tools.Take(3)))
+            : new ClaudeStreamMessage.Ignored();
+    }
+
+    /// <summary>
+    /// Partial-message events (Anthropic API shape wrapped in
+    /// <c>{"type":"stream_event","event":{…}}</c>): text deltas stream the
+    /// response as it is written; thinking and tool-use starts give instant
+    /// feedback before the full assistant message lands.
+    /// </summary>
+    private static ClaudeStreamMessage ParseStreamEvent(JsonElement root)
+    {
+        if (!root.TryGetProperty("event", out var streamEvent))
+        {
+            return new ClaudeStreamMessage.Ignored();
+        }
+
+        switch (GetString(streamEvent, "type"))
+        {
+            case "content_block_delta":
+                if (streamEvent.TryGetProperty("delta", out var delta) &&
+                    GetString(delta, "type") == "text_delta" &&
+                    GetString(delta, "text") is { Length: > 0 } text)
+                {
+                    return new ClaudeStreamMessage.TextDelta(text);
+                }
+
+                break;
+
+            case "content_block_start":
+                if (streamEvent.TryGetProperty("content_block", out var block))
+                {
+                    switch (GetString(block, "type"))
+                    {
+                        case "thinking":
+                            return new ClaudeStreamMessage.ThinkingStarted();
+                        case "tool_use" when GetString(block, "name") is { Length: > 0 } tool:
+                            return new ClaudeStreamMessage.AssistantActivity(DescribeTool(tool, block));
+                    }
+                }
+
+                break;
+        }
+
         return new ClaudeStreamMessage.Ignored();
+    }
+
+    /// <summary>
+    /// "Bash: npm test" beats "Using tool: Bash" — surface the input detail
+    /// people actually care about, per well-known tool.
+    /// </summary>
+    private static string DescribeTool(string tool, JsonElement block)
+    {
+        var input = block.TryGetProperty("input", out var inputElement) ? inputElement : default;
+        if (input.ValueKind != JsonValueKind.Object)
+        {
+            return $"Using tool: {tool}";
+        }
+
+        if (tool.Equals("TodoWrite", StringComparison.OrdinalIgnoreCase))
+        {
+            return DescribeTodos(input);
+        }
+
+        var detail = tool switch
+        {
+            "Bash" => GetString(input, "command"),
+            "Edit" or "Write" or "Read" or "NotebookEdit" => GetString(input, "file_path"),
+            "Grep" or "Glob" => GetString(input, "pattern"),
+            "WebFetch" => GetString(input, "url"),
+            "WebSearch" => GetString(input, "query"),
+            "Task" => GetString(input, "description"),
+            _ => null,
+        };
+
+        return detail is { Length: > 0 }
+            ? Clean($"{tool}: {detail}", 90)
+            : $"Using tool: {tool}";
+    }
+
+    /// <summary>TodoWrite carries the agent's live plan; show its progress.</summary>
+    private static string DescribeTodos(JsonElement input)
+    {
+        if (!input.TryGetProperty("todos", out var todos) || todos.ValueKind != JsonValueKind.Array)
+        {
+            return "Updating the plan";
+        }
+
+        var total = 0;
+        var done = 0;
+        string? active = null;
+        foreach (var todo in todos.EnumerateArray())
+        {
+            total++;
+            switch (GetString(todo, "status"))
+            {
+                case "completed":
+                    done++;
+                    break;
+                case "in_progress":
+                    active ??= GetString(todo, "activeForm") ?? GetString(todo, "content");
+                    break;
+            }
+        }
+
+        var progress = $"Plan {done}/{total}";
+        return active is { Length: > 0 } ? Clean($"{progress} — {active}", 90) : progress;
     }
 
     private static ClaudeStreamMessage ParseResult(JsonElement root)
@@ -84,8 +219,30 @@ public static class ClaudeStreamParser
             (root.TryGetProperty("is_error", out var errorFlag) && errorFlag.ValueKind == JsonValueKind.True) ||
             !subtype.Equals("success", StringComparison.Ordinal);
         var summary = GetString(root, "result") is { Length: > 0 } text
-            ? Truncate(text)
+            ? Clean(text, SummaryLength)
             : $"Turn finished: {subtype}.";
+
+        // Claude-app-style turn stats: how long, how many turns, what it cost.
+        var stats = new List<string>();
+        if (root.TryGetProperty("duration_ms", out var duration) && duration.TryGetInt64(out var milliseconds))
+        {
+            stats.Add($"{milliseconds / 1000.0:0.#}s");
+        }
+
+        if (root.TryGetProperty("num_turns", out var turns) && turns.TryGetInt32(out var turnCount))
+        {
+            stats.Add($"{turnCount} turn{(turnCount == 1 ? string.Empty : "s")}");
+        }
+
+        if (root.TryGetProperty("total_cost_usd", out var cost) && cost.TryGetDouble(out var costUsd))
+        {
+            stats.Add($"${costUsd:0.00##}");
+        }
+
+        if (stats.Count > 0)
+        {
+            summary = $"{summary} ({string.Join(" · ", stats)})";
+        }
 
         return new ClaudeStreamMessage.TurnResult(isError, summary);
     }
@@ -134,9 +291,9 @@ public static class ClaudeStreamParser
             ? value.GetString()
             : null;
 
-    private static string Truncate(string text)
+    private static string Clean(string text, int maxLength)
     {
         var singleLine = text.ReplaceLineEndings(" ").Trim();
-        return singleLine.Length <= SummaryLength ? singleLine : singleLine[..SummaryLength] + "…";
+        return singleLine.Length <= maxLength ? singleLine : singleLine[..maxLength] + "…";
     }
 }

@@ -30,6 +30,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
     ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
+    ("Captured input passes only approval commands", TestInputCaptureFilterAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
@@ -428,6 +429,21 @@ static async Task TestHapticHubAsync()
     Assert(controller.StopCount > 0, "Disposing the scheduler should stop controller haptics.");
 }
 
+static Task TestInputCaptureFilterAsync()
+{
+    // While a fullscreen controller UI owns the input, only the approval
+    // family may reach the agent — everything else navigates the menu.
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.ApproveOnce), "ApproveOnce must bypass capture.");
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.ApproveForSession), "ApproveForSession must bypass capture.");
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.Decline), "Decline must bypass capture.");
+    Assert(HostEngine.IsAllowedWhileCaptured(AgentCommandKind.Cancel), "Cancel must bypass capture.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.SubmitPrompt), "SubmitPrompt must be captured.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.Interrupt), "Interrupt must be captured.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.NewSession), "NewSession must be captured.");
+    Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.ReviewChanges), "ReviewChanges must be captured.");
+    return Task.CompletedTask;
+}
+
 static async Task TestHostEngineEndToEndAsync()
 {
     var controller = new ScriptedController();
@@ -570,8 +586,11 @@ static Task TestValidationReportMarkdownAsync()
 
 static Task TestClaudeStreamParserAsync()
 {
-    var init = ParseClaudeLine("""{"type":"system","subtype":"init","cwd":"/repo","session_id":"sess-1","tools":[]}""");
-    Assert(init is ClaudeStreamMessage.SessionInit { SessionId: "sess-1" }, "Expected SessionInit.");
+    var init = ParseClaudeLine(
+        """{"type":"system","subtype":"init","cwd":"/repo","session_id":"sess-1","model":"claude-sonnet-5","tools":[]}""");
+    Assert(
+        init is ClaudeStreamMessage.SessionInit { SessionId: "sess-1", Model: "claude-sonnet-5" },
+        "Expected SessionInit with model.");
 
     var text = ParseClaudeLine(
         """{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello there"}]},"session_id":"sess-1"}""");
@@ -579,11 +598,33 @@ static Task TestClaudeStreamParserAsync()
 
     var tool = ParseClaudeLine(
         """{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}]},"session_id":"sess-1"}""");
-    Assert(tool is ClaudeStreamMessage.AssistantActivity { Summary: "Using tool: Bash" }, "Expected tool-use summary.");
+    Assert(tool is ClaudeStreamMessage.AssistantActivity { Summary: "Bash: ls" }, "Expected concrete tool detail.");
+
+    var todos = ParseClaudeLine(
+        """{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"TodoWrite","input":{"todos":[{"content":"a","status":"completed"},{"content":"fix tests","activeForm":"Fixing tests","status":"in_progress"},{"content":"c","status":"pending"}]}}]},"session_id":"sess-1"}""");
+    Assert(
+        todos is ClaudeStreamMessage.AssistantActivity { Summary: "Plan 1/3 — Fixing tests" },
+        "Expected todo progress summary.");
+
+    var delta = ParseClaudeLine(
+        """{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"chunk"}},"session_id":"sess-1"}""");
+    Assert(delta is ClaudeStreamMessage.TextDelta { Text: "chunk" }, "Expected streamed text delta.");
+
+    var thinking = ParseClaudeLine(
+        """{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"thinking"}},"session_id":"sess-1"}""");
+    Assert(thinking is ClaudeStreamMessage.ThinkingStarted, "Expected thinking start.");
+
+    var earlyTool = ParseClaudeLine(
+        """{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","name":"Edit","input":{"file_path":"src/App.cs"}}},"session_id":"sess-1"}""");
+    Assert(
+        earlyTool is ClaudeStreamMessage.AssistantActivity { Summary: "Edit: src/App.cs" },
+        "Expected early tool detail from the stream event.");
 
     var success = ParseClaudeLine(
-        """{"type":"result","subtype":"success","is_error":false,"result":"All done","session_id":"sess-1"}""");
-    Assert(success is ClaudeStreamMessage.TurnResult { IsError: false, Summary: "All done" }, "Expected success result.");
+        """{"type":"result","subtype":"success","is_error":false,"result":"All done","duration_ms":42500,"num_turns":3,"total_cost_usd":0.1845,"session_id":"sess-1"}""");
+    Assert(
+        success is ClaudeStreamMessage.TurnResult { IsError: false, Summary: "All done (42.5s · 3 turns · $0.1845)" },
+        "Expected success result with turn stats.");
 
     var failure = ParseClaudeLine(
         """{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"sess-1"}""");
@@ -638,6 +679,18 @@ static Task TestClaudePermissionResponseAsync()
     var denyResponse = deny.GetProperty("response").GetProperty("response");
     AssertEqual("deny", denyResponse.GetProperty("behavior").GetString());
     AssertEqual("Declined.", denyResponse.GetProperty("message").GetString());
+
+    var interrupt = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudeControlRequest.Interrupt("ctrl_1"))).RootElement;
+    AssertEqual("control_request", interrupt.GetProperty("type").GetString());
+    AssertEqual("interrupt", interrupt.GetProperty("request").GetProperty("subtype").GetString());
+
+    var mode = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudeControlRequest.SetPermissionMode("ctrl_2", "plan"))).RootElement;
+    AssertEqual("control_request", mode.GetProperty("type").GetString());
+    AssertEqual("ctrl_2", mode.GetProperty("request_id").GetString());
+    AssertEqual("set_permission_mode", mode.GetProperty("request").GetProperty("subtype").GetString());
+    AssertEqual("plan", mode.GetProperty("request").GetProperty("mode").GetString());
     return Task.CompletedTask;
 }
 

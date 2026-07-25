@@ -32,6 +32,7 @@ public sealed class HostEngine : IAsyncDisposable
     private string? _pendingSessionId;
     private string? _pendingRequestId;
     private ControllerCapabilities? _lastCapabilities;
+    private volatile bool _inputCaptured;
     private bool _disposed;
 
     public HostEngine(
@@ -70,6 +71,24 @@ public sealed class HostEngine : IAsyncDisposable
 
     public string AdapterId => _adapter.Id;
 
+    /// <summary>True while a controller-navigated UI owns the input.</summary>
+    public bool InputCaptured => _inputCaptured;
+
+    /// <summary>
+    /// Routes controller input to the UI instead of the mapping engine (raw
+    /// events keep flowing through <see cref="ControllerInputReceived"/>).
+    /// Approval commands still execute — a fullscreen menu must never take
+    /// away the ability to answer a pending approval from the controller.
+    /// </summary>
+    public void SetInputCapture(bool captured) => _inputCaptured = captured;
+
+    /// <summary>Commands that bypass input capture (the approval family).</summary>
+    public static bool IsAllowedWhileCaptured(AgentCommandKind kind) => kind is
+        AgentCommandKind.ApproveOnce or
+        AgentCommandKind.ApproveForSession or
+        AgentCommandKind.Decline or
+        AgentCommandKind.Cancel;
+
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -94,6 +113,11 @@ public sealed class HostEngine : IAsyncDisposable
 
     public Task ReviewChangesAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.ReviewChanges));
+
+    /// <summary>Switches the agent's permission mode (adapter-defined names,
+    /// e.g. Claude Code's "default"/"plan"/"acceptEdits").</summary>
+    public Task SetPermissionModeAsync(string mode) =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetPermissionMode, Text: mode));
 
     public Task NextSessionAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.NextSession));
@@ -234,6 +258,11 @@ public sealed class HostEngine : IAsyncDisposable
 
                     foreach (var command in _mapping.Process(inputEvent))
                     {
+                        if (_inputCaptured && !IsAllowedWhileCaptured(command.Kind))
+                        {
+                            continue;
+                        }
+
                         var hydrated = command;
                         if (command.Kind == AgentCommandKind.SubmitPrompt && string.IsNullOrWhiteSpace(command.Text))
                         {
@@ -285,11 +314,24 @@ public sealed class HostEngine : IAsyncDisposable
 
     private async Task RunAgentLoopAsync(CancellationToken cancellationToken)
     {
+        AgentStateKind? previousState = null;
         try
         {
             await foreach (var agentEvent in _adapter.ReadEventsAsync(cancellationToken).ConfigureAwait(false))
             {
-                Log($"[agent] {agentEvent.State}: {agentEvent.Message}");
+                // Streaming adapters publish many Working events per turn
+                // (partial text). The UI wants each one (live rendering); the
+                // log and the haptic loop only care about the state change.
+                var isRepeatWorking =
+                    agentEvent.State == AgentStateKind.Working &&
+                    previousState == AgentStateKind.Working;
+                previousState = agentEvent.State;
+
+                if (!isRepeatWorking)
+                {
+                    Log($"[agent] {agentEvent.State}: {agentEvent.Message}");
+                }
+
                 AgentEventReceived?.Invoke(agentEvent);
 
                 if (agentEvent.State is AgentStateKind.ApprovalRequired or AgentStateKind.WaitingForInput)
@@ -317,6 +359,11 @@ public sealed class HostEngine : IAsyncDisposable
 
                     mapping.SetPendingApproval(null, null);
                     PendingApprovalChanged?.Invoke(null);
+                }
+
+                if (isRepeatWorking)
+                {
+                    continue;
                 }
 
                 var pattern = _feedback.Route(agentEvent);

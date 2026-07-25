@@ -65,7 +65,7 @@ Dependency rules:
 
 `WindowsControllerProvider` resolves the primary controller:
 
-1. **GameInput bridge** (preferred): spawns the native C++ exe and speaks newline-delimited JSON over stdio. Path resolution: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app. The bridge is the only path that exposes the four Elite paddles and trigger rumble.
+1. **GameInput bridge** (preferred): spawns the native C++ exe and speaks newline-delimited JSON over stdio. Path resolution: `--gameinput-bridge` argument → `CTRL_AGENT_GAMEINPUT_BRIDGE` env var → `CtrlAgent.GameInputBridge.exe` beside the app. The bridge is the trigger-rumble path and the *intended* paddle path — but hardware validation (2026-07-24) showed the PC GameInput redistributable never reports Elite Series 2 paddles (unmapped paddles are silent; mapped ones arrive as face buttons) and does not enumerate Bluetooth Xbox controllers at all, so the bridge reports `hasFourPaddles: false` (activating the `withoutPaddles` chord layer) and paddle support is experimental pending a raw-report path. GameInput also gates input on window focus. See `controller-validation.md` for the evidence.
 2. **DualSense over raw HID**: enumerates Sony VID `0x054C` (DualSense `0x0CE6`, DualSense Edge `0x0DF2`) via SetupAPI and reads/writes HID reports directly — USB report `0x01`, Bluetooth report `0x31` (CRC32-protected). Buttons map positionally (Cross→A, Circle→B, Square→X, Triangle→Y); Edge rear paddles and Fn map to the four paddle controls. Byte layout is community-documented and still needs real-pad verification.
 3. **XInput fallback**: P/Invoke polling (8 ms connected, 250 ms disconnected). No paddles, two motors only; approval actions fall back to RB chords.
 
@@ -89,7 +89,7 @@ Profiles are versioned JSON (`ControllerProfileJson`, version 1) validated by `C
 
 ## Agent side
 
-`IAgentAdapter` exposes `StartAsync`, `ReadEventsAsync` (an async stream of `AgentEvent`s), and `ExecuteAsync(AgentCommand)`. Adapters own their child process and normalize its protocol into `AgentStateKind` events; hosts never see raw protocol. See [adapters.md](adapters.md) for per-adapter protocol detail and the authoring guide.
+`IAgentAdapter` exposes `StartAsync`, `ReadEventsAsync` (an async stream of `AgentEvent`s), and `ExecuteAsync(AgentCommand)`. Adapters own their child process and normalize its protocol into `AgentStateKind` events; hosts never see raw protocol. Bare CLI names (`codex`, `claude`) are resolved through PATH/PATHEXT by `AgentExecutableResolver` in Core, because `Process.Start` with `UseShellExecute=false` does not search PATH on Windows. See [adapters.md](adapters.md) for per-adapter protocol detail and the authoring guide.
 
 The pending-approval contract: an `ApprovalRequired`/`WaitingForInput` event carries `RequestId` (and `SessionId`); the host stores them, arms the mapping engine, and hydrates approval commands with those ids. `Completed`, `Error`, or a `Working` event that carries a `RequestId` clears the pending state.
 
@@ -109,6 +109,7 @@ The pending-approval contract: an `ApprovalRequired`/`WaitingForInput` event car
 - The main window extends its client area into the title bar (hero band = drag handle), mirrors live input on an Elite Series 2 vector (`ControllerVisualViewModel`: pressed > approval-highlight > idle brushes, PS face labels on DualSense), and hosts CTRL·BOT (`AgentBuddyViewModel`: profile-derived coaching, animated moods).
 - It is a tray app: closing hides the window (`ShutdownMode.OnExplicitShutdown`); the tray menu restores it, toggles the overlay, or exits. `OverlayWindow` (frameless, topmost) and `ToastWindow` (bottom-right notifications with approve/decline) share the same `MainViewModel`, so every surface stays in sync.
 - `ProfileEditorWindow` edits bindings with live `ControllerProfileValidator` feedback and applies via `HostEngine.TryApplyProfile`; `GuiSettings` persists last-used launch options to `%AppData%/CtrlAgent`; a first-run setup overlay collects agent + working directory so no CLI flags are needed.
+- **Big Picture mode** (`BigPictureWindow` + `BigPictureViewModel`) is the fullscreen controller-first UI, modeled on Steam Big Picture: a horizontal tile rail with a neon focus ring (d-pad/left-stick to move, A select, B back), CTRL·BOT center-stage beside a large agent-response feed, a voice-prompt overlay (`SpeechToTextService`, offline System.Speech dictation), a fullscreen shortcuts screen listing every binding in the active profile, and a persistent bottom button legend. It uses `HostEngine.SetInputCapture`: raw input events drive UI focus while mapped commands are suppressed — except the approval family (`IsAllowedWhileCaptured`), so a pending approval can always be answered from paddles or chords even inside the menu. When an approval arrives, approval tiles are prepended to the rail and take focus.
 
 ## Threading and lifecycle model
 

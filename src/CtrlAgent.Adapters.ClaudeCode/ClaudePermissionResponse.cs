@@ -55,3 +55,27 @@ public static class ClaudePermissionResponse
             },
         };
 }
+
+/// <summary>
+/// Builds outbound control_request payloads (client → CLI). Pure so the
+/// wire shapes are unit-testable.
+/// </summary>
+public static class ClaudeControlRequest
+{
+    public static object Interrupt(string requestId) =>
+        new
+        {
+            type = "control_request",
+            request_id = requestId,
+            request = new { subtype = "interrupt" },
+        };
+
+    /// <summary>Runtime permission-mode switch ("default", "plan", "acceptEdits").</summary>
+    public static object SetPermissionMode(string requestId, string mode) =>
+        new
+        {
+            type = "control_request",
+            request_id = requestId,
+            request = new { subtype = "set_permission_mode", mode },
+        };
+}

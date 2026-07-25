@@ -16,6 +16,7 @@ public sealed class BindingEditor : ViewModelBase
     private string _doublePressMilliseconds = string.Empty;
     private string _minimumValue = string.Empty;
     private string _text = string.Empty;
+    private string _layer = string.Empty;
     private bool _requiresPendingApproval;
 
     internal ProfileEditorViewModel? Owner { get; set; }
@@ -75,8 +76,16 @@ public sealed class BindingEditor : ViewModelBase
         set { if (Set(ref _requiresPendingApproval, value)) Changed(); }
     }
 
+    /// <summary>Optional layer membership (must name a declared layer).</summary>
+    public string Layer
+    {
+        get => _layer;
+        set { if (Set(ref _layer, value)) Changed(); }
+    }
+
     public string Summary =>
-        $"{(_modifiersText.Trim().Length > 0 ? _modifiersText.Trim() + "+" : string.Empty)}{_control} [{_gesture}] → {_command}";
+        $"{(_modifiersText.Trim().Length > 0 ? _modifiersText.Trim() + "+" : string.Empty)}{_control} [{_gesture}] → {_command}" +
+        (_layer.Trim().Length > 0 ? $"  ⟨{_layer.Trim()}⟩" : string.Empty);
 
     public InputBinding? ToBinding(int position, List<string> errors)
     {
@@ -153,7 +162,8 @@ public sealed class BindingEditor : ViewModelBase
             string.IsNullOrWhiteSpace(_text) ? null : _text,
             _requiresPendingApproval,
             hold,
-            window);
+            window,
+            string.IsNullOrWhiteSpace(_layer) ? null : _layer.Trim());
     }
 
     private static TimeSpan? ParseMilliseconds(
@@ -186,6 +196,33 @@ public sealed class BindingEditor : ViewModelBase
     }
 }
 
+/// <summary>One editable profile layer: a name plus its activation rule.</summary>
+public sealed class LayerEditor : ViewModelBase
+{
+    private string _name = "layer";
+    private string _activation = nameof(LayerActivation.Always);
+
+    internal ProfileEditorViewModel? Owner { get; set; }
+
+    public string Name
+    {
+        get => _name;
+        set { if (Set(ref _name, value)) Owner?.Revalidate(); }
+    }
+
+    public string Activation
+    {
+        get => _activation;
+        set { if (Set(ref _activation, value)) Owner?.Revalidate(); }
+    }
+
+    public ProfileLayer ToLayer() => new(
+        _name.Trim(),
+        Enum.TryParse<LayerActivation>(_activation, ignoreCase: true, out var activation)
+            ? activation
+            : LayerActivation.Always);
+}
+
 public sealed class ProfileEditorViewModel : ViewModelBase
 {
     private string _name = "custom";
@@ -212,6 +249,21 @@ public sealed class ProfileEditorViewModel : ViewModelBase
             }
         });
 
+        AddLayerCommand = new RelayCommand(_ =>
+        {
+            Layers.Add(new LayerEditor { Owner = this, Name = $"layer{Layers.Count + 1}" });
+            Revalidate();
+        });
+
+        RemoveLayerCommand = new RelayCommand(parameter =>
+        {
+            if (parameter is LayerEditor layer)
+            {
+                Layers.Remove(layer);
+                Revalidate();
+            }
+        });
+
         LoadFrom(profile);
     }
 
@@ -222,13 +274,21 @@ public sealed class ProfileEditorViewModel : ViewModelBase
 
     public static string[] CommandNames { get; } = Enum.GetNames<AgentCommandKind>();
 
+    public static string[] ActivationNames { get; } = Enum.GetNames<LayerActivation>();
+
     public ObservableCollection<BindingEditor> Bindings { get; } = [];
+
+    public ObservableCollection<LayerEditor> Layers { get; } = [];
 
     public ObservableCollection<string> Errors { get; } = [];
 
     public ICommand AddCommand { get; }
 
     public ICommand RemoveCommand { get; }
+
+    public ICommand AddLayerCommand { get; }
+
+    public ICommand RemoveLayerCommand { get; }
 
     public string Name
     {
@@ -257,8 +317,19 @@ public sealed class ProfileEditorViewModel : ViewModelBase
     public void LoadFrom(ControllerProfile profile)
     {
         Bindings.Clear();
+        Layers.Clear();
         _name = profile.Name;
         Raise(nameof(Name));
+
+        foreach (var layer in profile.Layers ?? [])
+        {
+            Layers.Add(new LayerEditor
+            {
+                Owner = this,
+                Name = layer.Name,
+                Activation = layer.Activation.ToString(),
+            });
+        }
 
         foreach (var binding in profile.Bindings)
         {
@@ -282,6 +353,7 @@ public sealed class ProfileEditorViewModel : ViewModelBase
                     : string.Empty,
                 Text = binding.Text ?? string.Empty,
                 RequiresPendingApproval = binding.RequiresPendingApproval,
+                Layer = binding.Layer ?? string.Empty,
             });
         }
 
@@ -303,7 +375,10 @@ public sealed class ProfileEditorViewModel : ViewModelBase
             }
         }
 
-        var candidate = new ControllerProfile(_name, bindings);
+        var layers = Layers.Count > 0
+            ? Layers.Select(layer => layer.ToLayer()).ToList()
+            : null;
+        var candidate = new ControllerProfile(_name, bindings, layers);
         if (errors.Count == 0)
         {
             errors.AddRange(ControllerProfileValidator.Validate(candidate));

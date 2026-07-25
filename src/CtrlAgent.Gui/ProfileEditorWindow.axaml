@@ -20,6 +20,48 @@
       <Button Content="Remove selected" Classes="deny" Command="{Binding RemoveCommand}" />
     </StackPanel>
 
+    <!-- Layers: capability-activated binding groups. A binding names a layer
+         to only exist while that layer is active on the connected pad. -->
+    <Border DockPanel.Dock="Top" Classes="card" Padding="8" Margin="0,10,0,0">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="LAYERS" Classes="label" VerticalAlignment="Center" />
+          <Button Content="Add layer"
+                  Command="{Binding AddLayerCommand}"
+                  FontSize="11" Padding="9,3"
+                  ToolTip.Tip="Layers activate by device capability: always, requiresPaddles, or withoutPaddles" />
+        </StackPanel>
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="10,0,0,0">
+          <ItemsControl ItemsSource="{Binding Layers}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="8" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="gui:LayerEditor">
+                <Border Background="#80141F36" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                        CornerRadius="8" Padding="6,3">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBox Text="{Binding Name}" Width="110" FontSize="12" />
+                    <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ActivationNames}"
+                              SelectedItem="{Binding Activation}"
+                              FontSize="12" />
+                    <Button Content="✕"
+                            FontSize="10" Padding="6,2"
+                            Classes="deny"
+                            Command="{Binding $parent[Window].((gui:ProfileEditorViewModel)DataContext).RemoveLayerCommand}"
+                            CommandParameter="{Binding}"
+                            ToolTip.Tip="Remove this layer" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
     <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8" Classes="card">
       <StackPanel Spacing="8">
         <ItemsControl ItemsSource="{Binding Errors}" MaxHeight="90">
@@ -78,6 +120,8 @@
             <TextBox Text="{Binding MinimumValue}" />
             <TextBlock Text="Prompt text (SubmitPrompt)" FontSize="11" Opacity="0.6" />
             <TextBox Text="{Binding Text}" AcceptsReturn="False" />
+            <TextBlock Text="Layer (optional; must name a declared layer)" FontSize="11" Opacity="0.6" />
+            <TextBox Text="{Binding Layer}" />
             <CheckBox Content="Requires pending approval" IsChecked="{Binding RequiresPendingApproval}" />
           </StackPanel>
         </ScrollViewer>

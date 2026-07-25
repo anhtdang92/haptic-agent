@@ -79,6 +79,11 @@ public sealed class MainViewModel : ViewModelBase
     private bool _isBindingsEmpty = true;
     private bool _showControllerEvents = true;
     private readonly List<LogEntry> _logHistory = [];
+    private DateTimeOffset _lastViewPress = DateTimeOffset.MinValue;
+    private static readonly string[] PermissionModes = ["default", "plan", "acceptEdits"];
+    private int _permissionModeIndex;
+    private ChatMessage? _streamingBubble;
+    private bool _isChatView = true;
     private bool _isSetupVisible;
     private string _setupAgent = "mock";
     private string _setupWorkingDirectory = Environment.CurrentDirectory;
@@ -92,7 +97,20 @@ public sealed class MainViewModel : ViewModelBase
         _setupAgent = options.Agent;
         _setupWorkingDirectory = options.WorkingDirectory;
 
-        SubmitPromptCommand = new RelayCommand(_ => Fire(e => e.SubmitPromptAsync(PromptText)));
+        SubmitPromptCommand = new RelayCommand(_ =>
+        {
+            Buddy.CountPromptSent();
+            AddChat(isUser: true, isActivity: false,
+                string.IsNullOrWhiteSpace(PromptText) ? "(default prompt)" : PromptText);
+            Fire(e => e.SubmitPromptAsync(PromptText));
+        });
+        CyclePermissionModeCommand = new RelayCommand(_ =>
+        {
+            _permissionModeIndex = (_permissionModeIndex + 1) % PermissionModes.Length;
+            Raise(nameof(PermissionModeLabel));
+            var mode = PermissionModes[_permissionModeIndex];
+            Fire(e => e.SetPermissionModeAsync(mode));
+        });
         InterruptCommand = new RelayCommand(_ => Fire(e => e.InterruptAsync()));
         NewSessionCommand = new RelayCommand(_ => Fire(e => e.NewSessionAsync()));
         ReviewCommand = new RelayCommand(_ => Fire(e => e.ReviewChangesAsync()));
@@ -111,6 +129,13 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Raised when the first-run setup is submitted with valid values.</summary>
     public event Action<GuiOptions>? SetupCompleted;
+
+    /// <summary>
+    /// Raised by the controller fullscreen shortcut: double-press View.
+    /// Deliberately not the Xbox/Guide button — Steam owns that for its own
+    /// Big Picture, and neither XInput nor the bridge reports it anyway.
+    /// </summary>
+    public event Action? BigPictureRequested;
 
     /// <summary>
     /// Wires the running engine into this view model. Called at startup when
@@ -153,9 +178,29 @@ public sealed class MainViewModel : ViewModelBase
             IsControllerSearching = false;
             ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
         });
-        engine.ControllerInputReceived += inputEvent => Post(() => ControllerVisual.Apply(inputEvent));
+        engine.ControllerInputReceived += inputEvent => Post(() =>
+        {
+            ControllerVisual.Apply(inputEvent);
+
+            // Double-press View = enter Big Picture (View is unbound in the
+            // default profile). Interval math uses event timestamps.
+            if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
+                inputEvent.Control == ControllerControl.View)
+            {
+                if (inputEvent.Timestamp - _lastViewPress <= TimeSpan.FromMilliseconds(400))
+                {
+                    _lastViewPress = DateTimeOffset.MinValue;
+                    BigPictureRequested?.Invoke();
+                }
+                else
+                {
+                    _lastViewPress = inputEvent.Timestamp;
+                }
+            }
+        });
         engine.AgentEventReceived += agentEvent => Post(() =>
         {
+            AppendToTranscript(agentEvent);
             AgentState = agentEvent.State.ToString();
             SessionId = agentEvent.SessionId;
             AgentDotBrush = agentEvent.State switch
@@ -174,6 +219,12 @@ public sealed class MainViewModel : ViewModelBase
         });
         engine.PendingApprovalChanged += message => Post(() =>
         {
+            if (message is null && HasPendingApproval)
+            {
+                // Answered from anywhere — controller, GUI, overlay, or toast.
+                Buddy.CountApprovalResolved();
+            }
+
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
 
@@ -221,6 +272,9 @@ public sealed class MainViewModel : ViewModelBase
 
     public ObservableCollection<LogEntry> Log { get; } = [];
 
+    /// <summary>The Claude-app-style conversation: bubbles + activity rows.</summary>
+    public ObservableCollection<ChatMessage> Transcript { get; } = [];
+
     public ObservableCollection<BindingRow> Bindings { get; } = [];
 
     public ControllerVisualViewModel ControllerVisual { get; } = new();
@@ -244,6 +298,8 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand CancelCommand { get; }
 
     public ICommand PlayPatternCommand { get; }
+
+    public ICommand CyclePermissionModeCommand { get; }
 
     public ICommand StartSetupCommand { get; }
 
@@ -365,6 +421,15 @@ public sealed class MainViewModel : ViewModelBase
         set => Set(ref _isBindingsEmpty, value);
     }
 
+    /// <summary>Conversation view vs raw event stream in the activity card.</summary>
+    public bool IsChatView
+    {
+        get => _isChatView;
+        set => Set(ref _isChatView, value);
+    }
+
+    public string PermissionModeLabel => $"mode: {PermissionModes[_permissionModeIndex]}";
+
     /// <summary>Show or hide raw controller input lines in the event stream.</summary>
     public bool ShowControllerEvents
     {
@@ -406,6 +471,73 @@ public sealed class MainViewModel : ViewModelBase
         {
             Log.RemoveAt(0);
         }
+    }
+
+    /// <summary>
+    /// Folds an agent event into the conversation. Streaming Working prose
+    /// updates the current bubble in place; tool/plan/result lines land as
+    /// activity rows and close the streaming bubble so the next prose chunk
+    /// starts a fresh one — the Claude-app rhythm.
+    /// </summary>
+    private void AppendToTranscript(AgentEvent agentEvent)
+    {
+        var message = agentEvent.Message;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        switch (agentEvent.State)
+        {
+            case AgentStateKind.Working when ChatMessage.IsActivityText(message):
+                _streamingBubble = null;
+                AddChat(isUser: false, isActivity: true, message);
+                break;
+
+            case AgentStateKind.Working:
+                if (_streamingBubble is { } bubble)
+                {
+                    bubble.Text = message;
+                }
+                else
+                {
+                    _streamingBubble = AddChat(isUser: false, isActivity: false, message);
+                }
+
+                break;
+
+            case AgentStateKind.Completed:
+                _streamingBubble = null;
+                AddChat(isUser: false, isActivity: true, $"✓ {message}");
+                break;
+
+            case AgentStateKind.Error:
+                _streamingBubble = null;
+                AddChat(isUser: false, isActivity: true, $"✕ {message}");
+                break;
+
+            case AgentStateKind.ApprovalRequired:
+            case AgentStateKind.WaitingForInput:
+                AddChat(isUser: false, isActivity: true, $"🔒 {message}");
+                break;
+
+            case AgentStateKind.Idle:
+                _streamingBubble = null;
+                AddChat(isUser: false, isActivity: true, message);
+                break;
+        }
+    }
+
+    private ChatMessage AddChat(bool isUser, bool isActivity, string text)
+    {
+        var message = new ChatMessage { IsUser = isUser, IsActivity = isActivity, Text = text };
+        Transcript.Add(message);
+        while (Transcript.Count > 200)
+        {
+            Transcript.RemoveAt(0);
+        }
+
+        return message;
     }
 
     private void Fire(Func<HostEngine, Task> action)

@@ -64,14 +64,31 @@ jobs:
           Compress-Archive -Path "package/$name" -DestinationPath "$name.zip"
           echo "PACKAGE_NAME=$name" >> $env:GITHUB_ENV
 
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $name = "CtrlAgent-$($env:GITHUB_REF_NAME)-win-x64"
+          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=$env:GITHUB_REF_NAME `
+            /DStagingDir="$PWD\package\$name" `
+            /DRepoRoot="$PWD" `
+            /O"$PWD" `
+            installer\CtrlAgent.iss
+          exit $LASTEXITCODE
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PACKAGE_NAME }}
-          path: ${{ env.PACKAGE_NAME }}.zip
+          path: |
+            ${{ env.PACKAGE_NAME }}.zip
+            CtrlAgent-Setup-*.exe
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.PACKAGE_NAME }}.zip
+          files: |
+            ${{ env.PACKAGE_NAME }}.zip
+            CtrlAgent-Setup-*.exe
           generate_release_notes: true

@@ -15,6 +15,16 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += (_, _) => ObserveLog();
+
+        // F11 = enter Big Picture, the standard fullscreen key.
+        KeyDown += (_, eventArgs) =>
+        {
+            if (eventArgs.Key == Key.F11)
+            {
+                eventArgs.Handled = true;
+                (Avalonia.Application.Current as App)?.ShowBigPicture();
+            }
+        };
     }
 
     // Keeps the event stream pinned to the newest entry.
@@ -27,6 +37,7 @@ public sealed partial class MainWindow : Window
 
         _observedViewModel = viewModel;
         viewModel.Log.CollectionChanged += OnLogChanged;
+        viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
     }
 
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
@@ -34,6 +45,14 @@ public sealed partial class MainWindow : Window
         if (eventArgs.Action == NotifyCollectionChangedAction.Add && EventStream.ItemCount > 0)
         {
             EventStream.ScrollIntoView(EventStream.ItemCount - 1);
+        }
+    }
+
+    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Action == NotifyCollectionChangedAction.Add && ChatList.ItemCount > 0)
+        {
+            ChatList.ScrollIntoView(ChatList.ItemCount - 1);
         }
     }
 
@@ -102,6 +121,9 @@ public sealed partial class MainWindow : Window
 
     private void OnToggleOverlay(object? sender, RoutedEventArgs eventArgs) =>
         (Avalonia.Application.Current as App)?.ToggleOverlay();
+
+    private void OnShowBigPicture(object? sender, RoutedEventArgs eventArgs) =>
+        (Avalonia.Application.Current as App)?.ShowBigPicture();
 
     private async void OnEditProfile(object? sender, RoutedEventArgs eventArgs)
     {

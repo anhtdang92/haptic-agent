@@ -50,7 +50,7 @@ public partial class App : Application
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     // The window code-behind calls these; the harness renders windows directly.
-    public void ShowCockpit() { }
+    public void ShowMainframe() { }
 
     public void ToggleOverlay() { }
 }
@@ -152,8 +152,8 @@ internal static class Harness
         approving.AppendLog("[agent] ApprovalRequired: Claude Code wants: Write: src/Mapping.cs");
         Render(new MainWindow { DataContext = approving }, "02-main-approval.png");
 
-        var big = new CockpitViewModel(viewModel);
-        Render(new CockpitWindow { DataContext = big }, "03-cockpit.png", 1600, 900,
+        var big = new MainframeViewModel(viewModel);
+        Render(new MainframeWindow { DataContext = big }, "03-mainframe.png", 1600, 900,
             afterShow: w =>
             {
                 // The boot intro is opaque until its animation finishes; the
@@ -164,8 +164,8 @@ internal static class Harness
                 }
             });
 
-        var bigApproval = new CockpitViewModel(approving);
-        Render(new CockpitWindow { DataContext = bigApproval }, "04-cockpit-approval.png", 1600, 900,
+        var bigApproval = new MainframeViewModel(approving);
+        Render(new MainframeWindow { DataContext = bigApproval }, "04-mainframe-approval.png", 1600, 900,
             afterShow: w =>
             {
                 if (w.FindControl<Border>("IntroOverlay") is { } intro)
@@ -181,7 +181,7 @@ internal static class Harness
         chat.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         chat.AgentStatus = "claude";
         engine.StartAsync().GetAwaiter().GetResult();
-        chat.SubmitPromptText("Add a session picker to Cockpit mode");
+        chat.SubmitPromptText("Add a session picker to Mainframe mode");
         Pump(3000);
         chat.SubmitPromptText("Now write tests for it");
         Pump(3000);
@@ -222,23 +222,23 @@ internal static class Harness
             showApprovalButtons: true);
         Render(toast, "10-toast.png", 340, 150);
 
-        // Cockpit: the fullscreen shortcuts screen.
-        var shortcuts = new CockpitViewModel(chat);
-        Render(new CockpitWindow { DataContext = shortcuts }, "11-shortcuts.png", 1600, 900,
+        // Mainframe: the fullscreen shortcuts screen.
+        var shortcuts = new MainframeViewModel(chat);
+        Render(new MainframeWindow { DataContext = shortcuts }, "11-shortcuts.png", 1600, 900,
             afterShow: HideIntro,
             afterSettle: _ => shortcuts.OnKey("F1"));
 
-        // Cockpit: the voice overlay, mid-review of a transcript.
+        // Mainframe: the voice overlay, mid-review of a transcript.
         SpeechToTextService.ScriptedResult = "Refactor the mapping engine and run the tests";
-        var voice = new CockpitViewModel(chat);
-        Render(new CockpitWindow { DataContext = voice }, "12-voice.png", 1600, 900,
+        var voice = new MainframeViewModel(chat);
+        Render(new MainframeWindow { DataContext = voice }, "12-voice.png", 1600, 900,
             afterShow: HideIntro,
             afterSettle: _ => voice.OnKey("F2"));
         SpeechToTextService.ScriptedResult = null;
 
         // Verify the rail scrolls: walk focus to the far end with the d-pad.
-        var bigScrolled = new CockpitViewModel(approving);
-        Render(new CockpitWindow { DataContext = bigScrolled }, "05-rail-scrolled.png", 1600, 900,
+        var bigScrolled = new MainframeViewModel(approving);
+        Render(new MainframeWindow { DataContext = bigScrolled }, "05-rail-scrolled.png", 1600, 900,
             afterShow: w =>
             {
                 if (w.FindControl<Border>("IntroOverlay") is { } intro)

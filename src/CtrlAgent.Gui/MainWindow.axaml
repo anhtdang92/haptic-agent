@@ -108,11 +108,11 @@
                 Padding="4,3">
           <StackPanel Orientation="Horizontal" Spacing="1">
             <Button Classes="tool"
-                    Click="OnShowCockpit"
-                    ToolTip.Tip="Cockpit — fullscreen controller-first mode (F11, Xbox/PS button, or double-press View)">
+                    Click="OnShowMainframe"
+                    ToolTip.Tip="Mainframe — fullscreen controller-first mode (F11, Xbox/PS button, or double-press View)">
               <StackPanel Orientation="Horizontal" Spacing="7">
                 <TextBlock Text="⛶" FontSize="13" VerticalAlignment="Center" />
-                <TextBlock Text="Cockpit" VerticalAlignment="Center" />
+                <TextBlock Text="Mainframe" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
             <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />

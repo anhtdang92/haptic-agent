@@ -16,13 +16,13 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         DataContextChanged += (_, _) => ObserveLog();
 
-        // F11 = enter Cockpit, the standard fullscreen key.
+        // F11 = enter Mainframe, the standard fullscreen key.
         KeyDown += (_, eventArgs) =>
         {
             if (eventArgs.Key == Key.F11)
             {
                 eventArgs.Handled = true;
-                (Avalonia.Application.Current as App)?.ShowCockpit();
+                (Avalonia.Application.Current as App)?.ShowMainframe();
             }
         };
     }
@@ -122,8 +122,8 @@ public sealed partial class MainWindow : Window
     private void OnToggleOverlay(object? sender, RoutedEventArgs eventArgs) =>
         (Avalonia.Application.Current as App)?.ToggleOverlay();
 
-    private void OnShowCockpit(object? sender, RoutedEventArgs eventArgs) =>
-        (Avalonia.Application.Current as App)?.ShowCockpit();
+    private void OnShowMainframe(object? sender, RoutedEventArgs eventArgs) =>
+        (Avalonia.Application.Current as App)?.ShowMainframe();
 
     private async void OnEditProfile(object? sender, RoutedEventArgs eventArgs)
     {

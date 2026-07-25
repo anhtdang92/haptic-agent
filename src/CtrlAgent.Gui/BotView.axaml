@@ -6,7 +6,7 @@
              ToolTip.Tip="{Binding StatsSummary}">
 
   <!-- CTRL·BOT, the tamagotchi companion. One shared drawing used by the
-       main window and Cockpit; consumers wrap it in a Viewbox to scale.
+       main window and Mainframe; consumers wrap it in a Viewbox to scale.
        Click/tap pokes the bot. Whole-body mood animations live here:
        idle breathes, happy hops and waves, alert bounces urgently,
        error trembles. -->

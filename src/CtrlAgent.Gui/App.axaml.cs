@@ -20,7 +20,7 @@ public sealed class App : Application
     private MainViewModel? _viewModel;
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlay;
-    private CockpitWindow? _cockpit;
+    private MainframeWindow? _mainframe;
     private ToastWindow? _toast;
     private bool _toastIsApproval;
     private bool _exiting;
@@ -118,7 +118,7 @@ public sealed class App : Application
             mainWindow.Show();
 
             viewModel.SetupCompleted += StartWithOptions;
-            viewModel.CockpitRequested += ShowCockpit;
+            viewModel.MainframeRequested += ShowMainframe;
             if (startupError is null)
             {
                 if (firstRun)
@@ -212,8 +212,8 @@ public sealed class App : Application
         var overlayItem = new NativeMenuItem("Toggle overlay");
         overlayItem.Click += (_, _) => ToggleOverlay();
 
-        var cockpitItem = new NativeMenuItem("Cockpit mode");
-        cockpitItem.Click += (_, _) => ShowCockpit();
+        var mainframeItem = new NativeMenuItem("Mainframe mode");
+        mainframeItem.Click += (_, _) => ShowMainframe();
 
         var exitItem = new NativeMenuItem("Exit");
         exitItem.Click += (_, _) => Exit(desktop);
@@ -221,7 +221,7 @@ public sealed class App : Application
         var menu = new NativeMenu();
         menu.Items.Add(showItem);
         menu.Items.Add(overlayItem);
-        menu.Items.Add(cockpitItem);
+        menu.Items.Add(mainframeItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(exitItem);
 
@@ -256,7 +256,7 @@ public sealed class App : Application
 
         var mainVisible = _mainWindow is { IsVisible: true } && _mainWindow.WindowState != WindowState.Minimized;
         var overlayVisible = _overlay is { IsVisible: true };
-        var bigPictureVisible = _cockpit is { IsVisible: true };
+        var bigPictureVisible = _mainframe is { IsVisible: true };
         if (mainVisible || overlayVisible || bigPictureVisible)
         {
             return;
@@ -312,11 +312,11 @@ public sealed class App : Application
     }
 
     /// <summary>
-    /// Opens (or focuses) the fullscreen controller-first Cockpit mode.
+    /// Opens (or focuses) the fullscreen controller-first Mainframe mode.
     /// While it is open the engine captures controller input for UI
     /// navigation; approval bindings keep working. Closing releases capture.
     /// </summary>
-    public void ShowCockpit()
+    public void ShowMainframe()
     {
         if (_viewModel is null)
         {
@@ -325,29 +325,29 @@ public sealed class App : Application
 
         if (_viewModel.Engine is null)
         {
-            _viewModel.AppendLog("Finish the first-run setup before entering Cockpit mode.");
+            _viewModel.AppendLog("Finish the first-run setup before entering Mainframe mode.");
             return;
         }
 
-        if (_cockpit is not null)
+        if (_mainframe is not null)
         {
-            _cockpit.Activate();
+            _mainframe.Activate();
             return;
         }
 
-        var viewModel = new CockpitViewModel(_viewModel);
-        var window = new CockpitWindow { DataContext = viewModel };
+        var viewModel = new MainframeViewModel(_viewModel);
+        var window = new MainframeWindow { DataContext = viewModel };
         viewModel.CloseRequested += window.Close;
         window.Closed += (_, _) =>
         {
             viewModel.Detach();
-            if (ReferenceEquals(_cockpit, window))
+            if (ReferenceEquals(_mainframe, window))
             {
-                _cockpit = null;
+                _mainframe = null;
             }
         };
 
-        _cockpit = window;
+        _mainframe = window;
         window.Show();
         window.Activate();
     }
@@ -433,8 +433,8 @@ public sealed class App : Application
         _toast?.Close();
         _toast = null;
 
-        _cockpit?.Close();
-        _cockpit = null;
+        _mainframe?.Close();
+        _mainframe = null;
 
         if (_overlay is not null)
         {

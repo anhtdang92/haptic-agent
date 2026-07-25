@@ -6,8 +6,8 @@ using CtrlAgent.Hosting;
 
 namespace CtrlAgent.Gui;
 
-/// <summary>One focusable tile on the Cockpit action rail.</summary>
-public sealed class CockpitTile : ViewModelBase
+/// <summary>One focusable tile on the Mainframe action rail.</summary>
+public sealed class MainframeTile : ViewModelBase
 {
     private bool _isFocused;
 
@@ -36,7 +36,7 @@ public sealed class CockpitTile : ViewModelBase
 /// firing bindings — approval chords and paddles keep working throughout.
 /// Must be used from the UI thread; engine events are marshaled here.
 /// </summary>
-public sealed class CockpitViewModel : ViewModelBase
+public sealed class MainframeViewModel : ViewModelBase
 {
     private static readonly IBrush ApproveAccent = new SolidColorBrush(Color.Parse("#34F5A4"));
     private static readonly IBrush DenyAccent = new SolidColorBrush(Color.Parse("#FF5A78"));
@@ -63,10 +63,10 @@ public sealed class CockpitViewModel : ViewModelBase
     private bool _isFeedEmpty = true;
     private bool _detached;
 
-    public CockpitViewModel(MainViewModel main)
+    public MainframeViewModel(MainViewModel main)
     {
         Main = main ?? throw new ArgumentNullException(nameof(main));
-        _engine = main.Engine ?? throw new InvalidOperationException("Cockpit needs a running engine.");
+        _engine = main.Engine ?? throw new InvalidOperationException("Mainframe needs a running engine.");
 
         _inputHandler = inputEvent => Dispatcher.UIThread.Post(() => OnControllerInput(inputEvent));
         _agentHandler = agentEvent => Dispatcher.UIThread.Post(() => OnAgentEvent(agentEvent));
@@ -85,7 +85,7 @@ public sealed class CockpitViewModel : ViewModelBase
         RebuildTiles();
     }
 
-    /// <summary>Raised when the user asks to leave Cockpit mode.</summary>
+    /// <summary>Raised when the user asks to leave Mainframe mode.</summary>
     public event Action? CloseRequested;
 
     /// <summary>Raised with the focused tile index so the rail can scroll it
@@ -95,7 +95,7 @@ public sealed class CockpitViewModel : ViewModelBase
 
     public MainViewModel Main { get; }
 
-    public ObservableCollection<CockpitTile> Tiles { get; } = [];
+    public ObservableCollection<MainframeTile> Tiles { get; } = [];
 
     /// <summary>The agent's recent messages, oldest first.</summary>
     public ObservableCollection<string> Responses { get; } = [];
@@ -408,21 +408,21 @@ public sealed class CockpitViewModel : ViewModelBase
         var pending = Main.HasPendingApproval;
         if (pending)
         {
-            Tiles.Add(new CockpitTile { Id = "approveOnce", Glyph = "✓", Label = "Approve once", AccentBrush = ApproveAccent });
-            Tiles.Add(new CockpitTile { Id = "approveSession", Glyph = "✓✓", Label = "Approve session", AccentBrush = ApproveAccent });
-            Tiles.Add(new CockpitTile { Id = "decline", Glyph = "✗", Label = "Decline", AccentBrush = DenyAccent });
-            Tiles.Add(new CockpitTile { Id = "cancel", Glyph = "⊘", Label = "Cancel", AccentBrush = DenyAccent });
+            Tiles.Add(new MainframeTile { Id = "approveOnce", Glyph = "✓", Label = "Approve once", AccentBrush = ApproveAccent });
+            Tiles.Add(new MainframeTile { Id = "approveSession", Glyph = "✓✓", Label = "Approve session", AccentBrush = ApproveAccent });
+            Tiles.Add(new MainframeTile { Id = "decline", Glyph = "✗", Label = "Decline", AccentBrush = DenyAccent });
+            Tiles.Add(new MainframeTile { Id = "cancel", Glyph = "⊘", Label = "Cancel", AccentBrush = DenyAccent });
         }
 
-        Tiles.Add(new CockpitTile { Id = "voice", Glyph = "🎤", Label = "Voice prompt" });
-        Tiles.Add(new CockpitTile { Id = "submit", Glyph = "▶", Label = "Submit prompt" });
-        Tiles.Add(new CockpitTile { Id = "interrupt", Glyph = "⏹", Label = "Interrupt" });
-        Tiles.Add(new CockpitTile { Id = "review", Glyph = "🔍", Label = "Review changes" });
-        Tiles.Add(new CockpitTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
-        Tiles.Add(new CockpitTile { Id = "newSession", Glyph = "✚", Label = "New session" });
-        Tiles.Add(new CockpitTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
-        Tiles.Add(new CockpitTile { Id = "shortcuts", Glyph = "🎮", Label = "Shortcuts" });
-        Tiles.Add(new CockpitTile { Id = "exit", Glyph = "⏏", Label = "Exit Cockpit" });
+        Tiles.Add(new MainframeTile { Id = "voice", Glyph = "🎤", Label = "Voice prompt" });
+        Tiles.Add(new MainframeTile { Id = "submit", Glyph = "▶", Label = "Submit prompt" });
+        Tiles.Add(new MainframeTile { Id = "interrupt", Glyph = "⏹", Label = "Interrupt" });
+        Tiles.Add(new MainframeTile { Id = "review", Glyph = "🔍", Label = "Review changes" });
+        Tiles.Add(new MainframeTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
+        Tiles.Add(new MainframeTile { Id = "newSession", Glyph = "✚", Label = "New session" });
+        Tiles.Add(new MainframeTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
+        Tiles.Add(new MainframeTile { Id = "shortcuts", Glyph = "🎮", Label = "Shortcuts" });
+        Tiles.Add(new MainframeTile { Id = "exit", Glyph = "⏏", Label = "Exit Mainframe" });
 
         _focusIndex = 0;
         if (pending)

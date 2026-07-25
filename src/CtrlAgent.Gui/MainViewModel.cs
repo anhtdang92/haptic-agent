@@ -147,7 +147,7 @@ public sealed class MainViewModel : ViewModelBase
     /// works on every transport.
     /// </para>
     /// </summary>
-    public event Action? CockpitRequested;
+    public event Action? MainframeRequested;
 
     /// <summary>
     /// Wires the running engine into this view model. Called at startup when
@@ -196,13 +196,13 @@ public sealed class MainViewModel : ViewModelBase
         {
             ControllerVisual.Apply(inputEvent);
 
-            // Xbox/PS button = enter Cockpit, on the transports that report it
-            // at all (see CockpitRequested). A single press is enough: the
+            // Xbox/PS button = enter Mainframe, on the transports that report it
+            // at all (see MainframeRequested). A single press is enough: the
             // button is unbound in the default profile and does nothing else.
             if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
                 inputEvent.Control == ControllerControl.Guide)
             {
-                CockpitRequested?.Invoke();
+                MainframeRequested?.Invoke();
             }
 
             // Double-press View = the same thing, on every transport.
@@ -213,7 +213,7 @@ public sealed class MainViewModel : ViewModelBase
                 if (inputEvent.Timestamp - _lastViewPress <= TimeSpan.FromMilliseconds(400))
                 {
                     _lastViewPress = DateTimeOffset.MinValue;
-                    CockpitRequested?.Invoke();
+                    MainframeRequested?.Invoke();
                 }
                 else
                 {

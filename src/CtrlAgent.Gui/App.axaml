@@ -238,7 +238,7 @@
       <Setter Property="BorderBrush" Value="#8CFFFFFF" />
     </Style>
 
-    <!-- Ghost: window-level tools (Cockpit, Overlay, Profile…). These
+    <!-- Ghost: window-level tools (Mainframe, Overlay, Profile…). These
          are always present, so they must never read as loud as the action
          row. No fill and no border at rest — the material only materializes
          under the pointer, the way a macOS toolbar item does. -->

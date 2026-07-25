@@ -5,7 +5,7 @@
              x:DataType="gui:ControllerVisualViewModel">
 
   <!-- The live Elite Series 2 mirror: one shared drawing used by the main
-       window and Cockpit. Bind DataContext to ControllerVisualViewModel;
+       window and Mainframe. Bind DataContext to ControllerVisualViewModel;
        every control lights up as it is used (pressed cyan, approval-eligible
        amber), triggers fill, stick knobs and their gloss track deflection.
        Elite Series 2 layout: asymmetric Xbox sticks, hybrid d-pad disc,

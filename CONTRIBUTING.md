@@ -37,7 +37,7 @@ dotnet run --project tools/CtrlAgent.UiRender --configuration Release
 # PNGs land in tools/CtrlAgent.UiRender/shots (override with UIRENDER_OUT)
 ```
 
-It renders the main window (idle and approval states), Cockpit, and a focus-walked tile rail, and prints layout diagnostics for animation-gated elements. Use it after layout changes — it catches clipped controls, empty panels, and off-screen focus that unit tests cannot. Two caveats: the animation clock does not advance, so elements mid-animation render at their starting opacity, and real Windows chrome (caption buttons) is absent, so title-bar overlap still needs a Windows check. The tool is deliberately outside `CtrlAgent.sln`.
+It renders the main window (idle and approval states), Mainframe, and a focus-walked tile rail, and prints layout diagnostics for animation-gated elements. Use it after layout changes — it catches clipped controls, empty panels, and off-screen focus that unit tests cannot. Two caveats: the animation clock does not advance, so elements mid-animation render at their starting opacity, and real Windows chrome (caption buttons) is absent, so title-bar overlap still needs a Windows check. The tool is deliberately outside `CtrlAgent.sln`.
 
 ## Invariants — do not break
 

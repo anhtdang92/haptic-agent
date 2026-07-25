@@ -251,6 +251,7 @@ public sealed class BigPictureViewModel : ViewModelBase
             case "submit": Main.SubmitPromptCommand.Execute(null); break;
             case "interrupt": Main.InterruptCommand.Execute(null); break;
             case "review": Main.ReviewCommand.Execute(null); break;
+            case "compact": Main.SubmitPromptText("/compact"); break;
             case "newSession": Main.NewSessionCommand.Execute(null); break;
             case "mode": Main.CyclePermissionModeCommand.Execute(null); break;
             case "approveOnce": Main.ApproveOnceCommand.Execute(null); break;
@@ -335,8 +336,7 @@ public sealed class BigPictureViewModel : ViewModelBase
             return;
         }
 
-        Main.PromptText = Transcript;
-        Main.SubmitPromptCommand.Execute(null);
+        Main.SubmitPromptText(Transcript);
         DismissVoice();
     }
 
@@ -403,6 +403,7 @@ public sealed class BigPictureViewModel : ViewModelBase
         Tiles.Add(new BigPictureTile { Id = "submit", Glyph = "▶", Label = "Submit prompt" });
         Tiles.Add(new BigPictureTile { Id = "interrupt", Glyph = "⏹", Label = "Interrupt" });
         Tiles.Add(new BigPictureTile { Id = "review", Glyph = "🔍", Label = "Review changes" });
+        Tiles.Add(new BigPictureTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
         Tiles.Add(new BigPictureTile { Id = "newSession", Glyph = "✚", Label = "New session" });
         Tiles.Add(new BigPictureTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
         Tiles.Add(new BigPictureTile { Id = "shortcuts", Glyph = "🎮", Label = "Shortcuts" });

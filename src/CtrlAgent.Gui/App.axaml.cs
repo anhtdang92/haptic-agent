@@ -15,6 +15,7 @@ namespace CtrlAgent.Gui;
 public sealed class App : Application
 {
     private HostEngine? _engine;
+    private GuiOptions? _activeOptions;
     private TrayIcon? _trayIcon;
     private MainViewModel? _viewModel;
     private MainWindow? _mainWindow;
@@ -32,6 +33,7 @@ public sealed class App : Application
         {
             var startupError = default(string);
             var firstRun = false;
+            GuiSettings? savedSettings = null;
             var options = new GuiOptions(
                 "mock",
                 Environment.CurrentDirectory,
@@ -50,6 +52,7 @@ public sealed class App : Application
                     if (GuiSettings.TryLoad() is { } saved)
                     {
                         // No CLI arguments: pick up where the user left off.
+                        savedSettings = saved;
                         options = saved.ApplyTo(options);
                     }
                     else
@@ -76,6 +79,24 @@ public sealed class App : Application
             _viewModel = viewModel;
             _mainWindow = mainWindow;
 
+            // Restore remembered view toggles and window placement.
+            if (savedSettings is not null)
+            {
+                viewModel.IsChatView = savedSettings.ChatView ?? true;
+                viewModel.ShowControllerEvents = savedSettings.ShowControllerInput ?? true;
+                if (savedSettings is { WindowWidth: >= 600 and <= 8192, WindowHeight: >= 400 and <= 8192 })
+                {
+                    mainWindow.Width = savedSettings.WindowWidth.Value;
+                    mainWindow.Height = savedSettings.WindowHeight.Value;
+                }
+
+                if (savedSettings is { WindowX: { } x and > -4000, WindowY: { } y and > -4000 })
+                {
+                    mainWindow.WindowStartupLocation = WindowStartupLocation.Manual;
+                    mainWindow.Position = new PixelPoint(x, y);
+                }
+            }
+
             // Closing the window hides to tray; only the tray Exit (or an OS
             // shutdown) actually quits.
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -84,6 +105,7 @@ public sealed class App : Application
                 if (!_exiting)
                 {
                     eventArgs.Cancel = true;
+                    SaveUiState();
                     mainWindow.Hide();
                 }
             };
@@ -134,6 +156,7 @@ public sealed class App : Application
                 new HostEngineOptions(options.DefaultPrompt));
 
             _engine = engine;
+            _activeOptions = options;
             _viewModel.AttachEngine(engine);
             _viewModel.AgentStatus = options.Agent;
             GuiSettings.TrySave(options);
@@ -367,6 +390,23 @@ public sealed class App : Application
         desktop.Shutdown();
     }
 
+    /// <summary>Persists view toggles and window placement (best-effort).</summary>
+    private void SaveUiState()
+    {
+        if (_activeOptions is null || _viewModel is null || _mainWindow is null)
+        {
+            return;
+        }
+
+        GuiSettings.TrySave(_activeOptions, new UiState(
+            _viewModel.IsChatView,
+            _viewModel.ShowControllerEvents,
+            _mainWindow.ClientSize.Width,
+            _mainWindow.ClientSize.Height,
+            _mainWindow.Position.X,
+            _mainWindow.Position.Y));
+    }
+
     private static IAgentAdapter CreateAgentAdapter(GuiOptions options) =>
         options.Agent switch
         {
@@ -382,6 +422,7 @@ public sealed class App : Application
     private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs eventArgs)
     {
         _exiting = true;
+        SaveUiState();
         _toast?.Close();
         _toast = null;
 

@@ -117,6 +117,7 @@ The pending-approval contract: an `ApprovalRequired`/`WaitingForInput` event car
 - The controller-session loop acquires a device, runs it until its stream ends or faults, then detaches haptics, disposes scheduler and device (stopping rumble), and waits for the next device. Controller loss never exits the host.
 - Adapters push events through unbounded channels; async streams (`IAsyncEnumerable`) are the only cross-component event surface.
 - Every long-running operation takes a `CancellationToken`; Ctrl+C / window close cancels one shutdown token that all loops observe.
+- **Prompt queue:** `SubmitPrompt` commands issued while the agent is busy (Working / ApprovalRequired / WaitingForInput) queue in `HostEngine` (max 5) and flush one at a time when the agent settles with no approval pending — the Claude-app behavior. The busy flag is set optimistically at dispatch so a double-tap queues instead of double-sending; `PromptQueueChanged` reports the count to UIs.
 - Child processes (Codex, Claude Code) that die are restarted with capped exponential backoff (2 s → 15 s, max 5 attempts). On exit: in-flight requests are failed fast, pending approvals cleared, an `Error` event published (which also plays the error rumble). While down, `ExecuteAsync` publishes `Error` events instead of throwing so host loops keep running.
 - Hosts wrap all `ExecuteAsync` calls in a catch-all logger — an adapter failure is an event, never a crash.
 

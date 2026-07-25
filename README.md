@@ -63,6 +63,7 @@ Haptic scheduler <-----------------+
 - Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, capability-activated layers, collision detection, and validated approval safeguards
 - Crash resilience: agent-process restart with backoff plus session resume (Codex `thread/resume`, Claude Code `--resume`), controller reconnect without restarting the host, and rumble that always stops when a device or cue goes away
 - Avalonia desktop GUI: live status with pulsing indicators, a one-to-one Elite Series 2 input mirror, CTRL·BOT shortcut coaching, severity-tinted event stream with filtering, floating approval banner, prompt submission, haptic preview, tray app with overlay HUD and notification toasts, first-run setup, and a live-validating profile editor
+- Prompt queueing: prompts submitted while a turn is running (typed, voice, or controller) wait and send when the agent settles, with a queue badge and transcript note
 - Big Picture mode: a Steam-style fullscreen controller-first UI — navigate tiles with the d-pad or stick (A select, B back), speak prompts with offline voice dictation (Y), see every controller shortcut on one screen (X), and watch CTRL·BOT relay the agent's responses; approval paddles/chords stay live the whole time
 - Guided hardware validation wizard (`--validate`) that generates the per-transport evidence reports
 - Cancellable haptic scheduler and distinct working, approval, waiting, completion, and error patterns

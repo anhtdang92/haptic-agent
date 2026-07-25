@@ -31,6 +31,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Captured input passes only approval commands", TestInputCaptureFilterAsync),
+    ("Host engine queues prompts while the agent is busy", TestPromptQueueAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
@@ -442,6 +443,61 @@ static Task TestInputCaptureFilterAsync()
     Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.NewSession), "NewSession must be captured.");
     Assert(!HostEngine.IsAllowedWhileCaptured(AgentCommandKind.ReviewChanges), "ReviewChanges must be captured.");
     return Task.CompletedTask;
+}
+
+static async Task TestPromptQueueAsync()
+{
+    var controller = new ScriptedController();
+    var provider = new SingleControllerProvider(controller);
+    var adapter = new MockAgentAdapter();
+    var engine = new HostEngine(
+        provider,
+        adapter,
+        ControllerProfile.Default,
+        new HostEngineOptions("default prompt"));
+
+    var queueCounts = new List<int>();
+    var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    engine.PromptQueueChanged += count =>
+    {
+        lock (queueCounts)
+        {
+            queueCounts.Add(count);
+        }
+    };
+    engine.AgentEventReceived += agentEvent =>
+    {
+        if (agentEvent.State == AgentStateKind.Idle)
+        {
+            ready.TrySetResult();
+        }
+
+        if (agentEvent.State == AgentStateKind.Working && agentEvent.Message == "second prompt")
+        {
+            secondStarted.TrySetResult();
+        }
+    };
+
+    await engine.StartAsync().ConfigureAwait(false);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+
+    // Wait for the adapter's initial Idle so the busy flag starts settled.
+    await ready.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    await engine.SubmitPromptAsync("first prompt").ConfigureAwait(false);
+    await engine.SubmitPromptAsync("second prompt").ConfigureAwait(false);
+
+    // The second prompt must wait for the first turn, then send itself.
+    await secondStarted.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    lock (queueCounts)
+    {
+        Assert(queueCounts.Contains(1), "Expected the second prompt to be queued.");
+        Assert(queueCounts.Contains(0), "Expected the queue to drain after the first turn.");
+    }
+
+    await engine.DisposeAsync().ConfigureAwait(false);
 }
 
 static async Task TestHostEngineEndToEndAsync()

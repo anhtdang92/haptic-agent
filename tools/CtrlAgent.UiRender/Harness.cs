@@ -203,7 +203,7 @@ internal static class Harness
         Render(new MainWindow { DataContext = failed }, "13-startup-error.png");
 
         // Profile editor.
-        Render(new ProfileEditorWindow(engine), "08-profile-editor.png", 900, 620);
+        Render(new ProfileEditorWindow(engine), "08-profile-editor.png", 940, 660);
 
         // Overlay HUD, with an approval pending. Built fresh: the shared
         // engine's completed turns clear the approval on older view models.
@@ -212,7 +212,7 @@ internal static class Harness
         hud.AgentState = "ApprovalRequired";
         hud.HasPendingApproval = true;
         hud.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
-        Render(new OverlayWindow { DataContext = hud }, "09-overlay.png", 380, 200);
+        Render(new OverlayWindow { DataContext = hud }, "09-overlay.png", 380, 150);
 
         // Notification toast.
         var toast = new ToastWindow();

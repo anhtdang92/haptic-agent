@@ -187,12 +187,22 @@ public sealed class MainframeViewModel : ViewModelBase
             {
                 SyncCapture();
                 Raise(nameof(IsHudVisible));
+                Raise(nameof(LegendHint));
             }
         }
     }
 
     /// <summary>The action HUD hides behind any overlay.</summary>
     public bool IsHudVisible => !_isSettingsVisible && !_isShortcutsVisible && !_isVoiceVisible;
+
+    /// <summary>
+    /// The trailing legend line. It has to change with the mode: claiming
+    /// "nothing to navigate" while the settings rail is on screen and taking
+    /// d-pad input is simply untrue.
+    /// </summary>
+    public string LegendHint => _isSettingsVisible
+        ? "Settings — d-pad moves, A selects, B closes"
+        : "Every action above is a shortcut — nothing to navigate";
 
     public bool IsVoiceVisible
     {

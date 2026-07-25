@@ -172,6 +172,11 @@
             <TextBlock Text="{Binding Main.AgentStatus}" FontSize="15" Foreground="#EAF3FF" FontWeight="SemiBold" VerticalAlignment="Center" />
             <TextBlock Text="{Binding Main.AgentState}" FontSize="15" Foreground="#7DD3FC" VerticalAlignment="Center" />
           </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                      ToolTip.Tip="{Binding Main.WorkspacePath}">
+            <TextBlock Text="🗂" FontSize="13" Foreground="#5A7099" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Main.WorkspaceName}" FontSize="15" Foreground="#B9CCEF" VerticalAlignment="Center" />
+          </StackPanel>
           <TextBlock Text="{Binding Main.ProfileName}" FontSize="15" Foreground="#5A7099" VerticalAlignment="Center" />
           <TextBlock Text="{Binding Main.PermissionModeLabel}" FontSize="15" Foreground="#7DD3FC" VerticalAlignment="Center" />
           <!-- Clickable settings entry: the pad presses View, the mouse
@@ -367,7 +372,7 @@
           <Border Classes="glyph" BorderBrush="#E8C531"><TextBlock Text="Y" FontSize="14" FontWeight="Bold" Foreground="#E8C531" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
           <TextBlock Text="Voice prompt" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
-        <TextBlock Text="Every action above is a shortcut — nothing to navigate" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding LegendHint}" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
       </StackPanel>
     </Grid>
 

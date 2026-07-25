@@ -679,6 +679,18 @@ static Task TestClaudePermissionResponseAsync()
     var denyResponse = deny.GetProperty("response").GetProperty("response");
     AssertEqual("deny", denyResponse.GetProperty("behavior").GetString());
     AssertEqual("Declined.", denyResponse.GetProperty("message").GetString());
+
+    var interrupt = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudeControlRequest.Interrupt("ctrl_1"))).RootElement;
+    AssertEqual("control_request", interrupt.GetProperty("type").GetString());
+    AssertEqual("interrupt", interrupt.GetProperty("request").GetProperty("subtype").GetString());
+
+    var mode = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudeControlRequest.SetPermissionMode("ctrl_2", "plan"))).RootElement;
+    AssertEqual("control_request", mode.GetProperty("type").GetString());
+    AssertEqual("ctrl_2", mode.GetProperty("request_id").GetString());
+    AssertEqual("set_permission_mode", mode.GetProperty("request").GetProperty("subtype").GetString());
+    AssertEqual("plan", mode.GetProperty("request").GetProperty("mode").GetString());
     return Task.CompletedTask;
 }
 

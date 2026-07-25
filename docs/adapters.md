@@ -30,7 +30,7 @@ The pending-approval lifecycle is the load-bearing part: publish `ApprovalRequir
 
 ### Command semantics
 
-`SubmitPrompt` (with `Text`), `Interrupt`, `ApproveOnce`, `ApproveForSession`, `Decline`, `Cancel` (approval-style when `RequestId` set, otherwise interrupt-style), `NewSession`, `NextSession`/`PreviousSession`, `ReviewChanges`. Approval commands arrive hydrated with the pending `SessionId`/`RequestId`.
+`SubmitPrompt` (with `Text`), `Interrupt`, `ApproveOnce`, `ApproveForSession`, `Decline`, `Cancel` (approval-style when `RequestId` set, otherwise interrupt-style), `NewSession`, `NextSession`/`PreviousSession`, `ReviewChanges`, `SetPermissionMode` (`Text` carries the adapter-defined mode name; adapters without modes publish an informational event instead of throwing). Approval commands arrive hydrated with the pending `SessionId`/`RequestId`.
 
 ## Mock adapter (`--agent mock`)
 
@@ -50,7 +50,7 @@ Spawns `codex app-server --stdio` and speaks its JSON-RPC-style JSONL protocol.
 
 Spawns `claude --print --input-format stream-json --output-format stream-json --verbose --permission-prompt-tool stdio --include-partial-messages` in the working directory.
 
-- Outbound: user turns as `{"type":"user","message":{role,content:[{type:"text",text}]}}`; interrupt as a `control_request` with subtype `interrupt`; permission answers as `control_response` (`allow` echoes the tool input back as `updatedInput`; `deny` carries a message).
+- Outbound: user turns as `{"type":"user","message":{role,content:[{type:"text",text}]}}`; interrupt as a `control_request` with subtype `interrupt`; runtime permission-mode switches as `control_request` subtype `set_permission_mode` (`mode`: `default`/`plan`/`acceptEdits`, wired to `AgentCommandKind.SetPermissionMode`); permission answers as `control_response` (`allow` echoes the tool input back as `updatedInput`; `deny` carries a message). Outbound wire shapes live in the pure `ClaudeControlRequest`/`ClaudePermissionResponse` builders (unit-tested).
 - Inbound (classified by the pure, unit-tested `ClaudeStreamParser`): `system/init` → Idle (captures session id **and model**), `assistant` messages → Working (full text, or concrete tool detail — `Bash: npm test`, `Edit: src/App.cs`, and `TodoWrite` renders as live plan progress `Plan 2/5 — Fixing tests`), `result` → Completed or Error with turn stats appended (`(42.5s · 3 turns · $0.18)`), `control_request` subtype `can_use_tool` → ApprovalRequired (request id + tool name + input stored for the echo), `control_cancel_request` → clears the pending approval.
 - **Live streaming** (Claude-app parity): `stream_event` partial messages yield `TextDelta` (accumulated by the adapter and published as rolling Working snapshots at most every 250 ms, so UIs render the response as it is written) and `ThinkingStarted` → Working "Thinking…". `HostEngine` treats repeated Working events as UI-only: the event log records the state change once and the working rumble is not restarted per snapshot.
 - `NewSession` restarts the CLI process (fresh session). The CLI runs one session per process, so `NextSession`/`PreviousSession` cycle the sessions this adapter has seen by restarting the process with `--resume <session-id>` — the target's history reloads from Claude Code's on-disk session store. A crash restart likewise resumes the session that was live when the process died.

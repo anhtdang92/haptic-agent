@@ -82,6 +82,10 @@ public sealed class MockAgentAdapter : IAgentAdapter
                 Publish(AgentStateKind.Completed, "Approval declined.", command.RequestId);
                 break;
 
+            case AgentCommandKind.SetPermissionMode:
+                Publish(AgentStateKind.Idle, $"Mock permission mode set to '{command.Text ?? "default"}'.");
+                break;
+
             case AgentCommandKind.ReviewChanges:
                 StartMockTurn("Review all current changes.");
                 break;

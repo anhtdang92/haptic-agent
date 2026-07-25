@@ -13,6 +13,35 @@
         MinWidth="740"
         MinHeight="560">
 
+  <Window.Styles>
+    <!-- Conversation view: prose as chat bubbles, tool/status lines as
+         small dim activity rows — the Claude-app layout -->
+    <Style Selector="ListBox.chat ListBoxItem">
+      <Setter Property="Padding" Value="4,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Border.bubble">
+      <Setter Property="Background" Value="#CC17233C" />
+      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="MaxWidth" Value="400" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Border.bubble.user">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Background" Value="#33194B66" />
+      <Setter Property="BorderBrush" Value="#5900D4FF" />
+    </Style>
+    <Style Selector="TextBlock.activityRow">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#7B93BC" />
+      <Setter Property="Margin" Value="2,0" />
+    </Style>
+  </Window.Styles>
+
   <Panel>
   <!-- Client area extends into the title bar; leave room for caption buttons -->
   <DockPanel Margin="16,38,16,16">
@@ -112,6 +141,13 @@
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="{Binding AgentStatus}" FontWeight="SemiBold" Foreground="#EAF3FF" />
             <TextBlock Text="{Binding AgentState}" Foreground="#7DD3FC" />
+            <Button Content="{Binding PermissionModeLabel}"
+                    Command="{Binding CyclePermissionModeCommand}"
+                    FontSize="10"
+                    Padding="8,1"
+                    CornerRadius="8"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="Cycle the agent's permission mode: default → plan → acceptEdits (Claude Code; other adapters report unsupported)" />
           </StackPanel>
           <TextBlock Text="{Binding SessionId}"
                      FontSize="11"
@@ -151,14 +187,48 @@
       <Border Classes="card" Padding="8" Margin="0,0,6,0">
         <DockPanel>
           <DockPanel DockPanel.Dock="Top" Margin="4,0,0,6">
-            <ToggleButton DockPanel.Dock="Right"
-                          Classes="chip"
-                          Content="controller input"
-                          IsChecked="{Binding ShowControllerEvents}"
-                          ToolTip.Tip="Show or hide raw controller input lines" />
-            <TextBlock Text="EVENT STREAM" Classes="label" VerticalAlignment="Center" />
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
+              <ToggleButton Classes="chip"
+                            Content="conversation"
+                            IsChecked="{Binding IsChatView}"
+                            ToolTip.Tip="Toggle between the conversation and the raw event stream" />
+              <ToggleButton Classes="chip"
+                            Content="controller input"
+                            IsChecked="{Binding ShowControllerEvents}"
+                            IsVisible="{Binding !IsChatView}"
+                            ToolTip.Tip="Show or hide raw controller input lines" />
+            </StackPanel>
+            <TextBlock Text="ACTIVITY" Classes="label" VerticalAlignment="Center" />
           </DockPanel>
           <Panel>
+
+          <!-- Conversation: what you said, what the agent replied, and what
+               it did in between -->
+          <ListBox x:Name="ChatList"
+                   Classes="chat"
+                   ItemsSource="{Binding Transcript}"
+                   IsVisible="{Binding IsChatView}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="gui:ChatMessage">
+                <Panel>
+                  <TextBlock Classes="activityRow"
+                             Text="{Binding Text}"
+                             TextWrapping="Wrap"
+                             IsVisible="{Binding IsActivity}" />
+                  <Border Classes="bubble"
+                          Classes.user="{Binding IsUser}"
+                          IsVisible="{Binding !IsActivity}">
+                    <TextBlock Text="{Binding Text}"
+                               TextWrapping="Wrap"
+                               FontSize="12.5"
+                               Foreground="#E2EDFF" />
+                  </Border>
+                </Panel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Panel IsVisible="{Binding !IsChatView}">
           <TextBlock Classes="placeholder"
                      Text="No events yet — controller and agent activity will stream here."
                      IsVisible="{Binding IsLogEmpty}" />
@@ -183,6 +253,8 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+          </Panel>
+
           </Panel>
         </DockPanel>
       </Border>

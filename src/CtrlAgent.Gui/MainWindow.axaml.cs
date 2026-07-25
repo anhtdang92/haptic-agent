@@ -37,6 +37,7 @@ public sealed partial class MainWindow : Window
 
         _observedViewModel = viewModel;
         viewModel.Log.CollectionChanged += OnLogChanged;
+        viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
     }
 
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
@@ -44,6 +45,14 @@ public sealed partial class MainWindow : Window
         if (eventArgs.Action == NotifyCollectionChangedAction.Add && EventStream.ItemCount > 0)
         {
             EventStream.ScrollIntoView(EventStream.ItemCount - 1);
+        }
+    }
+
+    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Action == NotifyCollectionChangedAction.Add && ChatList.ItemCount > 0)
+        {
+            ChatList.ScrollIntoView(ChatList.ItemCount - 1);
         }
     }
 

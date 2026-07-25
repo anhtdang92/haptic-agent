@@ -213,6 +213,10 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
 
                 break;
 
+            case AgentCommandKind.SetPermissionMode:
+                Publish(AgentStateKind.Idle, "Codex permission modes are not wired yet; approval policy stays unlessTrusted.");
+                break;
+
             case AgentCommandKind.NextSession:
                 await SwitchThreadAsync(+1, cancellationToken).ConfigureAwait(false);
                 break;

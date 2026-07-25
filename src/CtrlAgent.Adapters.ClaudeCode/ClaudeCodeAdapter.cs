@@ -143,6 +143,10 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 await StartNewSessionAsync(cancellationToken).ConfigureAwait(false);
                 break;
 
+            case AgentCommandKind.SetPermissionMode:
+                await SetPermissionModeAsync(command.Text ?? "default", cancellationToken).ConfigureAwait(false);
+                break;
+
             case AgentCommandKind.NextSession:
                 await SwitchSessionAsync(+1, cancellationToken).ConfigureAwait(false);
                 break;
@@ -356,14 +360,17 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
 
     private async Task SendInterruptAsync(CancellationToken cancellationToken)
     {
-        var payload = new
-        {
-            type = "control_request",
-            request_id = $"ctrl_{Interlocked.Increment(ref _nextControlId)}",
-            request = new { subtype = "interrupt" },
-        };
-
+        var payload = ClaudeControlRequest.Interrupt($"ctrl_{Interlocked.Increment(ref _nextControlId)}");
         await SendLineAsync(payload, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task SetPermissionModeAsync(string mode, CancellationToken cancellationToken)
+    {
+        var payload = ClaudeControlRequest.SetPermissionMode(
+            $"ctrl_{Interlocked.Increment(ref _nextControlId)}",
+            mode);
+        await SendLineAsync(payload, cancellationToken).ConfigureAwait(false);
+        Publish(AgentStateKind.Idle, $"Permission mode: {mode}.");
     }
 
     private enum Decision

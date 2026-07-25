@@ -114,6 +114,11 @@ public sealed class HostEngine : IAsyncDisposable
     public Task ReviewChangesAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.ReviewChanges));
 
+    /// <summary>Switches the agent's permission mode (adapter-defined names,
+    /// e.g. Claude Code's "default"/"plan"/"acceptEdits").</summary>
+    public Task SetPermissionModeAsync(string mode) =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetPermissionMode, Text: mode));
+
     public Task NextSessionAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.NextSession));
 

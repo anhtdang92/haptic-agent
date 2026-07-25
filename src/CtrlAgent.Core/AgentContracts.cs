@@ -32,6 +32,10 @@ public enum AgentCommandKind
     NextSession,
     PreviousSession,
     ReviewChanges,
+
+    /// <summary>Switch the agent's permission mode; <c>Text</c> carries the
+    /// mode name (e.g. "default", "plan", "acceptEdits").</summary>
+    SetPermissionMode,
 }
 
 public sealed record AgentCommand(

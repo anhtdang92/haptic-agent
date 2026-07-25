@@ -21,7 +21,7 @@ public sealed class BindingRow
     public static BindingRow From(InputBinding binding) => new()
     {
         Chord = ControlLabels.Chord(binding),
-        Action = ControlLabels.Humanize(binding.Command),
+        Action = ControlLabels.Describe(binding),
         IsApproval = binding.RequiresPendingApproval,
         Command = binding.Command,
     };

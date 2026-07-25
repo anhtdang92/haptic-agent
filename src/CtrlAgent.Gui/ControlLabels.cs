@@ -55,6 +55,38 @@ internal static class ControlLabels
     };
 
     /// <summary>SubmitPrompt → "Submit prompt".</summary>
+    /// <summary>
+    /// What a binding actually does, not just which command it names. Two
+    /// bindings can share a command and still differ: the default profile has
+    /// A submit the prompt box and LB+A submit a canned prompt, and calling
+    /// both "Submit prompt" tells the user they are interchangeable when they
+    /// are not.
+    /// </summary>
+    public static string Describe(InputBinding binding)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+
+        if (string.IsNullOrWhiteSpace(binding.Text))
+        {
+            return Humanize(binding.Command);
+        }
+
+        var text = binding.Text.Trim();
+        return binding.Command switch
+        {
+            AgentCommandKind.SubmitPrompt => $"Send \u201c{Shorten(text)}\u201d",
+            AgentCommandKind.SetPermissionMode => $"Mode: {text}",
+            _ => Humanize(binding.Command),
+        };
+    }
+
+    private static string Shorten(string text)
+    {
+        const int limit = 34;
+        var single = text.ReplaceLineEndings(" ").Trim();
+        return single.Length <= limit ? single : single[..limit].TrimEnd() + "\u2026";
+    }
+
     public static string Humanize(AgentCommandKind command)
     {
         var name = command.ToString();

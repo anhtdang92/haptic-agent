@@ -28,6 +28,22 @@ public sealed class MainframeTile : ViewModelBase
 }
 
 /// <summary>
+/// One shortcut shown on the Mainframe HUD: the button(s) that fire it and
+/// what it does. Several bindings can drive the same command (the default
+/// profile reaches every approval from both a paddle and an RB chord), so
+/// hints merge those into one row — "P1 · RB+A" reads as one shortcut, where
+/// two separate chips read as two different actions.
+/// </summary>
+public sealed class ActionHint
+{
+    public required string Chord { get; init; }
+
+    public required string Label { get; init; }
+
+    public required bool IsApproval { get; init; }
+}
+
+/// <summary>
 /// The fullscreen mode: CTRL·BOT front and center with the agent's live
 /// responses, a voice-prompt flow, and a fullscreen shortcuts screen.
 /// <para>
@@ -63,6 +79,7 @@ public sealed class MainframeViewModel : ViewModelBase
     private bool _stickLatched;
     private bool _isShortcutsVisible;
     private bool _isSettingsVisible;
+    private string _hintHeading = "AVAILABLE NOW";
     private bool _isVoiceVisible;
     private bool _isListening;
     private bool _hasTranscript;
@@ -93,7 +110,9 @@ public sealed class MainframeViewModel : ViewModelBase
 
         // Capture stays off until something focusable is on screen.
         _engine.SetInputCapture(false);
+        Main.PropertyChanged += OnMainPropertyChanged;
         RebuildTiles();
+        RebuildHints();
     }
 
     /// <summary>Raised when the user asks to leave Mainframe mode.</summary>
@@ -110,6 +129,17 @@ public sealed class MainframeViewModel : ViewModelBase
     public MainViewModel Main { get; }
 
     public ObservableCollection<MainframeTile> Tiles { get; } = [];
+
+    /// <summary>The shortcuts that actually do something right now. Showing
+    /// every binding at once buries the two that matter.</summary>
+    public ObservableCollection<ActionHint> Hints { get; } = [];
+
+    /// <summary>Headline over the HUD, naming the situation.</summary>
+    public string HintHeading
+    {
+        get => _hintHeading;
+        private set => Set(ref _hintHeading, value);
+    }
 
     /// <summary>The agent's recent messages, oldest first.</summary>
     public ObservableCollection<string> Responses { get; } = [];
@@ -203,6 +233,7 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine.ControllerInputReceived -= _inputHandler;
         _engine.AgentEventReceived -= _agentHandler;
         _engine.PendingApprovalChanged -= OnPendingApprovalChanged;
+        Main.PropertyChanged -= OnMainPropertyChanged;
         _engine.SetInputCapture(false);
         _speech.Dispose();
     }
@@ -521,8 +552,87 @@ public sealed class MainframeViewModel : ViewModelBase
 
     // Approvals are answered by paddles and chords, never by a tile, so a
     // pending request changes the HUD's emphasis rather than the rail.
-    private void OnPendingApprovalChanged(string? message)
+    private void OnPendingApprovalChanged(string? message) =>
+        Dispatcher.UIThread.Post(RebuildHints);
+
+    private void OnMainPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
+        // Busy drives Interrupt's availability; the approval flag drives the
+        // whole set. Both arrive on the UI thread already.
+        if (eventArgs.PropertyName is nameof(MainViewModel.IsAgentActive)
+            or nameof(MainViewModel.HasPendingApproval))
+        {
+            RebuildHints();
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the HUD for the current moment. Two rules:
+    /// a binding appears only when it can actually fire, and while an approval
+    /// is pending nothing but the approval answers is shown — that request is
+    /// the only thing worth acting on until it is resolved.
+    /// </summary>
+    private void RebuildHints()
+    {
+        Hints.Clear();
+
+        var pending = Main.HasPendingApproval;
+        var busy = Main.IsAgentActive;
+        HintHeading = pending ? "APPROVAL REQUIRED — ANSWER WITH" : "AVAILABLE NOW";
+
+        // Merge bindings that drive the same command into one hint.
+        var merged = new List<(AgentCommandKind Command, string Label, bool IsApproval, List<string> Chords)>();
+        foreach (var binding in Main.Bindings)
+        {
+            if (!IsAvailable(binding, pending, busy))
+            {
+                continue;
+            }
+
+            var existing = merged.FindIndex(entry =>
+                entry.Command == binding.Command && entry.Label == binding.Action);
+            if (existing >= 0)
+            {
+                if (!merged[existing].Chords.Contains(binding.Chord))
+                {
+                    merged[existing].Chords.Add(binding.Chord);
+                }
+            }
+            else
+            {
+                merged.Add((binding.Command, binding.Action, binding.IsApproval, [binding.Chord]));
+            }
+        }
+
+        foreach (var entry in merged)
+        {
+            Hints.Add(new ActionHint
+            {
+                Chord = string.Join("  ·  ", entry.Chords),
+                Label = entry.Label,
+                IsApproval = entry.IsApproval,
+            });
+        }
+    }
+
+    /// <summary>
+    /// Whether a binding can fire right now. Approval-gated bindings need a
+    /// pending request; Interrupt needs something to interrupt; while a
+    /// request is pending everything else steps aside.
+    /// </summary>
+    private static bool IsAvailable(BindingRow binding, bool pending, bool busy)
+    {
+        if (binding.IsApproval)
+        {
+            return pending;
+        }
+
+        if (pending)
+        {
+            return false;
+        }
+
+        return binding.Command != AgentCommandKind.Interrupt || busy;
     }
 
     /// <summary>

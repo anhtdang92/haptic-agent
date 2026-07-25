@@ -131,6 +131,7 @@ internal static class Harness
         viewModel.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         viewModel.AgentStatus = "claude";
         viewModel.AgentState = "Working";
+        viewModel.IsAgentActive = true;
         viewModel.SessionId = "sess-8f21c0a4";
         viewModel.PromptText = "Refactor the mapping engine tests";
         viewModel.AppendLog("Agent adapter 'claude' started.");
@@ -235,6 +236,16 @@ internal static class Harness
             afterShow: HideIntro,
             afterSettle: _ => voice.OnKey("F2"));
         SpeechToTextService.ScriptedResult = null;
+
+        // Settled: Interrupt drops out of the HUD once there is nothing to
+        // interrupt. 03 covers the mid-turn set, 04 the approval set.
+        var settled = new MainViewModel(null, options) { AgentStatus = "claude" };
+        settled.AttachEngine(engine);
+        settled.AgentState = "Completed";
+        settled.IsAgentActive = false;
+        var idle = new MainframeViewModel(settled);
+        Render(new MainframeWindow { DataContext = idle }, "14-mainframe-idle.png", 1600, 900,
+            afterShow: HideIntro);
 
         // The settings panel — the only place focus navigation exists now.
         var settings = new MainframeViewModel(viewModel);

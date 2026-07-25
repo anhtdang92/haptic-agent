@@ -57,29 +57,44 @@
       </Setter>
     </Style>
 
-    <!-- HUD chips: a shortcut and what it does. Read-only by design — these
-         are not buttons, they are the map of the pad in your hands. -->
+    <!-- HUD chips: sized to be read at a glance from a couch. -->
     <Style Selector="Border.hudChip">
       <Setter Property="Background" Value="#8A16233C" />
-      <Setter Property="BorderBrush" Value="#14FFFFFF" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="14" />
-      <Setter Property="Padding" Value="14,9" />
-    </Style>
-    <!-- Approval bindings glow amber the moment a request is pending, so the
-         buttons that answer it announce themselves without moving. -->
-    <Style Selector="Border.hudChip.armed">
-      <Setter Property="Background" Value="#2EFFA020" />
-      <Setter Property="BorderBrush" Value="#80FFB020" />
-      <Setter Property="BoxShadow" Value="0 0 22 0 #33FFA020" />
-    </Style>
-    <Style Selector="Border.hudKey">
-      <Setter Property="Background" Value="#4D0E1728" />
       <Setter Property="BorderBrush" Value="#1FFFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="10,3" />
-      <Setter Property="MinWidth" Value="86" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="16,11" />
+    </Style>
+    <!-- Armed: an approval is pending and this shortcut answers it. Amber
+         fill, amber glow, and a pulse — it should be impossible to miss. -->
+    <Style Selector="Border.hudChip.armed">
+      <Setter Property="Background" Value="#3DFFA020" />
+      <Setter Property="BorderBrush" Value="#B3FFB020" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="BoxShadow" Value="0 0 30 0 #4DFFA020" />
+    </Style>
+    <Style Selector="Border.hudChip.armed">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.78" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.hudKey">
+      <Setter Property="Background" Value="#660A1220" />
+      <Setter Property="BorderBrush" Value="#33FFFFFF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="13,5" />
+      <Setter Property="MinWidth" Value="74" />
+      <Setter Property="TextElement.Foreground" Value="#8FD6FF" />
+    </Style>
+    <Style Selector="Border.hudKey.armed">
+      <Setter Property="Background" Value="#59180E00" />
+      <Setter Property="BorderBrush" Value="#80FFB020" />
+      <Setter Property="TextElement.Foreground" Value="#FFD9A0" />
     </Style>
 
     <!-- Bottom-legend button glyphs -->
@@ -259,35 +274,43 @@
         </StackPanel>
       </Border>
 
-      <!-- Action HUD: the live profile bindings, shown rather than offered.
-           Every agent action fires from its own shortcut, so there is nothing
-           here to focus and nothing destructive a stray d-pad press can land
-           on. Approval bindings light up while a request is pending. -->
-      <ItemsControl Grid.Row="3"
-                    ItemsSource="{Binding Main.Bindings}"
-                    HorizontalAlignment="Center"
-                    IsVisible="{Binding IsHudVisible}">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="10" MaxWidth="1500" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="gui:BindingRow">
-            <Border Classes="hudChip" Classes.armed="{Binding IsApproval}">
-              <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Border Classes="hudKey">
-                  <TextBlock Text="{Binding Chord}"
-                             FontFamily="Cascadia Mono,Consolas,monospace"
-                             FontSize="14" Foreground="#7DD3FC"
-                             HorizontalAlignment="Center" />
-                </Border>
-                <TextBlock Text="{Binding Action}" FontSize="15" Foreground="#DDE9FF" VerticalAlignment="Center" />
-              </StackPanel>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
+      <!-- Action HUD: the shortcuts that can fire right now, big enough to
+           read across a room. Read-only by design — these are not buttons,
+           they are the map of the pad in your hands. -->
+      <StackPanel Grid.Row="3" Spacing="12" IsVisible="{Binding IsHudVisible}">
+        <TextBlock Text="{Binding HintHeading}"
+                   Classes="label"
+                   FontSize="13"
+                   HorizontalAlignment="Center"
+                   Foreground="#8FA9D6" />
+        <ItemsControl ItemsSource="{Binding Hints}" HorizontalAlignment="Center">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="12" MaxWidth="1460" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="gui:ActionHint">
+              <Border Classes="hudChip" Classes.armed="{Binding IsApproval}">
+                <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                  <Border Classes="hudKey" Classes.armed="{Binding IsApproval}">
+                    <TextBlock Text="{Binding Chord}"
+                               FontFamily="Cascadia Mono,Consolas,monospace"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Center" />
+                  </Border>
+                  <TextBlock Text="{Binding Label}"
+                             FontSize="19"
+                             FontWeight="Medium"
+                             Foreground="#EAF3FF"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
 
       <!-- Settings panel: the one place focus navigation exists. Tiles respond
            to hover and click as well as the d-pad, so a mouse works here. -->

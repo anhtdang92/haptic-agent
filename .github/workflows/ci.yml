@@ -44,6 +44,40 @@ jobs:
           name: managed-build-logs
           path: managed-*.log
 
+  ui-render:
+    # The GUI targets net10.0-windows and cannot be launched on a build agent,
+    # so nothing here proves a window renders. This job compiles the same XAML
+    # and view models against a cross-platform TFM and draws every surface to
+    # PNG with Avalonia's headless Skia backend. It catches what the type
+    # checker cannot: a control that throws on construction, a card that eats
+    # its neighbour, a panel that comes out empty.
+    #
+    # The harness is deliberately outside CtrlAgent.sln, which means a normal
+    # build never compiles it — without this job it rots silently.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Render UI surfaces
+        run: |
+          dotnet run --project tools/CtrlAgent.UiRender/CtrlAgent.UiRender.csproj \
+            --configuration Release 2>&1 | tee ui-render.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: |
+            shots/*.png
+            ui-render.log
+
   native-gameinput:
     runs-on: windows-latest
     steps:

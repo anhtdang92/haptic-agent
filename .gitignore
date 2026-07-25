@@ -429,4 +429,7 @@ FodyWeavers.xsd
 *.msp
 
 # UI render harness output
-tools/CtrlAgent.UiRender/shots/
+# Render-harness output. Matched at any depth: the harness resolves
+# "shots" against the current directory, and it is normally run from the
+# repository root (dotnet run --project tools/...), not from its own folder.
+shots/

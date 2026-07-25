@@ -61,6 +61,18 @@ These invariants are tested and must hold:
 
 `HapticScheduler` serializes playback per controller: `PlayAsync` cancels and drains the previous cue, then returns immediately after scheduling the new one (looping cues like `ApprovalRequired` must not block the agent event loop). Patterns are frame lists (`RumbleFrame`: low/high motor + left/right trigger, clamped 0..1). `AgentStateKind.Idle` stops haptics rather than routing a pattern. The app talks to haptics through `HapticSchedulerHub` (Core), which routes to the scheduler of the currently attached controller — detached = no-op, device-loss exceptions swallowed — so the agent loop survives controller swaps. Device implementations must zero rumble in a `finally` when playback ends or the device is disposed.
 
+## Verifying the GUI
+
+The GUI targets `net10.0-windows`, so it cannot be launched on CI or a Linux box and "it builds" proves very little about layout. `tools/CtrlAgent.UiRender` compiles the *same* XAML and view models against a cross-platform TFM and renders every surface to PNG with Avalonia's headless Skia backend:
+
+```bash
+dotnet run --project tools/CtrlAgent.UiRender/CtrlAgent.UiRender.csproj -c Release   # PNGs land in ./shots
+```
+
+**Run it and look at the output after any XAML change** — it catches what the compiler cannot (a card squeezed to nothing, controls drawn over each other, an empty panel). It also asserts: every visible `Border.card` must have non-zero bounds and land inside the window, and a surface that renders no frame is a failure, so the harness exits nonzero and the `ui-render` CI job fails. `16-main-narrow.png` renders at the window's declared minimum size, where overflow bugs show up first. The harness is deliberately **not** in `CtrlAgent.sln` (like the native bridge), so only that CI job compiles it.
+
+Binding paths are compile-checked (`AvaloniaUseCompiledBindingsByDefault`), so a typo in a `{Binding}` fails the build rather than silently rendering blank.
+
 ## Docs to keep in sync
 
 `docs/architecture.md` (as-built + decision log), `docs/profiles.md` (mapping/gesture reference), `docs/adapters.md` (adapter protocols + authoring guide), `docs/roadmap.md` (backlog with priorities), `CONTRIBUTING.md` (invariants). When changing behavior in those areas, update the matching doc in the same commit.

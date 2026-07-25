@@ -11,7 +11,7 @@
         Width="980"
         Height="760"
         MinWidth="740"
-        MinHeight="560">
+        MinHeight="660">
 
   <Window.Styles>
     <!-- Conversation view: prose as chat bubbles, tool/status lines as
@@ -159,110 +159,115 @@
       </DockPanel>
     </Border>
 
-    <!-- Status: one quiet strip, not three competing boxes. Facts read
-         left to right, separated by hairlines; the live value carries the
-         weight and the dot carries the state. -->
-    <Border DockPanel.Dock="Top" Classes="card" Padding="20,13" Margin="0,4,0,0">
-      <!-- Docked, not one long StackPanel: the session cluster used to carry
-           HorizontalAlignment="Right" inside a horizontal StackPanel, which
-           does nothing — it simply trailed the profile block wherever that
-           block happened to end. It is declared first so it keeps its width
-           at small window sizes; the facts take what is left. -->
-      <DockPanel LastChildFill="True">
+    <!-- Status: facts on top, session controls under them. One row could not
+         hold both — four fact blocks plus the session id and four knobs want
+         ~1250px while the card is 928px at the default window size, so the
+         knobs simply drew on top of WORKSPACE and PROFILE. Splitting is the
+         honest fix: the top line is what the session *is*, the bottom line is
+         what you can change about it. Facts wrap rather than clip. -->
+    <Border DockPanel.Dock="Top" Classes="card" Padding="20,11" Margin="0,4,0,0">
+      <StackPanel Spacing="9">
 
-        <!-- Session knobs: what the agent is running as. Every one of these
-             is also a controller binding, so the labels read from the engine
-             rather than from a local counter (see PermissionModeLabel). -->
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
-                    VerticalAlignment="Center" Margin="16,0,0,0">
-          <TextBlock Text="{Binding SessionId}"
+        <!-- Hairlines carry an explicit Height: a WrapPanel gives each child
+             its desired size, and a Rectangle with only a Width desires none. -->
+        <WrapPanel ItemSpacing="22" LineSpacing="8">
+
+          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                     Fill="{Binding ControllerDotBrush}"
+                     Classes.pulse="{Binding IsControllerSearching}" />
+            <StackPanel Spacing="1">
+              <TextBlock Text="CONTROLLER" Classes="label" FontSize="9" />
+              <TextBlock Text="{Binding ControllerStatus}"
+                         FontSize="13" FontWeight="Medium" Foreground="#E6EFFB"
+                         TextTrimming="CharacterEllipsis" MaxWidth="230" />
+            </StackPanel>
+          </StackPanel>
+
+          <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
+
+          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                     Fill="{Binding AgentDotBrush}"
+                     Classes.pulse="{Binding IsAgentActive}" />
+            <StackPanel Spacing="1">
+              <TextBlock Text="AGENT" Classes="label" FontSize="9" />
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <TextBlock Text="{Binding AgentStatus}"
+                           FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
+                <TextBlock Text="{Binding AgentState}" FontSize="13" Foreground="#7DD3FC" />
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+
+          <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
+
+          <!-- Workspace: which repository the agent is pointed at. Clickable,
+               because "which repo am I in" is the question you ask most and
+               switching used to mean restarting the app. -->
+          <Button Classes="ghost"
+                  Padding="0"
+                  Command="{Binding PickWorkspaceCommand}"
+                  VerticalAlignment="Center"
+                  Cursor="Hand"
+                  ToolTip.Tip="{Binding WorkspacePath}">
+            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+              <TextBlock Text="🗂" FontSize="12" VerticalAlignment="Center" Foreground="#6B84AD" />
+              <StackPanel Spacing="1">
+                <TextBlock Text="WORKSPACE" Classes="label" FontSize="9" />
+                <TextBlock Text="{Binding WorkspaceName}"
+                           FontSize="13" FontWeight="Medium" Foreground="#E6EFFB"
+                           TextTrimming="CharacterEllipsis" MaxWidth="150" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+
+          <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
+
+          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{Binding ProfileDotBrush}" />
+            <StackPanel Spacing="1">
+              <TextBlock Text="PROFILE" Classes="label" FontSize="9" />
+              <TextBlock Text="{Binding ProfileName}"
+                         FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
+            </StackPanel>
+          </StackPanel>
+
+        </WrapPanel>
+
+        <Rectangle Height="1" Fill="#14FFFFFF" />
+
+        <!-- Session knobs: what the agent is running as, and the only row in
+             this card you can click. Every one is also a controller binding,
+             so the labels read from the engine rather than from a local
+             counter (see PermissionModeLabel). -->
+        <DockPanel LastChildFill="False">
+          <TextBlock DockPanel.Dock="Left"
+                     Text="{Binding SessionId}"
                      FontSize="11" Foreground="#4C6A93"
                      FontFamily="Cascadia Mono,Consolas,monospace"
                      VerticalAlignment="Center"
-                     TextTrimming="CharacterEllipsis" MaxWidth="150" />
-          <Button Content="{Binding PermissionModeLabel}"
-                  Command="{Binding CyclePermissionModeCommand}"
-                  Classes="knob"
-                  ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
-          <Button Content="{Binding ModelLabel}"
-                  Command="{Binding CycleModelCommand}"
-                  Classes="knob"
-                  ToolTip.Tip="Cycle the model: default, sonnet, opus, haiku, fable" />
-          <Button Content="{Binding EffortLabel}"
-                  Command="{Binding CycleEffortCommand}"
-                  Classes="knob"
-                  ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
-          <Button Content="compact"
-                  Command="{Binding CompactCommand}"
-                  Classes="knob"
-                  ToolTip.Tip="Compact the conversation, freeing context" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Spacing="22">
-
-        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-          <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                   Fill="{Binding ControllerDotBrush}"
-                   Classes.pulse="{Binding IsControllerSearching}" />
-          <StackPanel Spacing="1">
-            <TextBlock Text="CONTROLLER" Classes="label" FontSize="9" />
-            <TextBlock Text="{Binding ControllerStatus}"
-                       FontSize="13" FontWeight="Medium" Foreground="#E6EFFB"
-                       TextTrimming="CharacterEllipsis" MaxWidth="230" />
+                     TextTrimming="CharacterEllipsis" MaxWidth="260" />
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+            <Button Content="{Binding PermissionModeLabel}"
+                    Command="{Binding CyclePermissionModeCommand}"
+                    Classes="knob"
+                    ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
+            <Button Content="{Binding ModelLabel}"
+                    Command="{Binding CycleModelCommand}"
+                    Classes="knob"
+                    ToolTip.Tip="Cycle the model: default, sonnet, opus, haiku, fable" />
+            <Button Content="{Binding EffortLabel}"
+                    Command="{Binding CycleEffortCommand}"
+                    Classes="knob"
+                    ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
+            <Button Content="compact"
+                    Command="{Binding CompactCommand}"
+                    Classes="knob"
+                    ToolTip.Tip="Compact the conversation, freeing context" />
           </StackPanel>
-        </StackPanel>
-
-        <Rectangle Width="1" Fill="#14FFFFFF" Margin="0,3" />
-
-        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-          <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                   Fill="{Binding AgentDotBrush}"
-                   Classes.pulse="{Binding IsAgentActive}" />
-          <StackPanel Spacing="1">
-            <TextBlock Text="AGENT" Classes="label" FontSize="9" />
-            <StackPanel Orientation="Horizontal" Spacing="7">
-              <TextBlock Text="{Binding AgentStatus}"
-                         FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
-              <TextBlock Text="{Binding AgentState}" FontSize="13" Foreground="#7DD3FC" />
-            </StackPanel>
-          </StackPanel>
-        </StackPanel>
-
-        <Rectangle Width="1" Fill="#14FFFFFF" Margin="0,3" />
-
-        <!-- Workspace: which repository the agent is pointed at. Clickable,
-             because "which repo am I in" is the question you ask most and
-             switching used to mean restarting the app. -->
-        <Button Classes="ghost"
-                Padding="0"
-                Command="{Binding PickWorkspaceCommand}"
-                VerticalAlignment="Center"
-                Cursor="Hand"
-                ToolTip.Tip="{Binding WorkspacePath}">
-          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-            <TextBlock Text="🗂" FontSize="12" VerticalAlignment="Center" Foreground="#6B84AD" />
-            <StackPanel Spacing="1">
-              <TextBlock Text="WORKSPACE" Classes="label" FontSize="9" />
-              <TextBlock Text="{Binding WorkspaceName}"
-                         FontSize="13" FontWeight="Medium" Foreground="#E6EFFB"
-                         TextTrimming="CharacterEllipsis" MaxWidth="150" />
-            </StackPanel>
-          </StackPanel>
-        </Button>
-
-        <Rectangle Width="1" Fill="#14FFFFFF" Margin="0,3" />
-
-        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-          <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{Binding ProfileDotBrush}" />
-          <StackPanel Spacing="1">
-            <TextBlock Text="PROFILE" Classes="label" FontSize="9" />
-            <TextBlock Text="{Binding ProfileName}"
-                       FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
-          </StackPanel>
-        </StackPanel>
-
-        </StackPanel>
-      </DockPanel>
+        </DockPanel>
+      </StackPanel>
     </Border>
 
     <!-- Action row: the only always-visible command strip -->
@@ -437,10 +442,15 @@
         </DockPanel>
       </Border>
 
-      <DockPanel Grid.Column="1" Margin="9,0,0,0">
+      <!-- Proportional rows, not Top-docked + fill. Docked, the mirror card
+           took its full desired height first, so on a short window it ate the
+           whole column: ACTIVE BINDINGS disappeared entirely and the mirror
+           drew straight over the HAPTICS chips. Stars mean both cards always
+           get a share and the mirror scales into whatever it is given. -->
+      <Grid Grid.Column="1" Margin="9,0,0,0" RowDefinitions="3*,2*">
 
         <!-- Live controller mirror: every control lights up as it is used -->
-        <Border DockPanel.Dock="Top" Classes="card" Padding="16,14" Margin="0,0,0,9">
+        <Border Grid.Row="0" Classes="card" Padding="16,14" Margin="0,0,0,9">
           <DockPanel>
 
             <!-- Haptic preview chips: fire a pattern on the mirrored controller -->
@@ -460,16 +470,20 @@
               <Button Content="Stop" Classes="ghost" Foreground="#E08496" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
             </WrapPanel>
 
-          <StackPanel Spacing="4" DataContext="{Binding ControllerVisual}" x:DataType="gui:ControllerVisualViewModel">
-            <TextBlock Text="LIVE INPUT" Classes="label" Margin="4,0,0,2" />
+          <!-- DockPanel, not StackPanel: a StackPanel hands each child its
+               full desired height and never compresses, so the mirror spilled
+               over the haptics row instead of shrinking. Here it fills what is
+               left and its Viewbox scales to fit. -->
+          <DockPanel DataContext="{Binding ControllerVisual}" x:DataType="gui:ControllerVisualViewModel">
+            <TextBlock DockPanel.Dock="Top" Text="LIVE INPUT" Classes="label" Margin="4,0,0,6" />
             <!-- Elite Series 2 layout: asymmetric Xbox sticks, hybrid d-pad
                  disc, notched stick rings, guide button, rear paddle blades. -->
             <gui:ControllerMirrorView MaxHeight="230" />
-          </StackPanel>
+          </DockPanel>
           </DockPanel>
         </Border>
 
-        <Border Classes="card" Padding="16,14">
+        <Border Grid.Row="1" Classes="card" Padding="16,14">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="ACTIVE BINDINGS" Classes="label" Margin="4,0,0,6" />
             <Panel>
@@ -519,7 +533,7 @@
             </Panel>
           </DockPanel>
         </Border>
-      </DockPanel>
+      </Grid>
     </Grid>
 
   </DockPanel>

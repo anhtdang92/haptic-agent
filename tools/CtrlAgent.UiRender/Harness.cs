@@ -102,7 +102,7 @@ internal static class Harness
     private static string OutDir =>
         Environment.GetEnvironmentVariable("UIRENDER_OUT") ?? "shots";
 
-    public static void Main()
+    public static int Main()
     {
         Directory.CreateDirectory(OutDir);
 
@@ -141,6 +141,13 @@ internal static class Harness
         viewModel.AppendLog("[agent] Completed: All tests pass (12.4s · 3 turns · $0.09)");
 
         Render(new MainWindow { DataContext = viewModel }, "01-main-window.png");
+
+        // The window at its declared MinWidth. Worth its own shot: the status
+        // card once packed the facts and the session knobs into one row, which
+        // fit the developer's window and drew the knobs straight over WORKSPACE
+        // and PROFILE at the default size — a class of bug that is invisible
+        // until something renders narrow.
+        Render(new MainWindow { DataContext = viewModel }, "16-main-narrow.png", 740, 660);
 
         // Approval state: banner + highlighted controls.
         var approving = new MainViewModel(engine, options);
@@ -264,7 +271,19 @@ internal static class Harness
                 ["/home/user/other-project", "/home/user/scratch/spike"]),
             "15-workspace.png", 620, 440);
 
-        Console.WriteLine("done");
+        if (Faults.Count > 0)
+        {
+            Console.Error.WriteLine($"\n{Faults.Count} layout fault(s):");
+            foreach (var fault in Faults)
+            {
+                Console.Error.WriteLine($"  {fault}");
+            }
+
+            return 1;
+        }
+
+        Console.WriteLine("done — no layout faults");
+        return 0;
     }
 
     /// <summary>The boot intro is opaque until its animation finishes; the
@@ -317,6 +336,45 @@ internal static class Harness
         }
     }
 
+    /// <summary>
+    /// Layout faults found across every rendered surface. Collected rather
+    /// than thrown so one bad window does not hide the rest, and reported as a
+    /// nonzero exit so CI fails instead of quietly uploading a broken picture.
+    /// </summary>
+    private static readonly List<string> Faults = [];
+
+    /// <summary>
+    /// Checks that every card actually got drawn somewhere useful. This is the
+    /// cheap version of looking at the screenshots, and it catches the failure
+    /// mode a type checker never will: a card squeezed to nothing by a
+    /// neighbour, or one laid out past the window edge. Both have happened —
+    /// ACTIVE BINDINGS once vanished entirely on a short window because the
+    /// mirror card above it was Top-docked and took its full desired height.
+    /// </summary>
+    private static void CheckCards(Window window, string label)
+    {
+        var frame = new Rect(window.Bounds.Size);
+        foreach (var visual in window.GetSelfAndVisualDescendants())
+        {
+            if (visual is not Border { IsVisible: true } border ||
+                !border.Classes.Contains("card") ||
+                border.GetTransformedBounds() is not { } transformed)
+            {
+                continue;
+            }
+
+            var bounds = transformed.Bounds.TransformToAABB(transformed.Transform);
+            if (bounds.Width < 8 || bounds.Height < 8)
+            {
+                Faults.Add($"{label}: a .card collapsed to {bounds.Width:0}x{bounds.Height:0}.");
+            }
+            else if (!frame.Intersects(bounds))
+            {
+                Faults.Add($"{label}: a .card sits outside the window at {bounds}.");
+            }
+        }
+    }
+
     private static void Render(
         Window window,
         string fileName,
@@ -344,11 +402,15 @@ internal static class Harness
         }
 
         Diagnose(window, fileName);
+        CheckCards(window, fileName);
 
         var frame = window.GetLastRenderedFrame();
         if (frame is null)
         {
-            Console.WriteLine($"NO FRAME for {fileName}");
+            // Was a bare Console.WriteLine returning 0, so a surface that
+            // never rendered still passed CI.
+            Faults.Add($"{fileName}: no frame was rendered.");
+            window.Close();
             return;
         }
 

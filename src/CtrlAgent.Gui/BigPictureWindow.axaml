@@ -135,15 +135,19 @@
       <!-- Center stage: CTRL·BOT | agent feed -->
       <Grid Grid.Row="1" ColumnDefinitions="2*,3*" Margin="0,28">
 
-        <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="18"
-                    DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
-          <Viewbox Height="320" Stretch="Uniform">
+        <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+          <Viewbox Height="235" Stretch="Uniform"
+                   DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
             <gui:BotView />
           </Viewbox>
           <Border Background="#C0122038" BorderBrush="#552E4A78" BorderThickness="1"
-                  CornerRadius="14" Padding="20,12" MaxWidth="420">
-            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="17" Foreground="#CFE1FF" />
+                  CornerRadius="14" Padding="20,12" MaxWidth="420"
+                  DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="16" Foreground="#CFE1FF" />
           </Border>
+          <!-- Live input, fullscreen: the pad mirrors while you drive -->
+          <gui:ControllerMirrorView MaxHeight="190"
+                                    DataContext="{Binding Main.ControllerVisual}" />
         </StackPanel>
 
         <!-- Agent response feed -->

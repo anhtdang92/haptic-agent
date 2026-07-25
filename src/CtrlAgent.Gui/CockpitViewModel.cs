@@ -6,8 +6,8 @@ using CtrlAgent.Hosting;
 
 namespace CtrlAgent.Gui;
 
-/// <summary>One focusable tile on the Big Picture action rail.</summary>
-public sealed class BigPictureTile : ViewModelBase
+/// <summary>One focusable tile on the Cockpit action rail.</summary>
+public sealed class CockpitTile : ViewModelBase
 {
     private bool _isFocused;
 
@@ -36,7 +36,7 @@ public sealed class BigPictureTile : ViewModelBase
 /// firing bindings — approval chords and paddles keep working throughout.
 /// Must be used from the UI thread; engine events are marshaled here.
 /// </summary>
-public sealed class BigPictureViewModel : ViewModelBase
+public sealed class CockpitViewModel : ViewModelBase
 {
     private static readonly IBrush ApproveAccent = new SolidColorBrush(Color.Parse("#34F5A4"));
     private static readonly IBrush DenyAccent = new SolidColorBrush(Color.Parse("#FF5A78"));
@@ -63,10 +63,10 @@ public sealed class BigPictureViewModel : ViewModelBase
     private bool _isFeedEmpty = true;
     private bool _detached;
 
-    public BigPictureViewModel(MainViewModel main)
+    public CockpitViewModel(MainViewModel main)
     {
         Main = main ?? throw new ArgumentNullException(nameof(main));
-        _engine = main.Engine ?? throw new InvalidOperationException("Big Picture needs a running engine.");
+        _engine = main.Engine ?? throw new InvalidOperationException("Cockpit needs a running engine.");
 
         _inputHandler = inputEvent => Dispatcher.UIThread.Post(() => OnControllerInput(inputEvent));
         _agentHandler = agentEvent => Dispatcher.UIThread.Post(() => OnAgentEvent(agentEvent));
@@ -85,7 +85,7 @@ public sealed class BigPictureViewModel : ViewModelBase
         RebuildTiles();
     }
 
-    /// <summary>Raised when the user asks to leave Big Picture mode.</summary>
+    /// <summary>Raised when the user asks to leave Cockpit mode.</summary>
     public event Action? CloseRequested;
 
     /// <summary>Raised with the focused tile index so the rail can scroll it
@@ -95,7 +95,7 @@ public sealed class BigPictureViewModel : ViewModelBase
 
     public MainViewModel Main { get; }
 
-    public ObservableCollection<BigPictureTile> Tiles { get; } = [];
+    public ObservableCollection<CockpitTile> Tiles { get; } = [];
 
     /// <summary>The agent's recent messages, oldest first.</summary>
     public ObservableCollection<string> Responses { get; } = [];
@@ -408,21 +408,21 @@ public sealed class BigPictureViewModel : ViewModelBase
         var pending = Main.HasPendingApproval;
         if (pending)
         {
-            Tiles.Add(new BigPictureTile { Id = "approveOnce", Glyph = "✓", Label = "Approve once", AccentBrush = ApproveAccent });
-            Tiles.Add(new BigPictureTile { Id = "approveSession", Glyph = "✓✓", Label = "Approve session", AccentBrush = ApproveAccent });
-            Tiles.Add(new BigPictureTile { Id = "decline", Glyph = "✗", Label = "Decline", AccentBrush = DenyAccent });
-            Tiles.Add(new BigPictureTile { Id = "cancel", Glyph = "⊘", Label = "Cancel", AccentBrush = DenyAccent });
+            Tiles.Add(new CockpitTile { Id = "approveOnce", Glyph = "✓", Label = "Approve once", AccentBrush = ApproveAccent });
+            Tiles.Add(new CockpitTile { Id = "approveSession", Glyph = "✓✓", Label = "Approve session", AccentBrush = ApproveAccent });
+            Tiles.Add(new CockpitTile { Id = "decline", Glyph = "✗", Label = "Decline", AccentBrush = DenyAccent });
+            Tiles.Add(new CockpitTile { Id = "cancel", Glyph = "⊘", Label = "Cancel", AccentBrush = DenyAccent });
         }
 
-        Tiles.Add(new BigPictureTile { Id = "voice", Glyph = "🎤", Label = "Voice prompt" });
-        Tiles.Add(new BigPictureTile { Id = "submit", Glyph = "▶", Label = "Submit prompt" });
-        Tiles.Add(new BigPictureTile { Id = "interrupt", Glyph = "⏹", Label = "Interrupt" });
-        Tiles.Add(new BigPictureTile { Id = "review", Glyph = "🔍", Label = "Review changes" });
-        Tiles.Add(new BigPictureTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
-        Tiles.Add(new BigPictureTile { Id = "newSession", Glyph = "✚", Label = "New session" });
-        Tiles.Add(new BigPictureTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
-        Tiles.Add(new BigPictureTile { Id = "shortcuts", Glyph = "🎮", Label = "Shortcuts" });
-        Tiles.Add(new BigPictureTile { Id = "exit", Glyph = "⏏", Label = "Exit Big Picture" });
+        Tiles.Add(new CockpitTile { Id = "voice", Glyph = "🎤", Label = "Voice prompt" });
+        Tiles.Add(new CockpitTile { Id = "submit", Glyph = "▶", Label = "Submit prompt" });
+        Tiles.Add(new CockpitTile { Id = "interrupt", Glyph = "⏹", Label = "Interrupt" });
+        Tiles.Add(new CockpitTile { Id = "review", Glyph = "🔍", Label = "Review changes" });
+        Tiles.Add(new CockpitTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
+        Tiles.Add(new CockpitTile { Id = "newSession", Glyph = "✚", Label = "New session" });
+        Tiles.Add(new CockpitTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
+        Tiles.Add(new CockpitTile { Id = "shortcuts", Glyph = "🎮", Label = "Shortcuts" });
+        Tiles.Add(new CockpitTile { Id = "exit", Glyph = "⏏", Label = "Exit Cockpit" });
 
         _focusIndex = 0;
         if (pending)

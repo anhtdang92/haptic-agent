@@ -135,11 +135,19 @@ public sealed class MainViewModel : ViewModelBase
     public event Action<GuiOptions>? SetupCompleted;
 
     /// <summary>
-    /// Raised by the controller fullscreen shortcut: double-press View.
-    /// Deliberately not the Xbox/Guide button — Steam owns that for its own
-    /// Big Picture, and neither XInput nor the bridge reports it anyway.
+    /// Raised by the controller fullscreen shortcuts: the Xbox/PS button, or
+    /// a double-press of View.
+    /// <para>
+    /// The Guide press is best-effort by transport. Raw-HID DualSense reports
+    /// the PS button reliably. XInput only reports the Xbox button through the
+    /// undocumented ordinal-100 entry point, and the GameInput bridge cannot
+    /// report it at all — the SDK reserves that button for the system. Steam
+    /// and the Xbox Game Bar also hook it globally, so a press may be consumed
+    /// before it reaches us. View double-press stays as the shortcut that
+    /// works on every transport.
+    /// </para>
     /// </summary>
-    public event Action? BigPictureRequested;
+    public event Action? CockpitRequested;
 
     /// <summary>
     /// Wires the running engine into this view model. Called at startup when
@@ -188,15 +196,24 @@ public sealed class MainViewModel : ViewModelBase
         {
             ControllerVisual.Apply(inputEvent);
 
-            // Double-press View = enter Big Picture (View is unbound in the
-            // default profile). Interval math uses event timestamps.
+            // Xbox/PS button = enter Cockpit, on the transports that report it
+            // at all (see CockpitRequested). A single press is enough: the
+            // button is unbound in the default profile and does nothing else.
+            if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
+                inputEvent.Control == ControllerControl.Guide)
+            {
+                CockpitRequested?.Invoke();
+            }
+
+            // Double-press View = the same thing, on every transport.
+            // Interval math uses event timestamps.
             if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
                 inputEvent.Control == ControllerControl.View)
             {
                 if (inputEvent.Timestamp - _lastViewPress <= TimeSpan.FromMilliseconds(400))
                 {
                     _lastViewPress = DateTimeOffset.MinValue;
-                    BigPictureRequested?.Invoke();
+                    CockpitRequested?.Invoke();
                 }
                 else
                 {

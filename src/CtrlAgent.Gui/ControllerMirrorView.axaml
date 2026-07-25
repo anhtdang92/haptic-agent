@@ -5,7 +5,7 @@
              x:DataType="gui:ControllerVisualViewModel">
 
   <!-- The live Elite Series 2 mirror: one shared drawing used by the main
-       window and Big Picture. Bind DataContext to ControllerVisualViewModel;
+       window and Cockpit. Bind DataContext to ControllerVisualViewModel;
        every control lights up as it is used (pressed cyan, approval-eligible
        amber), triggers fill, stick knobs and their gloss track deflection.
        Elite Series 2 layout: asymmetric Xbox sticks, hybrid d-pad disc,
@@ -94,7 +94,7 @@
 
                 <!-- Guide button (nexus): domed with a glow -->
                 <Ellipse Canvas.Left="188" Canvas.Top="16" Width="44" Height="44" Fill="#3300D4FF" />
-                <Ellipse Canvas.Left="194" Canvas.Top="22" Width="32" Height="32" Stroke="#3D5578" StrokeThickness="1.5">
+                <Ellipse Canvas.Left="194" Canvas.Top="22" Width="32" Height="32" Stroke="{Binding GuideBrush}" StrokeThickness="1.5">
                   <Ellipse.Fill>
                     <RadialGradientBrush Center="35%,30%" GradientOrigin="35%,30%">
                       <GradientStop Color="#1B2740" Offset="0" />

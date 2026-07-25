@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace CtrlAgent.Gui;
 
 /// <summary>
-/// The Big Picture boot sound: a low swell rising into three bell notes,
+/// The Cockpit boot sound: a low swell rising into three bell notes,
 /// synthesized to a WAV in memory (no audio asset to ship) and played
 /// through winmm — dependency-free and Windows-only. Failure is silent;
 /// a missing audio device must never block the intro.

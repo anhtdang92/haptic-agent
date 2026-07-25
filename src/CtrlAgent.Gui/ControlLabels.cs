@@ -36,6 +36,7 @@ internal static class ControlLabels
         ControllerControl.Y => "Y",
         ControllerControl.Menu => "Menu",
         ControllerControl.View => "View",
+        ControllerControl.Guide => "Xbox/PS",
         ControllerControl.LeftShoulder => "LB",
         ControllerControl.RightShoulder => "RB",
         ControllerControl.LeftTrigger => "LT",

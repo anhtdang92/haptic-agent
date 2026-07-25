@@ -27,6 +27,7 @@ public sealed class ControllerVisualViewModel : ViewModelBase
         ControllerControl.Y,
         ControllerControl.Menu,
         ControllerControl.View,
+        ControllerControl.Guide,
         ControllerControl.DPadUp,
         ControllerControl.DPadDown,
         ControllerControl.DPadLeft,
@@ -61,6 +62,8 @@ public sealed class ControllerVisualViewModel : ViewModelBase
     public IBrush MenuBrush => BrushFor(ControllerControl.Menu);
 
     public IBrush ViewBrush => BrushFor(ControllerControl.View);
+
+    public IBrush GuideBrush => BrushFor(ControllerControl.Guide);
 
     public IBrush DPadUpBrush => BrushFor(ControllerControl.DPadUp);
 
@@ -228,6 +231,7 @@ public sealed class ControllerVisualViewModel : ViewModelBase
             ControllerControl.Y => nameof(YBrush),
             ControllerControl.Menu => nameof(MenuBrush),
             ControllerControl.View => nameof(ViewBrush),
+            ControllerControl.Guide => nameof(GuideBrush),
             ControllerControl.DPadUp => nameof(DPadUpBrush),
             ControllerControl.DPadDown => nameof(DPadDownBrush),
             ControllerControl.DPadLeft => nameof(DPadLeftBrush),

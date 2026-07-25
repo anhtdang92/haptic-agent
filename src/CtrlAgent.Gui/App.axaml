@@ -238,7 +238,7 @@
       <Setter Property="BorderBrush" Value="#8CFFFFFF" />
     </Style>
 
-    <!-- Ghost: window-level tools (Big Picture, Overlay, Profile…). These
+    <!-- Ghost: window-level tools (Cockpit, Overlay, Profile…). These
          are always present, so they must never read as loud as the action
          row. No fill and no border at rest — the material only materializes
          under the pointer, the way a macOS toolbar item does. -->
@@ -258,6 +258,43 @@
         </Transitions>
       </Setter>
     </Style>
+    <!-- Segmented toolbar item: lives inside a rail that already supplies the
+         chrome, so the item itself is bare until hovered. Squarer corners than
+         a standalone button because it is one cell of a strip. -->
+    <Style Selector="Button.tool">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="#A8BEDE" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="11,5" />
+      <Setter Property="CornerRadius" Value="9" />
+    </Style>
+    <Style Selector="Button.tool /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#6622334F" />
+      <Setter Property="TextElement.Foreground" Value="#EAF3FF" />
+    </Style>
+    <Style Selector="Button.tool:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#800C1424" />
+    </Style>
+    <!-- The rail is the chrome; per-item edge lighting would fight it. -->
+    <Style Selector="Button.tool /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.tool /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.tool:pointerover /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
     <!-- Ghosts stay fully dark at rest — edge lighting with no surface under
          it is just a line floating in space. Both the specular and the rail
          arrive with the material, on hover. -->

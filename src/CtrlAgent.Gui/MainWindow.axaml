@@ -94,20 +94,50 @@
           </Border>
         </StackPanel>
 
-        <!-- Utility cluster: window-level tools live up here, off the action
-             row, and rendered as ghosts so they recede until wanted. -->
-        <StackPanel DockPanel.Dock="Right"
-                    Orientation="Horizontal"
-                    Spacing="2"
-                    VerticalAlignment="Center">
-          <Button Content="Big Picture"
-                  Classes="ghost"
-                  Click="OnShowBigPicture"
-                  ToolTip.Tip="Fullscreen controller-first mode: navigate with the pad, speak prompts, see every shortcut" />
-          <Button Content="Overlay" Classes="ghost" Click="OnToggleOverlay" ToolTip.Tip="Toggle the always-on-top HUD" />
-          <Button Content="Profile…" Classes="ghost" Click="OnEditProfile" ToolTip.Tip="Edit controller bindings with live validation" />
-          <Button Content="Validate…" Classes="ghost" Click="OnValidateHardware" ToolTip.Tip="Run the guided hardware validation wizard" />
-        </StackPanel>
+        <!-- Utility cluster: window-level tools, held in one segmented rail so
+             they read as a single instrument rather than four loose words.
+             The rail carries the chrome; the items inside stay quiet until
+             hovered, and each pairs a glyph with its label so the row is
+             scannable at a glance. -->
+        <Border DockPanel.Dock="Right"
+                VerticalAlignment="Center"
+                Background="#4D0E1728"
+                BorderBrush="#1FFFFFFF"
+                BorderThickness="1"
+                CornerRadius="13"
+                Padding="4,3">
+          <StackPanel Orientation="Horizontal" Spacing="1">
+            <Button Classes="tool"
+                    Click="OnShowCockpit"
+                    ToolTip.Tip="Cockpit — fullscreen controller-first mode (F11, Xbox/PS button, or double-press View)">
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <TextBlock Text="⛶" FontSize="13" VerticalAlignment="Center" />
+                <TextBlock Text="Cockpit" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
+            <Button Classes="tool" Click="OnToggleOverlay" ToolTip.Tip="Toggle the always-on-top HUD">
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <TextBlock Text="▤" FontSize="13" VerticalAlignment="Center" />
+                <TextBlock Text="Overlay" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
+            <Button Classes="tool" Click="OnEditProfile" ToolTip.Tip="Edit controller bindings with live validation">
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <TextBlock Text="⚙" FontSize="13" VerticalAlignment="Center" />
+                <TextBlock Text="Profile" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
+            <Button Classes="tool" Click="OnValidateHardware" ToolTip.Tip="Run the guided hardware validation wizard">
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <TextBlock Text="◎" FontSize="13" VerticalAlignment="Center" />
+                <TextBlock Text="Validate" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Border>
 
         <!-- Wordmark: centered in the space the other two zones leave behind -->
         <StackPanel Spacing="4"

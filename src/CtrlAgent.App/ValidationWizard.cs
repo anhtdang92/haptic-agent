@@ -24,6 +24,7 @@ internal sealed class ValidationWizard
         ControllerControl.Y,
         ControllerControl.Menu,
         ControllerControl.View,
+        ControllerControl.Guide,
         ControllerControl.DPadUp,
         ControllerControl.DPadDown,
         ControllerControl.DPadLeft,

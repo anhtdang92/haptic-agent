@@ -20,7 +20,7 @@ public sealed class App : Application
     private MainViewModel? _viewModel;
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlay;
-    private BigPictureWindow? _bigPicture;
+    private CockpitWindow? _cockpit;
     private ToastWindow? _toast;
     private bool _toastIsApproval;
     private bool _exiting;
@@ -118,7 +118,7 @@ public sealed class App : Application
             mainWindow.Show();
 
             viewModel.SetupCompleted += StartWithOptions;
-            viewModel.BigPictureRequested += ShowBigPicture;
+            viewModel.CockpitRequested += ShowCockpit;
             if (startupError is null)
             {
                 if (firstRun)
@@ -212,8 +212,8 @@ public sealed class App : Application
         var overlayItem = new NativeMenuItem("Toggle overlay");
         overlayItem.Click += (_, _) => ToggleOverlay();
 
-        var bigPictureItem = new NativeMenuItem("Big Picture mode");
-        bigPictureItem.Click += (_, _) => ShowBigPicture();
+        var cockpitItem = new NativeMenuItem("Cockpit mode");
+        cockpitItem.Click += (_, _) => ShowCockpit();
 
         var exitItem = new NativeMenuItem("Exit");
         exitItem.Click += (_, _) => Exit(desktop);
@@ -221,7 +221,7 @@ public sealed class App : Application
         var menu = new NativeMenu();
         menu.Items.Add(showItem);
         menu.Items.Add(overlayItem);
-        menu.Items.Add(bigPictureItem);
+        menu.Items.Add(cockpitItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(exitItem);
 
@@ -256,7 +256,7 @@ public sealed class App : Application
 
         var mainVisible = _mainWindow is { IsVisible: true } && _mainWindow.WindowState != WindowState.Minimized;
         var overlayVisible = _overlay is { IsVisible: true };
-        var bigPictureVisible = _bigPicture is { IsVisible: true };
+        var bigPictureVisible = _cockpit is { IsVisible: true };
         if (mainVisible || overlayVisible || bigPictureVisible)
         {
             return;
@@ -312,11 +312,11 @@ public sealed class App : Application
     }
 
     /// <summary>
-    /// Opens (or focuses) the fullscreen controller-first Big Picture mode.
+    /// Opens (or focuses) the fullscreen controller-first Cockpit mode.
     /// While it is open the engine captures controller input for UI
     /// navigation; approval bindings keep working. Closing releases capture.
     /// </summary>
-    public void ShowBigPicture()
+    public void ShowCockpit()
     {
         if (_viewModel is null)
         {
@@ -325,29 +325,29 @@ public sealed class App : Application
 
         if (_viewModel.Engine is null)
         {
-            _viewModel.AppendLog("Finish the first-run setup before entering Big Picture mode.");
+            _viewModel.AppendLog("Finish the first-run setup before entering Cockpit mode.");
             return;
         }
 
-        if (_bigPicture is not null)
+        if (_cockpit is not null)
         {
-            _bigPicture.Activate();
+            _cockpit.Activate();
             return;
         }
 
-        var viewModel = new BigPictureViewModel(_viewModel);
-        var window = new BigPictureWindow { DataContext = viewModel };
+        var viewModel = new CockpitViewModel(_viewModel);
+        var window = new CockpitWindow { DataContext = viewModel };
         viewModel.CloseRequested += window.Close;
         window.Closed += (_, _) =>
         {
             viewModel.Detach();
-            if (ReferenceEquals(_bigPicture, window))
+            if (ReferenceEquals(_cockpit, window))
             {
-                _bigPicture = null;
+                _cockpit = null;
             }
         };
 
-        _bigPicture = window;
+        _cockpit = window;
         window.Show();
         window.Activate();
     }
@@ -433,8 +433,8 @@ public sealed class App : Application
         _toast?.Close();
         _toast = null;
 
-        _bigPicture?.Close();
-        _bigPicture = null;
+        _cockpit?.Close();
+        _cockpit = null;
 
         if (_overlay is not null)
         {

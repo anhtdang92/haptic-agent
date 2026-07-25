@@ -5,6 +5,13 @@ public enum ControllerControl
     None = 0,
     Menu,
     View,
+    /// <summary>
+    /// The Xbox/Guide button, or PlayStation's PS button. Reported only on
+    /// transports that expose it: XInput's undocumented ordinal-100 entry
+    /// point, and raw-HID DualSense. Steam and the Xbox Game Bar also hook
+    /// this button globally, so a press may never reach us.
+    /// </summary>
+    Guide,
     A,
     B,
     X,

@@ -1,9 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:gui="using:CtrlAgent.Gui"
-        x:Class="CtrlAgent.Gui.BigPictureWindow"
-        x:DataType="gui:BigPictureViewModel"
-        Title="CtrlAgent Big Picture"
+        x:Class="CtrlAgent.Gui.CockpitWindow"
+        x:DataType="gui:CockpitViewModel"
+        Title="CtrlAgent Cockpit"
         Icon="avares://CtrlAgent.Gui/Assets/icon.png"
         SystemDecorations="None"
         WindowState="FullScreen">
@@ -224,7 +224,7 @@
 
       <!-- Action rail: scrolls horizontally, because the approval tiles push
            it wider than the screen. The focused tile is always scrolled into
-           view (see BigPictureWindow.OnFocusMoved). -->
+           view (see CockpitWindow.OnFocusMoved). -->
       <ScrollViewer Grid.Row="3"
                     x:Name="TileScroller"
                     HorizontalScrollBarVisibility="Hidden"
@@ -236,7 +236,7 @@
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="gui:BigPictureTile">
+          <DataTemplate x:DataType="gui:CockpitTile">
             <Border Classes="tile" Classes.focused="{Binding IsFocused}">
               <StackPanel VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="{Binding Glyph}"

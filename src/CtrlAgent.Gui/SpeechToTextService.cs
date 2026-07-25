@@ -3,7 +3,7 @@ using System.Speech.Recognition;
 namespace CtrlAgent.Gui;
 
 /// <summary>
-/// Single-shot Windows dictation for Big Picture voice prompts, built on the
+/// Single-shot Windows dictation for Cockpit voice prompts, built on the
 /// in-box System.Speech recognizer: offline, no cloud account, no package
 /// identity requirements. Initialization is lazy and failure is a state, not
 /// an exception — no microphone or no recognizer simply reports unavailable.

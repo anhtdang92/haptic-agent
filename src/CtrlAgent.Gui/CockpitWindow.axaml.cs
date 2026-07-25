@@ -6,20 +6,20 @@ namespace CtrlAgent.Gui;
 
 /// <summary>
 /// The fullscreen controller-first mode. All interaction flows through
-/// <see cref="BigPictureViewModel"/> — controller input via the engine's
+/// <see cref="CockpitViewModel"/> — controller input via the engine's
 /// capture path, keyboard as a desk-testing fallback.
 /// </summary>
-public sealed partial class BigPictureWindow : Window
+public sealed partial class CockpitWindow : Window
 {
-    private BigPictureViewModel? _observed;
+    private CockpitViewModel? _observed;
 
-    public BigPictureWindow()
+    public CockpitWindow()
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
         DataContextChanged += (_, _) =>
         {
-            if (DataContext is BigPictureViewModel viewModel && !ReferenceEquals(viewModel, _observed))
+            if (DataContext is CockpitViewModel viewModel && !ReferenceEquals(viewModel, _observed))
             {
                 if (_observed is not null)
                 {
@@ -54,7 +54,7 @@ public sealed partial class BigPictureWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
     {
-        if (DataContext is not BigPictureViewModel viewModel)
+        if (DataContext is not CockpitViewModel viewModel)
         {
             return;
         }

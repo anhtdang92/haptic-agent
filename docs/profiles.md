@@ -50,7 +50,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `control` | string | required | A `ControllerControl` name: `a`, `b`, `x`, `y`, `menu`, `view`, `dPadUp/Down/Left/Right`, `leftShoulder`, `rightShoulder`, `leftThumbstickButton`, `rightThumbstickButton`, `leftTrigger`, `rightTrigger`, `leftThumbstickX/Y`, `rightThumbstickX/Y`, `paddleLeft1/2`, `paddleRight1/2` |
+| `control` | string | required | A `ControllerControl` name: `a`, `b`, `x`, `y`, `menu`, `view`, `guide`, `dPadUp/Down/Left/Right`, `leftShoulder`, `rightShoulder`, `leftThumbstickButton`, `rightThumbstickButton`, `leftTrigger`, `rightTrigger`, `leftThumbstickX/Y`, `rightThumbstickX/Y`, `paddleLeft1/2`, `paddleRight1/2` |
 | `gesture` | string | `press` | One of the gestures below |
 | `command` | string | required | An `AgentCommandKind`: `submitPrompt`, `interrupt`, `approveOnce`, `approveForSession`, `decline`, `cancel`, `newSession`, `nextSession`, `previousSession`, `reviewChanges`, `setPermissionMode` (uses `text` for the mode name, e.g. `plan`) |
 | `modifiers` | string[] | none | Controls that must be held for this binding to match (turns it into a chord) |
@@ -60,6 +60,8 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 | `holdMilliseconds` | int | 400 | `tap`/`hold` threshold |
 | `doublePressMilliseconds` | int | 300 | `doublePress` window |
 | `layer` | string | none | Membership in a declared layer; the binding is only active while that layer is (see Layers) |
+
+> **`guide`** is the Xbox/PS button. It is reported by raw-HID DualSense and by XInput (through the undocumented ordinal-100 entry point), but never by the GameInput bridge — GameInput reserves that button for the system. Steam and the Xbox Game Bar hook it globally too, so treat any binding on it as best-effort rather than guaranteed.
 
 ## Gestures
 

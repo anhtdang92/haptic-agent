@@ -20,6 +20,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Double press fires inside its window", TestDoublePressAsync),
     ("Axis threshold latches until the axis drops", TestAxisThresholdLatchAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
+    ("Guide control binds and round-trips", TestGuideControlAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
@@ -287,6 +288,33 @@ static Task TestProfileJsonRoundTripAsync()
     Assert(
         approveChord.Modifiers!.Contains(ControllerControl.RightShoulder),
         "Chord modifier must survive the round-trip.");
+    return Task.CompletedTask;
+}
+
+// The Xbox/PS button is a normal control everywhere above the transport
+// layer: it must parse from JSON, survive a round-trip, and map like any
+// other button. Whether a given transport can actually report it is a
+// device concern, not a mapping one.
+static Task TestGuideControlAsync()
+{
+    var profile = new ControllerProfile(
+        "guide",
+        [
+            new(ControllerControl.Guide, InputGesture.Press, AgentCommandKind.ReviewChanges),
+        ]);
+
+    var json = ControllerProfileJson.Serialize(profile);
+    Assert(json.Contains("guide", StringComparison.OrdinalIgnoreCase), "Guide must serialize by name.");
+
+    var restored = ControllerProfileJson.Deserialize(json);
+    AssertEqual(ControllerControl.Guide, restored.Bindings.Single().Control);
+
+    var engine = new MappingEngine(restored);
+    var commands = engine.Process(new ControllerInputEvent(
+        "test", ControllerControl.Guide, ControllerInputEventKind.Pressed, 1f, DateTimeOffset.UnixEpoch));
+
+    AssertEqual(1, commands.Count);
+    AssertEqual(AgentCommandKind.ReviewChanges, commands[0].Kind);
     return Task.CompletedTask;
 }
 

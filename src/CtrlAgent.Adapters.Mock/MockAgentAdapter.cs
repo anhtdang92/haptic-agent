@@ -136,7 +136,11 @@ public sealed class MockAgentAdapter : IAgentAdapter
     {
         CancelActiveTurn();
         _activeTurn = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        Publish(AgentStateKind.Working, prompt);
+
+        // Describe the work rather than echoing the prompt verbatim — a bare
+        // echo shows up in the conversation view as the agent repeating the
+        // user back.
+        Publish(AgentStateKind.Working, $"Working on: {Summarize(prompt)}");
         _ = RunMockTurnAsync(prompt, _activeTurn.Token);
     }
 
@@ -175,6 +179,12 @@ public sealed class MockAgentAdapter : IAgentAdapter
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+    }
+
+    private static string Summarize(string prompt)
+    {
+        var singleLine = prompt.ReplaceLineEndings(" ").Trim();
+        return singleLine.Length <= 60 ? singleLine : singleLine[..60] + "…";
     }
 
     private void CancelActiveTurn()

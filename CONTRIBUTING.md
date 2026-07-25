@@ -28,6 +28,17 @@ The harness is deliberately dependency-free: `tests/CtrlAgent.Tests/Program.cs` 
 
 What must be covered by tests: mapping/gesture semantics, profile validation rules, haptic scheduling behavior, protocol parsers (see `ClaudeStreamParser` tests for the pattern), and validation-report gates. Adapters keep protocol parsing in pure classes precisely so it stays testable without processes.
 
+## Seeing the GUI without Windows
+
+`CtrlAgent.Gui` targets `net10.0-windows`, so it cannot run on a Linux dev box or a build agent. `tools/CtrlAgent.UiRender` compiles the *same* XAML and view models against a cross-platform TFM and renders the windows to PNG using Avalonia's headless Skia platform:
+
+```bash
+dotnet run --project tools/CtrlAgent.UiRender --configuration Release
+# PNGs land in tools/CtrlAgent.UiRender/shots (override with UIRENDER_OUT)
+```
+
+It renders the main window (idle and approval states), Big Picture, and a focus-walked tile rail, and prints layout diagnostics for animation-gated elements. Use it after layout changes — it catches clipped controls, empty panels, and off-screen focus that unit tests cannot. Two caveats: the animation clock does not advance, so elements mid-animation render at their starting opacity, and real Windows chrome (caption buttons) is absent, so title-bar overlap still needs a Windows check. The tool is deliberately outside `CtrlAgent.sln`.
+
 ## Invariants — do not break
 
 These are enforced by tests and/or documented contracts; changes touching them need matching test updates:

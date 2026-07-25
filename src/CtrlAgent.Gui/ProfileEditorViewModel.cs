@@ -83,9 +83,42 @@ public sealed class BindingEditor : ViewModelBase
         set { if (Set(ref _layer, value)) Changed(); }
     }
 
-    public string Summary =>
-        $"{(_modifiersText.Trim().Length > 0 ? _modifiersText.Trim() + "+" : string.Empty)}{_control} [{_gesture}] → {_command}" +
-        (_layer.Trim().Length > 0 ? $"  ⟨{_layer.Trim()}⟩" : string.Empty);
+    /// <summary>
+    /// Reads like the rest of the app (P1, RB+A, "Approve once") rather than
+    /// raw enum names, falling back to the typed text while it is still
+    /// being edited.
+    /// </summary>
+    public string Summary
+    {
+        get
+        {
+            var control = Enum.TryParse<ControllerControl>(_control, ignoreCase: true, out var parsedControl)
+                ? ControlLabels.Label(parsedControl)
+                : _control;
+
+            var modifiers = _modifiersText
+                .Split(['+', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(part => Enum.TryParse<ControllerControl>(part, ignoreCase: true, out var parsed)
+                    ? ControlLabels.Label(parsed)
+                    : part)
+                .ToArray();
+
+            var chord = modifiers.Length > 0
+                ? string.Join("+", modifiers) + "+" + control
+                : control;
+
+            var gesture = Enum.TryParse<InputGesture>(_gesture, ignoreCase: true, out var parsedGesture)
+                ? ControlLabels.GestureSuffix(parsedGesture)
+                : $" [{_gesture}]";
+
+            var command = Enum.TryParse<AgentCommandKind>(_command, ignoreCase: true, out var parsedCommand)
+                ? ControlLabels.Humanize(parsedCommand)
+                : _command;
+
+            var layer = _layer.Trim().Length > 0 ? $"  ⟨{_layer.Trim()}⟩" : string.Empty;
+            return $"{chord}{gesture} → {command}{layer}";
+        }
+    }
 
     public InputBinding? ToBinding(int position, List<string> errors)
     {

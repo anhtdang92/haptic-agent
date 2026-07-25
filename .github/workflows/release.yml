@@ -3,9 +3,22 @@ name: release
 on:
   push:
     tags: ['v*']
+  # Manual releases: run the workflow and give it the version to cut. This
+  # creates the tag and release from the current default branch, so no local
+  # tag push is required.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag to create (e.g. v0.1.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  # Tag pushes carry the version in the ref; manual runs pass it as an input.
+  RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
 
 jobs:
   package:
@@ -54,7 +67,7 @@ jobs:
       - name: Assemble package
         shell: pwsh
         run: |
-          $name = "CtrlAgent-$($env:GITHUB_REF_NAME)-win-x64"
+          $name = "CtrlAgent-$($env:RELEASE_VERSION)-win-x64"
           New-Item -ItemType Directory -Path "package/$name" | Out-Null
           Copy-Item staging/app/CtrlAgent.App.exe "package/$name/"
           Copy-Item staging/gui/CtrlAgent.Gui.exe "package/$name/"
@@ -68,9 +81,9 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          $name = "CtrlAgent-$($env:GITHUB_REF_NAME)-win-x64"
+          $name = "CtrlAgent-$($env:RELEASE_VERSION)-win-x64"
           & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" `
-            /DAppVersion=$env:GITHUB_REF_NAME `
+            /DAppVersion=$env:RELEASE_VERSION `
             /DStagingDir="$PWD\package\$name" `
             /DRepoRoot="$PWD" `
             /O"$PWD" `
@@ -88,6 +101,10 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          # Explicit tag so manual runs create the tag themselves; on a tag
+          # push this is the same ref the workflow already ran for.
+          tag_name: ${{ env.RELEASE_VERSION }}
+          name: CtrlAgent ${{ env.RELEASE_VERSION }}
           files: |
             ${{ env.PACKAGE_NAME }}.zip
             CtrlAgent-Setup-*.exe

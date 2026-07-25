@@ -165,7 +165,7 @@ dotnet run --project src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -- --agent mock
 
 On first launch the GUI walks you through a one-time setup (choose the agent, browse to your repository) — no CLI flags or JSON required. It also accepts the same `--agent`, `--cwd`, `--prompt`, `--codex-path`, `--claude-path`, `--gameinput-bridge`, and `--profile` options as the console host (and remembers them, so later launches need no arguments). It lives in the system tray: closing the window hides it, the tray menu restores or exits. An always-on-top **overlay HUD** (Overlay button or tray menu) parks a compact strip beside your editor with the agent state, CTRL·BOT's current hint, and the approval buttons when a request is pending — drag its header to reposition. The built-in profile editor (Profile…) adds, edits, and removes bindings and capability-activated layers with live validation, applies the profile to the running host without a restart, and saves/loads profile JSON.
 
-Tagged releases (`v*`) publish both a Windows installer (`CtrlAgent-Setup-<tag>.exe`) and a portable self-contained `CtrlAgent-<tag>-win-x64.zip` (console host, GUI, and GameInput bridge — no .NET install required) on the GitHub releases page.
+Releases publish both a Windows installer (`CtrlAgent-Setup-<version>.exe`) and a portable self-contained `CtrlAgent-<version>-win-x64.zip` (console host, GUI, and GameInput bridge — no .NET install required) on the GitHub releases page. Cut one either by pushing a `v*` tag, or from **Actions → release → Run workflow** with the version to create (the workflow makes the tag and release itself).
 
 ## Run with the mock agent
 

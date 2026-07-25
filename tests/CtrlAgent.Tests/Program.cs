@@ -473,7 +473,8 @@ static async Task TestPromptQueueAsync()
             ready.TrySetResult();
         }
 
-        if (agentEvent.State == AgentStateKind.Working && agentEvent.Message == "second prompt")
+        if (agentEvent.State == AgentStateKind.Working &&
+            agentEvent.Message?.Contains("second prompt", StringComparison.Ordinal) == true)
         {
             secondStarted.TrySetResult();
         }

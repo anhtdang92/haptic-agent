@@ -84,6 +84,7 @@ public sealed class MainViewModel : ViewModelBase
     private int _permissionModeIndex;
     private ChatMessage? _streamingBubble;
     private bool _isChatView = true;
+    private bool _isTranscriptEmpty = true;
     private int _queuedPromptCount;
     private bool _isSetupVisible;
     private string _setupAgent = "mock";
@@ -433,6 +434,14 @@ public sealed class MainViewModel : ViewModelBase
         set => Set(ref _isChatView, value);
     }
 
+    /// <summary>True until the first message, so the conversation can explain
+    /// itself instead of showing an empty panel.</summary>
+    public bool IsTranscriptEmpty
+    {
+        get => _isTranscriptEmpty;
+        private set => Set(ref _isTranscriptEmpty, value);
+    }
+
     public string PermissionModeLabel => $"mode: {PermissionModes[_permissionModeIndex]}";
 
     public int QueuedPromptCount
@@ -566,6 +575,7 @@ public sealed class MainViewModel : ViewModelBase
     private ChatMessage AddChat(bool isUser, bool isActivity, string text)
     {
         var message = new ChatMessage { IsUser = isUser, IsActivity = isActivity, Text = text };
+        IsTranscriptEmpty = false;
         Transcript.Add(message);
         while (Transcript.Count > 200)
         {

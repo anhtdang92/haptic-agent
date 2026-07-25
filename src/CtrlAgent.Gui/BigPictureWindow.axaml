@@ -6,8 +6,17 @@
         Title="CtrlAgent Big Picture"
         Icon="avares://CtrlAgent.Gui/Assets/icon.png"
         SystemDecorations="None"
-        WindowState="FullScreen"
-        Background="#05070D">
+        WindowState="FullScreen">
+
+  <!-- Same deep-space field as the main window, with the bloom pulled left
+       so CTRL·BOT stands in the light and the rail sits in shadow. -->
+  <Window.Background>
+    <RadialGradientBrush Center="24%,34%" GradientOrigin="24%,34%" RadiusX="82%" RadiusY="90%">
+      <GradientStop Color="#101D33" Offset="0" />
+      <GradientStop Color="#070D18" Offset="0.5" />
+      <GradientStop Color="#03050A" Offset="1" />
+    </RadialGradientBrush>
+  </Window.Background>
 
   <Window.Styles>
     <!-- Rail tiles: frosted glass at rest, neon ring + lift when focused -->
@@ -140,8 +149,8 @@
                    DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
             <gui:BotView />
           </Viewbox>
-          <Border Background="#C0122038" BorderBrush="#552E4A78" BorderThickness="1"
-                  CornerRadius="14" Padding="20,12" MaxWidth="420"
+          <Border Background="#8A17243E" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                  CornerRadius="16" Padding="22,13" MaxWidth="420"
                   DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
             <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="16" Foreground="#CFE1FF" />
           </Border>
@@ -168,7 +177,21 @@
                          MaxLines="5"
                          TextTrimming="CharacterEllipsis" />
             </Border>
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <!-- Empty state: a quiet mark and two short lines, not a
+                 paragraph adrift in a large panel -->
+            <StackPanel Spacing="10"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding IsFeedEmpty}">
+              <Ellipse Width="46" Height="46" HorizontalAlignment="Center"
+                       Fill="#12FFFFFF" Stroke="#1FFFFFFF" StrokeThickness="1" />
+              <TextBlock Text="Nothing from the agent yet"
+                         FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
+              <TextBlock Text="Press A on Submit prompt, or Y to speak one"
+                         FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
+            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          IsVisible="{Binding !IsFeedEmpty}">
               <ItemsControl ItemsSource="{Binding Responses}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="x:String">
@@ -199,8 +222,14 @@
         </StackPanel>
       </Border>
 
-      <!-- Action rail -->
-      <ItemsControl Grid.Row="3" ItemsSource="{Binding Tiles}" HorizontalAlignment="Center">
+      <!-- Action rail: scrolls horizontally, because the approval tiles push
+           it wider than the screen. The focused tile is always scrolled into
+           view (see BigPictureWindow.OnFocusMoved). -->
+      <ScrollViewer Grid.Row="3"
+                    x:Name="TileScroller"
+                    HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollBarVisibility="Disabled">
+      <ItemsControl x:Name="TileRail" ItemsSource="{Binding Tiles}" HorizontalAlignment="Center">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" />
@@ -225,6 +254,7 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      </ScrollViewer>
 
       <!-- Button legend -->
       <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="26" HorizontalAlignment="Center" Margin="0,26,0,0">
@@ -250,7 +280,16 @@
     </Grid>
 
     <!-- Shortcuts screen -->
-    <Border Background="#F2060B14" IsVisible="{Binding IsShortcutsVisible}">
+    <Border IsVisible="{Binding IsShortcutsVisible}">
+      <!-- Opaque, but blooming like the field underneath so the fullscreen
+           screens feel like the same room with the lights moved. -->
+      <Border.Background>
+        <RadialGradientBrush Center="50%,12%" GradientOrigin="50%,12%" RadiusX="85%" RadiusY="95%">
+          <GradientStop Color="#0D1729" Offset="0" />
+          <GradientStop Color="#070C16" Offset="0.55" />
+          <GradientStop Color="#03050A" Offset="1" />
+        </RadialGradientBrush>
+      </Border.Background>
       <DockPanel Margin="72,48">
         <TextBlock DockPanel.Dock="Top"
                    Text="CONTROLLER SHORTCUTS"
@@ -265,7 +304,11 @@
                    HorizontalAlignment="Center"
                    Margin="0,0,0,26" />
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <ItemsControl ItemsSource="{Binding Main.Bindings}" HorizontalAlignment="Center">
+          <!-- Centered both ways: a short binding list should sit in the middle
+               of the screen, not cling to the top edge -->
+          <ItemsControl ItemsSource="{Binding Main.Bindings}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="14" />
@@ -273,12 +316,12 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="gui:BindingRow">
-                <Border Background="#CC101A2E" BorderBrush="#3D2E4A78" BorderThickness="1"
-                        CornerRadius="12" Padding="18,14" Width="330">
+                <Border Background="#8A16233C" BorderBrush="#14FFFFFF" BorderThickness="1"
+                        CornerRadius="16" Padding="18,14" Width="330">
                   <DockPanel>
                     <Border DockPanel.Dock="Left"
-                            Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1"
-                            CornerRadius="7" Padding="12,5" MinWidth="112" VerticalAlignment="Center">
+                            Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                            CornerRadius="9" Padding="12,5" MinWidth="112" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Chord}"
                                  FontFamily="Cascadia Mono,Consolas,monospace"
                                  FontSize="16" Foreground="#7DD3FC" HorizontalAlignment="Center" />
@@ -319,7 +362,14 @@
     </Border>
 
     <!-- Voice prompt overlay -->
-    <Border Background="#F2060B14" IsVisible="{Binding IsVoiceVisible}">
+    <Border IsVisible="{Binding IsVoiceVisible}">
+      <Border.Background>
+        <RadialGradientBrush Center="50%,45%" GradientOrigin="50%,45%" RadiusX="80%" RadiusY="90%">
+          <GradientStop Color="#0F1B30" Offset="0" />
+          <GradientStop Color="#070C16" Offset="0.55" />
+          <GradientStop Color="#03050A" Offset="1" />
+        </RadialGradientBrush>
+      </Border.Background>
       <Border Classes="card" MaxWidth="760" Padding="42,36"
               VerticalAlignment="Center" HorizontalAlignment="Center">
         <StackPanel Spacing="20" HorizontalAlignment="Center">

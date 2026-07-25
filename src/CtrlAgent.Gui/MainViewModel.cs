@@ -80,7 +80,7 @@ public sealed class MainViewModel : ViewModelBase
     private bool _showControllerEvents = true;
     private readonly List<LogEntry> _logHistory = [];
     private DateTimeOffset _lastViewPress = DateTimeOffset.MinValue;
-    private static readonly string[] PermissionModes = ["default", "plan", "acceptEdits"];
+    private static readonly string[] PermissionModes = [.. AgentModes.PermissionModes];
     private int _permissionModeIndex;
     private ChatMessage? _streamingBubble;
     private bool _isChatView = true;
@@ -94,6 +94,7 @@ public sealed class MainViewModel : ViewModelBase
     private ControllerProfile? _profile;
     private ControllerCapabilities? _capabilities;
     private GuiOptions _options;
+    private string _workspacePath = string.Empty;
 
     public MainViewModel(HostEngine? engine, GuiOptions options)
     {
@@ -101,6 +102,7 @@ public sealed class MainViewModel : ViewModelBase
         _agentStatus = options.Agent;
         _setupAgent = options.Agent;
         _setupWorkingDirectory = options.WorkingDirectory;
+        _workspacePath = options.WorkingDirectory;
 
         SubmitPromptCommand = new RelayCommand(_ => SubmitPromptText(PromptText));
         CyclePermissionModeCommand = new RelayCommand(_ =>
@@ -119,6 +121,7 @@ public sealed class MainViewModel : ViewModelBase
         CancelCommand = new RelayCommand(_ => Fire(e => e.CancelAsync()));
         PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
         StartSetupCommand = new RelayCommand(_ => CompleteSetup());
+        PickWorkspaceCommand = new RelayCommand(_ => WorkspacePickerRequested?.Invoke());
         DismissStartupErrorCommand = new RelayCommand(_ =>
         {
             StartupError = string.Empty;
@@ -133,6 +136,67 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Raised when the first-run setup is submitted with valid values.</summary>
     public event Action<GuiOptions>? SetupCompleted;
+
+    /// <summary>The options this view model was built with.</summary>
+    public GuiOptions Options => _options;
+
+    /// <summary>Raised when the user picks a different workspace to work in.</summary>
+    public event Action? WorkspacePickerRequested;
+
+    /// <summary>Absolute path of the directory the agent is working in.</summary>
+    public string WorkspacePath
+    {
+        get => _workspacePath;
+        private set
+        {
+            if (Set(ref _workspacePath, value))
+            {
+                Raise(nameof(WorkspaceName));
+            }
+        }
+    }
+
+    /// <summary>Just the folder name — the full path is a tooltip, not a label.</summary>
+    public string WorkspaceName
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_workspacePath))
+            {
+                return "—";
+            }
+
+            var trimmed = _workspacePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var name = Path.GetFileName(trimmed);
+            return string.IsNullOrEmpty(name) ? trimmed : name;
+        }
+    }
+
+    /// <summary>
+    /// Releases the current engine reference so a new one can be attached
+    /// against a different workspace, and clears everything that belonged to
+    /// the old session — a transcript from the previous repository is worse
+    /// than no transcript.
+    /// </summary>
+    public void PrepareForEngineSwap(string workspacePath)
+    {
+        _engine = null;
+        WorkspacePath = workspacePath;
+
+        Transcript.Clear();
+        IsTranscriptEmpty = true;
+        _streamingBubble = null;
+        Log.Clear();
+        _logHistory.Clear();
+        IsLogEmpty = true;
+        HasPendingApproval = false;
+        PendingApprovalMessage = string.Empty;
+        SessionId = string.Empty;
+        AgentState = "Starting…";
+        IsAgentActive = false;
+        AgentDotBrush = DotOff;
+        QueuedPromptCount = 0;
+    }
 
     /// <summary>
     /// Raised by the controller fullscreen shortcuts: the Xbox/PS button, or
@@ -163,6 +227,7 @@ public sealed class MainViewModel : ViewModelBase
 
         _engine = engine;
         IsSetupVisible = false;
+        WorkspacePath = _options.WorkingDirectory;
         ProfileName = engine.Profile.Name;
         ProfileDotBrush = DotGood;
         _profile = engine.Profile;
@@ -330,6 +395,9 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand CyclePermissionModeCommand { get; }
 
     public ICommand StartSetupCommand { get; }
+
+    /// <summary>Opens the workspace picker.</summary>
+    public ICommand PickWorkspaceCommand { get; }
 
     public ICommand DismissStartupErrorCommand { get; }
 

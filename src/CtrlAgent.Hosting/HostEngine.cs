@@ -132,6 +132,28 @@ public sealed class HostEngine : IAsyncDisposable
     public Task SetPermissionModeAsync(string mode) =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetPermissionMode, Text: mode));
 
+    /// <summary>Compacts the conversation, freeing context.</summary>
+    public Task CompactContextAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.CompactContext));
+
+    /// <summary>Switches the model (alias or full id).</summary>
+    public Task SetModelAsync(string model) =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetModel, Text: model));
+
+    /// <summary>Switches reasoning effort.</summary>
+    public Task SetEffortAsync(string effort) =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetEffort, Text: effort));
+
+    /// <summary>The model and effort last requested through this engine, so
+    /// UIs can label the current position of each cycle. Null until set —
+    /// the agent's own default is whatever it started with.</summary>
+    public string? CurrentModel { get; private set; }
+
+    public string? CurrentEffort { get; private set; }
+
+    /// <summary>Raised when a cycle advances, with (model, effort).</summary>
+    public event Action<string?, string?>? SessionSettingsChanged;
+
     public Task NextSessionAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.NextSession));
 
@@ -401,6 +423,46 @@ public sealed class HostEngine : IAsyncDisposable
         agentEvent.State is AgentStateKind.Completed or AgentStateKind.Error ||
         (agentEvent.State == AgentStateKind.Working && agentEvent.RequestId is not null);
 
+    /// <summary>
+    /// Turns a cycle command into the concrete set-command it means. Cycle
+    /// position lives here, once, rather than in every adapter — and an
+    /// adapter that never heard of cycling still handles the result.
+    /// </summary>
+    private AgentCommand ResolveCycle(AgentCommand command)
+    {
+        switch (command.Kind)
+        {
+            case AgentCommandKind.CycleModel:
+            {
+                var next = AgentModes.Next(AgentModes.ModelCycle, CurrentModel);
+                CurrentModel = next;
+                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                return command with { Kind = AgentCommandKind.SetModel, Text = next };
+            }
+
+            case AgentCommandKind.CycleEffort:
+            {
+                var next = AgentModes.Next(AgentModes.EffortCycle, CurrentEffort);
+                CurrentEffort = next;
+                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                return command with { Kind = AgentCommandKind.SetEffort, Text = next };
+            }
+
+            case AgentCommandKind.SetModel when command.Text is { Length: > 0 }:
+                CurrentModel = command.Text;
+                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                return command;
+
+            case AgentCommandKind.SetEffort when command.Text is { Length: > 0 }:
+                CurrentEffort = command.Text;
+                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                return command;
+
+            default:
+                return command;
+        }
+    }
+
     private async Task ExecuteSafelyAsync(AgentCommand command)
     {
         // Prompts submitted while the agent is mid-turn wait their turn
@@ -474,6 +536,8 @@ public sealed class HostEngine : IAsyncDisposable
 
     private async Task DispatchAsync(AgentCommand command)
     {
+        command = ResolveCycle(command);
+
         try
         {
             await _adapter.ExecuteAsync(command, _shutdown.Token).ConfigureAwait(false);

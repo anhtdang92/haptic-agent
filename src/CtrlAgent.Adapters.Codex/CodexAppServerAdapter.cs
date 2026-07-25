@@ -217,6 +217,12 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
                 Publish(AgentStateKind.Idle, "Codex permission modes are not wired yet; approval policy stays unlessTrusted.");
                 break;
 
+            case AgentCommandKind.CompactContext:
+            case AgentCommandKind.SetModel:
+            case AgentCommandKind.SetEffort:
+                Publish(AgentStateKind.Idle, $"Codex does not expose {command.Kind} yet.");
+                break;
+
             case AgentCommandKind.NextSession:
                 await SwitchThreadAsync(+1, cancellationToken).ConfigureAwait(false);
                 break;

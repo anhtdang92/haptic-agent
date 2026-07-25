@@ -195,6 +195,28 @@
 
         <Rectangle Width="1" Fill="#14FFFFFF" Margin="0,3" />
 
+        <!-- Workspace: which repository the agent is pointed at. Clickable,
+             because "which repo am I in" is the question you ask most and
+             switching used to mean restarting the app. -->
+        <Button Classes="ghost"
+                Padding="0"
+                Command="{Binding PickWorkspaceCommand}"
+                VerticalAlignment="Center"
+                Cursor="Hand"
+                ToolTip.Tip="{Binding WorkspacePath}">
+          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+            <TextBlock Text="🗂" FontSize="12" VerticalAlignment="Center" Foreground="#6B84AD" />
+            <StackPanel Spacing="1">
+              <TextBlock Text="WORKSPACE" Classes="label" FontSize="9" />
+              <TextBlock Text="{Binding WorkspaceName}"
+                         FontSize="13" FontWeight="Medium" Foreground="#E6EFFB"
+                         TextTrimming="CharacterEllipsis" MaxWidth="150" />
+            </StackPanel>
+          </StackPanel>
+        </Button>
+
+        <Rectangle Width="1" Fill="#14FFFFFF" Margin="0,3" />
+
         <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
           <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{Binding ProfileDotBrush}" />
           <StackPanel Spacing="1">

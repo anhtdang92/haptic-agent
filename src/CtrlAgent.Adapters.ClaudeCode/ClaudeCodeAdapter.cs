@@ -147,6 +147,22 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 await SetPermissionModeAsync(command.Text ?? "default", cancellationToken).ConfigureAwait(false);
                 break;
 
+            // Claude Code accepts its slash commands on the same stream-json
+            // stdin as prompts, so these need no separate control channel.
+            // Verified against CLI 2.1.220: /model and /effort report the value
+            // they set, /compact says so when there is too little to compact.
+            case AgentCommandKind.CompactContext:
+                await SendUserMessageAsync("/compact", cancellationToken).ConfigureAwait(false);
+                break;
+
+            case AgentCommandKind.SetModel:
+                await SendUserMessageAsync($"/model {command.Text ?? "default"}", cancellationToken).ConfigureAwait(false);
+                break;
+
+            case AgentCommandKind.SetEffort:
+                await SendUserMessageAsync($"/effort {command.Text ?? "medium"}", cancellationToken).ConfigureAwait(false);
+                break;
+
             case AgentCommandKind.NextSession:
                 await SwitchSessionAsync(+1, cancellationToken).ConfigureAwait(false);
                 break;

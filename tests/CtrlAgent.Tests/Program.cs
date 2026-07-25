@@ -21,6 +21,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Axis threshold latches until the axis drops", TestAxisThresholdLatchAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Guide control binds and round-trips", TestGuideControlAsync),
+    ("Session-setting cycles wrap and resolve", TestSessionSettingCyclesAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
@@ -315,6 +316,39 @@ static Task TestGuideControlAsync()
 
     AssertEqual(1, commands.Count);
     AssertEqual(AgentCommandKind.ReviewChanges, commands[0].Kind);
+    return Task.CompletedTask;
+}
+
+// Cycle position lives in the host, not the adapters, so the wrap logic is
+// worth pinning down: an unknown current value must start the cycle rather
+// than throw or stall.
+static Task TestSessionSettingCyclesAsync()
+{
+    AssertEqual("plan", AgentModes.Next(AgentModes.PermissionModes, "default"));
+    AssertEqual("low", AgentModes.Next(AgentModes.EffortCycle, "max"));      // wraps
+    AssertEqual("default", AgentModes.Next(AgentModes.ModelCycle, null));     // unset
+    AssertEqual("default", AgentModes.Next(AgentModes.ModelCycle, "nonsense"));
+    AssertEqual("opus", AgentModes.Next(AgentModes.ModelCycle, "sonnet"));
+
+    // Case-insensitive, because mode names arrive from JSON profiles too.
+    AssertEqual("opus", AgentModes.Next(AgentModes.ModelCycle, "SONNET"));
+
+    // The idle inputs are now bound, and the profile still validates.
+    var profile = ControllerProfile.Default;
+    AssertEqual(0, ControllerProfileValidator.Validate(profile).Count);
+    foreach (var control in new[]
+             {
+                 ControllerControl.DPadUp,
+                 ControllerControl.DPadDown,
+                 ControllerControl.LeftThumbstickButton,
+                 ControllerControl.RightThumbstickButton,
+             })
+    {
+        Assert(
+            profile.Bindings.Any(binding => binding.Control == control),
+            $"{control} should now carry a session control.");
+    }
+
     return Task.CompletedTask;
 }
 

@@ -52,7 +52,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 |---|---|---|---|
 | `control` | string | required | A `ControllerControl` name: `a`, `b`, `x`, `y`, `menu`, `view`, `guide`, `dPadUp/Down/Left/Right`, `leftShoulder`, `rightShoulder`, `leftThumbstickButton`, `rightThumbstickButton`, `leftTrigger`, `rightTrigger`, `leftThumbstickX/Y`, `rightThumbstickX/Y`, `paddleLeft1/2`, `paddleRight1/2` |
 | `gesture` | string | `press` | One of the gestures below |
-| `command` | string | required | An `AgentCommandKind`: `submitPrompt`, `interrupt`, `approveOnce`, `approveForSession`, `decline`, `cancel`, `newSession`, `nextSession`, `previousSession`, `reviewChanges`, `setPermissionMode` (uses `text` for the mode name, e.g. `plan`) |
+| `command` | string | required | An `AgentCommandKind`: `submitPrompt`, `interrupt`, `approveOnce`, `approveForSession`, `decline`, `cancel`, `newSession`, `nextSession`, `previousSession`, `reviewChanges`, `setPermissionMode` (uses `text`: `default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`), `compactContext`, `setModel` (uses `text`), `setEffort` (uses `text`: `low`…`max`), `cycleModel`, `cycleEffort` |
 | `modifiers` | string[] | none | Controls that must be held for this binding to match (turns it into a chord) |
 | `minimumValue` | number | 0.5 | `axisThreshold` only: absolute axis value that triggers the binding (0 < v ≤ 1) |
 | `text` | string | none | `submitPrompt` only: overrides the default prompt |
@@ -62,6 +62,8 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 | `layer` | string | none | Membership in a declared layer; the binding is only active while that layer is (see Layers) |
 
 > **`guide`** is the Xbox/PS button. It is reported by raw-HID DualSense and by XInput (through the undocumented ordinal-100 entry point), but never by the GameInput bridge — GameInput reserves that button for the system. Steam and the Xbox Game Bar hook it globally too, so treat any binding on it as best-effort rather than guaranteed.
+
+> **Session controls.** `compactContext`, `setModel`/`cycleModel` and `setEffort`/`cycleEffort` are Claude Code's `/compact`, `/model` and `/effort`, sent on the same stream the prompts use. The `cycle*` forms step through `AgentModes.ModelCycle` / `EffortCycle`; the host resolves them to the concrete `set*` before an adapter sees them, so cycle position lives in one place. Codex reports these as unsupported rather than failing.
 
 ## Gestures
 
@@ -120,6 +122,6 @@ Loading (and `MappingEngine` construction) rejects the profile with a full list 
 
 ## Default profile
 
-A: submit prompt · B: interrupt · X: review changes · Menu: new session · D-pad left/right: previous/next session · LB+A: "run tests and fix failures" prompt · paddles: approve once / approve for session / decline / cancel · RB+A/Y/X/B: the same four approvals as XInput fallback chords. All approval bindings are pending-gated.
+A: submit prompt · B: interrupt · X: review changes · Menu: new session · D-up: compact context · D-down: plan mode · L3: cycle effort · R3: cycle model · D-pad left/right: previous/next session · LB+A: "run tests and fix failures" prompt · paddles: approve once / approve for session / decline / cancel · RB+A/Y/X/B: the same four approvals as XInput fallback chords. All approval bindings are pending-gated.
 
 Export it with `--export-profile` to see the exact JSON.

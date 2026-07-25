@@ -257,6 +257,13 @@ internal static class Harness
                 settings.OnKey("Right");
             });
 
+        // The workspace picker, with a couple of remembered directories.
+        Render(
+            new WorkspaceWindow(
+                "/home/user/haptic-agent",
+                ["/home/user/other-project", "/home/user/scratch/spike"]),
+            "15-workspace.png", 620, 440);
+
         Console.WriteLine("done");
     }
 

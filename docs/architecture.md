@@ -130,6 +130,15 @@ The pending-approval contract: an `ApprovalRequired`/`WaitingForInput` event car
 - CtrlAgent does not attempt to bypass anti-cheat, access-control, sandbox, or agent-approval systems.
 - Keyboard/mouse injection remains out of scope as a primary path.
 
+
+### Session controls and workspace switching
+
+`CompactContext`, `SetModel`/`CycleModel` and `SetEffort`/`CycleEffort` map to Claude Code's `/compact`, `/model` and `/effort`, sent on the same stream-json stdin as prompts — verified against CLI 2.1.220, which reports the value it set. `HostEngine.ResolveCycle` turns a cycle command into the concrete set-command before dispatch, so cycle position is owned in one place and an adapter that never heard of cycling still handles the result. Codex publishes an "unsupported" event rather than failing.
+
+These fill the inputs the default profile had left idle: D-pad up (compact), D-pad down (plan mode), L3 (cycle effort), R3 (cycle model). None can destroy work, so a plain press is safe.
+
+Switching workspace tears the engine down and rebuilds it: adapters read their working directory when they spawn the CLI, so there is no way to move a live session. The controller, profile and settings survive; the conversation does not, and `PrepareForEngineSwap` clears it rather than showing one repository's history under another.
+
 ## Decision log
 
 Decisions made since the original blueprint, with rationale:

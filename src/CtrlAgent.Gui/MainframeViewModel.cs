@@ -121,6 +121,9 @@ public sealed class MainframeViewModel : ViewModelBase
     /// <summary>Raised when the settings panel asks for the profile editor.</summary>
     public event Action? ProfileEditorRequested;
 
+    /// <summary>Raised when the settings panel asks to change workspace.</summary>
+    public event Action? WorkspacePickerRequested;
+
     /// <summary>Raised with the focused tile index so the rail can scroll it
     /// into view — the rail is wider than the screen once approval tiles
     /// join it.</summary>
@@ -371,6 +374,7 @@ public sealed class MainframeViewModel : ViewModelBase
         switch (tile.Id)
         {
             case "mode": Main.CyclePermissionModeCommand.Execute(null); break;
+            case "workspace": WorkspacePickerRequested?.Invoke(); break;
             case "profile": ProfileEditorRequested?.Invoke(); break;
             case "shortcuts": ToggleShortcuts(); break;
             case "exit": CloseRequested?.Invoke(); break;
@@ -648,6 +652,7 @@ public sealed class MainframeViewModel : ViewModelBase
         // shortcuts, shown in the HUD, so nothing destructive is ever one
         // wandering d-pad press away.
         Tiles.Add(new MainframeTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
+        Tiles.Add(new MainframeTile { Id = "workspace", Glyph = "🗂", Label = "Workspace" });
         Tiles.Add(new MainframeTile { Id = "profile", Glyph = "⚙", Label = "Controller profile" });
         Tiles.Add(new MainframeTile { Id = "shortcuts", Glyph = "🎮", Label = "All shortcuts" });
         Tiles.Add(new MainframeTile { Id = "exit", Glyph = "⏏", Label = "Exit Mainframe" });

@@ -119,6 +119,7 @@ public sealed class App : Application
 
             viewModel.SetupCompleted += StartWithOptions;
             viewModel.MainframeRequested += ShowMainframe;
+            viewModel.WorkspacePickerRequested += () => _ = ShowWorkspacePickerAsync();
             if (startupError is null)
             {
                 if (firstRun)
@@ -338,6 +339,7 @@ public sealed class App : Application
         var viewModel = new MainframeViewModel(_viewModel);
         var window = new MainframeWindow { DataContext = viewModel };
         viewModel.CloseRequested += window.Close;
+        viewModel.WorkspacePickerRequested += () => _ = ShowWorkspacePickerAsync();
         viewModel.ProfileEditorRequested += async () =>
         {
             if (_viewModel?.Engine is { } engine)
@@ -358,6 +360,89 @@ public sealed class App : Application
         window.Show();
         window.Activate();
     }
+
+    /// <summary>
+    /// Restarts the agent against a different directory. The adapter reads its
+    /// working directory when it spawns the CLI, so there is no way to move an
+    /// existing session — the engine is torn down and rebuilt. Controller,
+    /// profile and settings survive; the conversation does not, and the view
+    /// model clears it rather than showing the previous repository's history
+    /// under a new one.
+    /// </summary>
+    public async Task SwitchWorkspaceAsync(string directory)
+    {
+        if (_viewModel is null || string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        var full = Path.GetFullPath(directory);
+        if (!Directory.Exists(full))
+        {
+            _viewModel.AppendLog($"[error] Workspace does not exist: {full}");
+            return;
+        }
+
+        if (_activeOptions is { } current &&
+            string.Equals(Path.GetFullPath(current.WorkingDirectory), full, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var previous = _engine;
+        _engine = null;
+        if (previous is not null)
+        {
+            try
+            {
+                await previous.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                _viewModel.AppendLog($"[error] Stopping the previous workspace failed: {exception.Message}");
+            }
+        }
+
+        _viewModel.PrepareForEngineSwap(full);
+        _viewModel.AppendLog($"Switching workspace to {full}");
+        StartWithOptions((_activeOptions ?? _viewModel.Options) with { WorkingDirectory = full });
+    }
+
+    /// <summary>
+    /// Opens the workspace picker over whichever window is in front, and
+    /// switches if the user chose one.
+    /// </summary>
+    public async Task ShowWorkspacePickerAsync()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var owner = _mainframe is { IsVisible: true } fullscreen
+            ? (Window)fullscreen
+            : _mainWindow;
+        if (owner is null)
+        {
+            return;
+        }
+
+        if (!owner.IsVisible)
+        {
+            owner.Show();
+        }
+
+        var picker = new WorkspaceWindow(_viewModel.WorkspacePath, RecentWorkspaces);
+        var chosen = await picker.ShowDialog<string?>(owner);
+        if (!string.IsNullOrWhiteSpace(chosen))
+        {
+            await SwitchWorkspaceAsync(chosen);
+        }
+    }
+
+    /// <summary>Workspaces used before, most recent first.</summary>
+    public IReadOnlyList<string> RecentWorkspaces =>
+        GuiSettings.TryLoad()?.UsableWorkspaces ?? [];
 
     /// <summary>Shows or hides the always-on-top HUD strip.</summary>
     public void ToggleOverlay()

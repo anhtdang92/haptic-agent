@@ -173,6 +173,41 @@ internal static class Program
                     await engine.ReviewChangesAsync().ConfigureAwait(false);
                     break;
 
+                // Session controls, so the console host can reach everything
+                // the engine exposes — and so they are testable without a pad.
+                case "compact":
+                    await engine.CompactContextAsync().ConfigureAwait(false);
+                    break;
+
+                case "model":
+                    if (remainder.Length == 0)
+                    {
+                        await engine.CycleModelAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await engine.SetModelAsync(remainder).ConfigureAwait(false);
+                    }
+
+                    break;
+
+                case "effort":
+                    if (remainder.Length == 0)
+                    {
+                        await engine.CycleEffortAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await engine.SetEffortAsync(remainder).ConfigureAwait(false);
+                    }
+
+                    break;
+
+                case "mode":
+                    await engine.SetPermissionModeAsync(
+                        remainder.Length == 0 ? "default" : remainder).ConfigureAwait(false);
+                    break;
+
                 case "interrupt":
                     await engine.InterruptAsync().ConfigureAwait(false);
                     break;
@@ -231,6 +266,7 @@ internal static class Program
     {
         Console.WriteLine("Console commands:");
         Console.WriteLine("  prompt [text], new, review, interrupt");
+        Console.WriteLine("  compact, model [name], effort [level], mode [name]");
         Console.WriteLine("  approve, approve-session, decline, cancel");
         Console.WriteLine("  help, quit");
         Console.WriteLine();

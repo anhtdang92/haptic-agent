@@ -67,11 +67,21 @@ public enum AgentCommandKind
 public static class AgentModes
 {
     /// <summary>
-    /// Permission modes. "default" is absent from the CLI's own --help listing
-    /// but is accepted, and is the mode sessions start in.
+    /// Permission modes reachable at runtime. "default" is absent from the
+    /// CLI's own --help listing but is accepted, and is the mode sessions
+    /// start in.
+    /// <para>
+    /// <c>bypassPermissions</c> is deliberately excluded even though the CLI
+    /// lists it: setting it on a live session fails unless the process was
+    /// launched with --dangerously-skip-permissions, so cycling into it only
+    /// ever produced "Cannot set permission mode to bypassPermissions"
+    /// (verified against CLI 2.1.220). It is also the one mode that would
+    /// disable the approval prompts this whole tool exists to put on a
+    /// controller — not something a single button should reach.
+    /// </para>
     /// </summary>
     public static readonly IReadOnlyList<string> PermissionModes =
-        ["default", "plan", "acceptEdits", "auto", "dontAsk", "bypassPermissions"];
+        ["default", "plan", "acceptEdits", "auto", "dontAsk"];
 
     /// <summary>Models offered by the cycle binding. Aliases, not pinned ids,
     /// so the cycle keeps working as new models ship.</summary>

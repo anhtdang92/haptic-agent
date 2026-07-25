@@ -144,6 +144,14 @@ public sealed class HostEngine : IAsyncDisposable
     public Task SetEffortAsync(string effort) =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetEffort, Text: effort));
 
+    /// <summary>Steps to the next model in the cycle.</summary>
+    public Task CycleModelAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.CycleModel));
+
+    /// <summary>Steps to the next reasoning-effort level.</summary>
+    public Task CycleEffortAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.CycleEffort));
+
     /// <summary>The model and effort last requested through this engine, so
     /// UIs can label the current position of each cycle. Null until set —
     /// the agent's own default is whatever it started with.</summary>

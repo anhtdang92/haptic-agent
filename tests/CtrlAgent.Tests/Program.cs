@@ -22,6 +22,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Guide control binds and round-trips", TestGuideControlAsync),
     ("Session-setting cycles wrap and resolve", TestSessionSettingCyclesAsync),
+    ("Permission modes exclude the unusable one", TestPermissionModesAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
@@ -349,6 +350,29 @@ static Task TestSessionSettingCyclesAsync()
             $"{control} should now carry a session control.");
     }
 
+    return Task.CompletedTask;
+}
+
+// bypassPermissions is listed by the CLI but rejected on a live session
+// unless it was launched with --dangerously-skip-permissions, so cycling
+// into it only ever produced an error. It is also the one mode that would
+// switch off the approval prompts this tool exists to surface.
+static Task TestPermissionModesAsync()
+{
+    Assert(
+        !AgentModes.PermissionModes.Contains("bypassPermissions", StringComparer.OrdinalIgnoreCase),
+        "bypassPermissions must not be reachable from the mode cycle.");
+    Assert(AgentModes.PermissionModes.Contains("default"), "default must be in the cycle.");
+    Assert(AgentModes.PermissionModes.Contains("plan"), "plan must be in the cycle.");
+
+    // The cycle must return to its start rather than dead-ending.
+    var mode = AgentModes.PermissionModes[0];
+    for (var step = 0; step < AgentModes.PermissionModes.Count; step++)
+    {
+        mode = AgentModes.Next(AgentModes.PermissionModes, mode);
+    }
+
+    AssertEqual(AgentModes.PermissionModes[0], mode);
     return Task.CompletedTask;
 }
 

@@ -25,6 +25,8 @@ public sealed class ChatMessage : ViewModelBase
     [
         "Thinking…",
         "Plan ",
+        "→ ",
+        "Commands: ",
         "Using tool:",
         "Prompt sent",
         "Bash: ",

@@ -90,6 +90,9 @@ public sealed class MainViewModel : ViewModelBase
     private string _setupAgent = "mock";
     private string _setupWorkingDirectory = Environment.CurrentDirectory;
     private string _setupError = string.Empty;
+    private string _startupError = string.Empty;
+    private ControllerProfile? _profile;
+    private ControllerCapabilities? _capabilities;
     private GuiOptions _options;
 
     public MainViewModel(HostEngine? engine, GuiOptions options)
@@ -116,6 +119,11 @@ public sealed class MainViewModel : ViewModelBase
         CancelCommand = new RelayCommand(_ => Fire(e => e.CancelAsync()));
         PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
         StartSetupCommand = new RelayCommand(_ => CompleteSetup());
+        DismissStartupErrorCommand = new RelayCommand(_ =>
+        {
+            StartupError = string.Empty;
+            IsSetupVisible = true;
+        });
 
         if (engine is not null)
         {
@@ -149,12 +157,8 @@ public sealed class MainViewModel : ViewModelBase
         IsSetupVisible = false;
         ProfileName = engine.Profile.Name;
         ProfileDotBrush = DotGood;
-        foreach (var binding in engine.Profile.Bindings)
-        {
-            Bindings.Add(BindingRow.From(binding));
-        }
-
-        IsBindingsEmpty = Bindings.Count == 0;
+        _profile = engine.Profile;
+        RefreshBindingRows();
 
         Buddy.SetProfile(engine.Profile);
         _approvalControls = ComputeApprovalControls(engine.Profile);
@@ -172,6 +176,12 @@ public sealed class MainViewModel : ViewModelBase
                 $"{snapshot.DisplayName}{(snapshot.Capabilities.HasFourPaddles ? " (paddles)" : string.Empty)}";
             ControllerDotBrush = DotGood;
             IsControllerSearching = false;
+
+            // Re-coach against what this pad can actually send, and show only
+            // the bindings it can reach.
+            _capabilities = snapshot.Capabilities;
+            Buddy.SetCapabilities(snapshot.Capabilities);
+            RefreshBindingRows();
             ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
         });
         engine.ControllerInputReceived += inputEvent => Post(() =>
@@ -240,13 +250,8 @@ public sealed class MainViewModel : ViewModelBase
         engine.ProfileApplied += applied => Post(() =>
         {
             ProfileName = applied.Name;
-            Bindings.Clear();
-            foreach (var binding in applied.Bindings)
-            {
-                Bindings.Add(BindingRow.From(binding));
-            }
-
-            IsBindingsEmpty = Bindings.Count == 0;
+            _profile = applied;
+            RefreshBindingRows();
 
             Buddy.SetProfile(applied);
             _approvalControls = ComputeApprovalControls(applied);
@@ -309,7 +314,28 @@ public sealed class MainViewModel : ViewModelBase
 
     public ICommand StartSetupCommand { get; }
 
+    public ICommand DismissStartupErrorCommand { get; }
+
     public static string[] SetupAgents { get; } = ["mock", "codex", "claude"];
+
+    /// <summary>
+    /// Why the host never started. Non-empty puts a blocking explanation over
+    /// the window: a failed start otherwise looks identical to a merely
+    /// disconnected one, and the reason was only in the event stream.
+    /// </summary>
+    public string StartupError
+    {
+        get => _startupError;
+        set
+        {
+            if (Set(ref _startupError, value))
+            {
+                Raise(nameof(HasStartupError));
+            }
+        }
+    }
+
+    public bool HasStartupError => !string.IsNullOrWhiteSpace(_startupError);
 
     public bool IsSetupVisible
     {
@@ -492,6 +518,25 @@ public sealed class MainViewModel : ViewModelBase
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Rebuilds the ACTIVE BINDINGS list for the connected device. Listing a
+    /// binding the hardware cannot reach makes the panel a promise the app
+    /// cannot keep; with no device known yet, everything shows.
+    /// </summary>
+    private void RefreshBindingRows()
+    {
+        Bindings.Clear();
+        if (_profile is not null)
+        {
+            foreach (var binding in _profile.ReachableBindings(_capabilities))
+            {
+                Bindings.Add(BindingRow.From(binding));
+            }
+        }
+
+        IsBindingsEmpty = Bindings.Count == 0;
     }
 
     public void AppendLog(string message)

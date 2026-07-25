@@ -70,8 +70,9 @@ public sealed class App : Application
             if (startupError is not null)
             {
                 viewModel.AppendLog($"Startup failed: {startupError}");
-                viewModel.ControllerStatus = "Unavailable";
-                viewModel.AgentStatus = "Unavailable";
+                viewModel.StartupError = startupError;
+                viewModel.ControllerStatus = "Failed to start";
+                viewModel.AgentStatus = "Failed to start";
             }
 
             var icon = new WindowIcon(AssetLoader.Open(new Uri("avares://CtrlAgent.Gui/Assets/icon.png")));
@@ -183,13 +184,19 @@ public sealed class App : Application
                 catch (Exception exception)
                 {
                     Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                        viewModel.AppendLog($"Host failed to start: {exception.Message}"));
+                    {
+                        viewModel.AppendLog($"Host failed to start: {exception.Message}");
+                        viewModel.StartupError = exception.Message;
+                    });
                 }
             });
         }
         catch (Exception exception)
         {
+            // Bounce back to setup, but say why — an unexplained dialog reads
+            // as the app losing the settings the user already entered.
             _viewModel.AppendLog($"Startup failed: {exception.Message}");
+            _viewModel.SetupError = exception.Message;
             _viewModel.IsSetupVisible = true;
         }
     }

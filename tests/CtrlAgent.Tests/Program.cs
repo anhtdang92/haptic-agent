@@ -22,6 +22,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Profile layers activate by device capability", TestProfileLayersAsync),
+    ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
@@ -398,6 +399,66 @@ static Task TestProfileLayersAsync()
         "dangling",
         [new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt, Layer: "ghost")]);
     Assert(ControllerProfileValidator.Validate(dangling).Count > 0, "Expected undefined layer reference to be rejected.");
+    return Task.CompletedTask;
+}
+
+static Task TestReachableBindingsAsync()
+{
+    var paddles = new ControllerCapabilities(true, true, true, true, true);
+    var noPaddles = new ControllerCapabilities(false, true, true, false, false);
+    var profile = ControllerProfile.Default;
+
+    // The default profile is unlayered and lists paddle bindings ahead of
+    // their chord fallbacks, so "first match wins" must still not hand a
+    // paddle to hardware that has none — this is what the UI coaches from.
+    var firstApprove = (ControllerCapabilities? capabilities) => profile
+        .ReachableBindings(capabilities)
+        .First(binding => binding.Command == AgentCommandKind.ApproveOnce);
+
+    AssertEqual(ControllerControl.PaddleLeft1, firstApprove(paddles).Control);
+
+    var fallback = firstApprove(noPaddles);
+    AssertEqual(ControllerControl.A, fallback.Control);
+    Assert(
+        fallback.Modifiers is not null && fallback.Modifiers.Contains(ControllerControl.RightShoulder),
+        "Expected the paddle-less approve hint to be the RB+A chord.");
+
+    // Unknown capabilities stay optimistic, matching MappingEngine's layer rule.
+    AssertEqual(ControllerControl.PaddleLeft1, firstApprove(null).Control);
+
+    // Every paddle binding drops out, and nothing else does.
+    var reachable = profile.ReachableBindings(noPaddles).ToList();
+    Assert(
+        reachable.All(binding => binding.Control is not (ControllerControl.PaddleLeft1
+            or ControllerControl.PaddleLeft2
+            or ControllerControl.PaddleRight1
+            or ControllerControl.PaddleRight2)),
+        "Expected no paddle bindings on a paddle-less device.");
+    AssertEqual(profile.Bindings.Count - 4, reachable.Count);
+    AssertEqual(profile.Bindings.Count, profile.ReachableBindings(paddles).Count());
+
+    // A chord whose modifier is a paddle is unreachable even though its
+    // primary control exists.
+    var paddleModified = new ControllerProfile(
+        "paddle-modified",
+        [
+            new(
+                ControllerControl.A,
+                InputGesture.Press,
+                AgentCommandKind.ApproveOnce,
+                new HashSet<ControllerControl> { ControllerControl.PaddleLeft1 },
+                RequiresPendingApproval: true),
+        ]);
+    AssertEqual(0, paddleModified.ReachableBindings(noPaddles).Count());
+    AssertEqual(1, paddleModified.ReachableBindings(paddles).Count());
+
+    // Layer activation still applies alongside the control check.
+    var layered = new ControllerProfile(
+        "layered",
+        [new(ControllerControl.B, InputGesture.Press, AgentCommandKind.Interrupt, Layer: "paddles")],
+        [new ProfileLayer("paddles", LayerActivation.RequiresPaddles)]);
+    AssertEqual(0, layered.ReachableBindings(noPaddles).Count());
+    AssertEqual(1, layered.ReachableBindings(paddles).Count());
     return Task.CompletedTask;
 }
 

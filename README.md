@@ -70,7 +70,7 @@ Haptic scheduler <-----------------+
 - Mock agent adapter for end-to-end testing without a real agent
 - Codex app-server JSONL adapter with thread creation, turn submission, interruption, lifecycle events, approval responses, D-pad thread switching, and thread resume after a crash
 - Claude Code stream-json adapter with prompt turns, interrupt, controller-answered tool-permission prompts, and multi-session switching/crash recovery via `--resume`
-- Dependency-free automated test harness (23 tests)
+- Dependency-free automated test harness
 - Windows GitHub Actions builds for managed and native components, and tag-triggered self-contained release packaging
 
 ## Default controller mappings

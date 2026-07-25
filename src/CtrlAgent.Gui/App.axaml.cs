@@ -338,6 +338,13 @@ public sealed class App : Application
         var viewModel = new MainframeViewModel(_viewModel);
         var window = new MainframeWindow { DataContext = viewModel };
         viewModel.CloseRequested += window.Close;
+        viewModel.ProfileEditorRequested += async () =>
+        {
+            if (_viewModel?.Engine is { } engine)
+            {
+                await new ProfileEditorWindow(engine).ShowDialog(window);
+            }
+        };
         window.Closed += (_, _) =>
         {
             viewModel.Detach();

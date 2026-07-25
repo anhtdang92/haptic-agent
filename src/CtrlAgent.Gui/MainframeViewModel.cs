@@ -28,12 +28,21 @@ public sealed class MainframeTile : ViewModelBase
 }
 
 /// <summary>
-/// The Steam-Big-Picture-style fullscreen mode: a controller-navigated tile
-/// rail (d-pad/left stick move focus, A selects, B backs out), CTRL·BOT
-/// front and center with the agent's live responses, a voice-prompt flow,
-/// and a fullscreen shortcuts screen. While this mode is open the host
-/// engine captures controller input so presses drive the UI instead of
-/// firing bindings — approval chords and paddles keep working throughout.
+/// The fullscreen mode: CTRL·BOT front and center with the agent's live
+/// responses, a voice-prompt flow, and a fullscreen shortcuts screen.
+/// <para>
+/// Agent actions are never navigated. Submit, interrupt, review, approve,
+/// decline and the rest fire from the user's own profile bindings exactly as
+/// they do outside this mode — the screen shows those shortcuts rather than
+/// offering buttons for them, so muscle memory is the same everywhere and a
+/// destructive action can never be reached by wandering focus onto it.
+/// </para>
+/// <para>
+/// Focus navigation exists only for settings. Input capture follows that
+/// rule: it is enabled while the settings panel (or an overlay) is open, so
+/// the d-pad moves focus instead of switching sessions, and disabled the rest
+/// of the time so every binding stays live.
+/// </para>
 /// Must be used from the UI thread; engine events are marshaled here.
 /// </summary>
 public sealed class MainframeViewModel : ViewModelBase
@@ -53,6 +62,7 @@ public sealed class MainframeViewModel : ViewModelBase
     private int _focusIndex;
     private bool _stickLatched;
     private bool _isShortcutsVisible;
+    private bool _isSettingsVisible;
     private bool _isVoiceVisible;
     private bool _isListening;
     private bool _hasTranscript;
@@ -81,12 +91,16 @@ public sealed class MainframeViewModel : ViewModelBase
             }
         });
 
-        _engine.SetInputCapture(true);
+        // Capture stays off until something focusable is on screen.
+        _engine.SetInputCapture(false);
         RebuildTiles();
     }
 
     /// <summary>Raised when the user asks to leave Mainframe mode.</summary>
     public event Action? CloseRequested;
+
+    /// <summary>Raised when the settings panel asks for the profile editor.</summary>
+    public event Action? ProfileEditorRequested;
 
     /// <summary>Raised with the focused tile index so the rail can scroll it
     /// into view — the rail is wider than the screen once approval tiles
@@ -117,13 +131,46 @@ public sealed class MainframeViewModel : ViewModelBase
     public bool IsShortcutsVisible
     {
         get => _isShortcutsVisible;
-        private set => Set(ref _isShortcutsVisible, value);
+        private set
+        {
+            if (Set(ref _isShortcutsVisible, value))
+            {
+                SyncCapture();
+            }
+        }
     }
+
+    /// <summary>
+    /// True while the settings panel is open. This is the only state in which
+    /// focus navigation means anything, and the only state that captures
+    /// controller input away from the profile.
+    /// </summary>
+    public bool IsSettingsVisible
+    {
+        get => _isSettingsVisible;
+        private set
+        {
+            if (Set(ref _isSettingsVisible, value))
+            {
+                SyncCapture();
+                Raise(nameof(IsHudVisible));
+            }
+        }
+    }
+
+    /// <summary>The action HUD hides behind any overlay.</summary>
+    public bool IsHudVisible => !_isSettingsVisible && !_isShortcutsVisible && !_isVoiceVisible;
 
     public bool IsVoiceVisible
     {
         get => _isVoiceVisible;
-        private set => Set(ref _isVoiceVisible, value);
+        private set
+        {
+            if (Set(ref _isVoiceVisible, value))
+            {
+                SyncCapture();
+            }
+        }
     }
 
     public bool IsListening
@@ -169,6 +216,7 @@ public sealed class MainframeViewModel : ViewModelBase
             case "Right": MoveFocus(+1); break;
             case "Enter": Activate(); break;
             case "Escape": Back(); break;
+            case "Tab": ToggleSettings(); break;
             case "F1": ToggleShortcuts(); break;
             case "F2": StartVoice(); break;
             case "F11": CloseRequested?.Invoke(); break;
@@ -193,20 +241,40 @@ public sealed class MainframeViewModel : ViewModelBase
             return;
         }
 
+        // View toggles settings from anywhere. Y opens voice. Everything else
+        // is only ours while an overlay owns the screen — with no overlay up,
+        // A/B/X and the paddles belong to the profile, and intercepting them
+        // here would shadow the user's own bindings.
+        if (inputEvent.Control == ControllerControl.View)
+        {
+            ToggleSettings();
+            return;
+        }
+
+        if (inputEvent.Control == ControllerControl.Y && IsHudVisible)
+        {
+            StartVoice();
+            return;
+        }
+
+        if (IsHudVisible)
+        {
+            return;
+        }
+
         switch (inputEvent.Control)
         {
             case ControllerControl.DPadLeft: MoveFocus(-1); break;
             case ControllerControl.DPadRight: MoveFocus(+1); break;
             case ControllerControl.A: Activate(); break;
             case ControllerControl.B: Back(); break;
-            case ControllerControl.X: ToggleShortcuts(); break;
             case ControllerControl.Y: StartVoice(); break;
         }
     }
 
     private void HandleStick(ControllerInputEvent inputEvent)
     {
-        if (inputEvent.Control != ControllerControl.LeftThumbstickX)
+        if (inputEvent.Control != ControllerControl.LeftThumbstickX || IsHudVisible)
         {
             return;
         }
@@ -231,7 +299,7 @@ public sealed class MainframeViewModel : ViewModelBase
 
     private void MoveFocus(int direction)
     {
-        if (Tiles.Count == 0 || IsVoiceVisible)
+        if (Tiles.Count == 0 || IsVoiceVisible || !IsSettingsVisible)
         {
             return;
         }
@@ -259,19 +327,20 @@ public sealed class MainframeViewModel : ViewModelBase
             return;
         }
 
-        switch (Tiles[_focusIndex].Id)
+        ActivateTile(Tiles[_focusIndex]);
+    }
+
+    /// <summary>
+    /// Runs a settings tile. Public so a mouse click can take the same path
+    /// the controller does — one activation route, not two.
+    /// </summary>
+    public void ActivateTile(MainframeTile tile)
+    {
+        ArgumentNullException.ThrowIfNull(tile);
+        switch (tile.Id)
         {
-            case "voice": StartVoice(); break;
-            case "submit": Main.SubmitPromptCommand.Execute(null); break;
-            case "interrupt": Main.InterruptCommand.Execute(null); break;
-            case "review": Main.ReviewCommand.Execute(null); break;
-            case "compact": Main.SubmitPromptText("/compact"); break;
-            case "newSession": Main.NewSessionCommand.Execute(null); break;
             case "mode": Main.CyclePermissionModeCommand.Execute(null); break;
-            case "approveOnce": Main.ApproveOnceCommand.Execute(null); break;
-            case "approveSession": Main.ApproveSessionCommand.Execute(null); break;
-            case "decline": Main.DeclineCommand.Execute(null); break;
-            case "cancel": Main.CancelCommand.Execute(null); break;
+            case "profile": ProfileEditorRequested?.Invoke(); break;
             case "shortcuts": ToggleShortcuts(); break;
             case "exit": CloseRequested?.Invoke(); break;
         }
@@ -291,7 +360,64 @@ public sealed class MainframeViewModel : ViewModelBase
             return;
         }
 
+        if (IsSettingsVisible)
+        {
+            IsSettingsVisible = false;
+            return;
+        }
+
         CloseRequested?.Invoke();
+    }
+
+    /// <summary>Opens or closes the settings panel. Public so the on-screen
+    /// settings affordance can be clicked as well as pressed.</summary>
+    public void ToggleSettings()
+    {
+        if (IsVoiceVisible)
+        {
+            return;
+        }
+
+        if (IsShortcutsVisible)
+        {
+            IsShortcutsVisible = false;
+            return;
+        }
+
+        IsSettingsVisible = !IsSettingsVisible;
+        if (IsSettingsVisible)
+        {
+            _focusIndex = 0;
+            SyncFocus();
+        }
+    }
+
+    /// <summary>Moves focus to a tile under the pointer, so hovering with a
+    /// mouse and moving with the d-pad drive the same highlight.</summary>
+    public void FocusTile(MainframeTile tile)
+    {
+        ArgumentNullException.ThrowIfNull(tile);
+        var index = Tiles.IndexOf(tile);
+        if (index >= 0 && index != _focusIndex)
+        {
+            _focusIndex = index;
+            SyncFocus();
+        }
+    }
+
+    /// <summary>
+    /// Capture is on exactly while something focusable owns the screen. Off
+    /// otherwise, so the profile's bindings — including every agent action —
+    /// stay live in the mode's resting state.
+    /// </summary>
+    private void SyncCapture()
+    {
+        if (_detached)
+        {
+            return;
+        }
+
+        _engine.SetInputCapture(_isSettingsVisible || _isShortcutsVisible || _isVoiceVisible);
     }
 
     private void ToggleShortcuts()
@@ -393,8 +519,11 @@ public sealed class MainframeViewModel : ViewModelBase
         LatestResponse = agentEvent.Message;
     }
 
-    private void OnPendingApprovalChanged(string? message) =>
-        Dispatcher.UIThread.Post(RebuildTiles);
+    // Approvals are answered by paddles and chords, never by a tile, so a
+    // pending request changes the HUD's emphasis rather than the rail.
+    private void OnPendingApprovalChanged(string? message)
+    {
+    }
 
     /// <summary>
     /// While an approval is pending, the approval tiles lead the rail and
@@ -405,31 +534,16 @@ public sealed class MainframeViewModel : ViewModelBase
         var focusedId = Tiles.Count > _focusIndex && Tiles.Count > 0 ? Tiles[_focusIndex].Id : null;
         Tiles.Clear();
 
-        var pending = Main.HasPendingApproval;
-        if (pending)
-        {
-            Tiles.Add(new MainframeTile { Id = "approveOnce", Glyph = "✓", Label = "Approve once", AccentBrush = ApproveAccent });
-            Tiles.Add(new MainframeTile { Id = "approveSession", Glyph = "✓✓", Label = "Approve session", AccentBrush = ApproveAccent });
-            Tiles.Add(new MainframeTile { Id = "decline", Glyph = "✗", Label = "Decline", AccentBrush = DenyAccent });
-            Tiles.Add(new MainframeTile { Id = "cancel", Glyph = "⊘", Label = "Cancel", AccentBrush = DenyAccent });
-        }
-
-        Tiles.Add(new MainframeTile { Id = "voice", Glyph = "🎤", Label = "Voice prompt" });
-        Tiles.Add(new MainframeTile { Id = "submit", Glyph = "▶", Label = "Submit prompt" });
-        Tiles.Add(new MainframeTile { Id = "interrupt", Glyph = "⏹", Label = "Interrupt" });
-        Tiles.Add(new MainframeTile { Id = "review", Glyph = "🔍", Label = "Review changes" });
-        Tiles.Add(new MainframeTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
-        Tiles.Add(new MainframeTile { Id = "newSession", Glyph = "✚", Label = "New session" });
+        // Settings only. Agent actions deliberately have no tiles: they are
+        // shortcuts, shown in the HUD, so nothing destructive is ever one
+        // wandering d-pad press away.
         Tiles.Add(new MainframeTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
-        Tiles.Add(new MainframeTile { Id = "shortcuts", Glyph = "🎮", Label = "Shortcuts" });
+        Tiles.Add(new MainframeTile { Id = "profile", Glyph = "⚙", Label = "Controller profile" });
+        Tiles.Add(new MainframeTile { Id = "shortcuts", Glyph = "🎮", Label = "All shortcuts" });
         Tiles.Add(new MainframeTile { Id = "exit", Glyph = "⏏", Label = "Exit Mainframe" });
 
         _focusIndex = 0;
-        if (pending)
-        {
-            // Land on Approve once when a request arrives.
-        }
-        else if (focusedId is not null)
+        if (focusedId is not null)
         {
             for (var index = 0; index < Tiles.Count; index++)
             {

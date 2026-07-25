@@ -236,22 +236,14 @@ internal static class Harness
             afterSettle: _ => voice.OnKey("F2"));
         SpeechToTextService.ScriptedResult = null;
 
-        // Verify the rail scrolls: walk focus to the far end with the d-pad.
-        var bigScrolled = new MainframeViewModel(approving);
-        Render(new MainframeWindow { DataContext = bigScrolled }, "05-rail-scrolled.png", 1600, 900,
-            afterShow: w =>
-            {
-                if (w.FindControl<Border>("IntroOverlay") is { } intro)
-                {
-                    intro.IsVisible = false;
-                }
-            },
+        // The settings panel — the only place focus navigation exists now.
+        var settings = new MainframeViewModel(viewModel);
+        Render(new MainframeWindow { DataContext = settings }, "05-mainframe-settings.png", 1600, 900,
+            afterShow: HideIntro,
             afterSettle: _ =>
             {
-                for (var i = 0; i < 12; i++)
-                {
-                    bigScrolled.OnKey("Right");
-                }
+                settings.ToggleSettings();
+                settings.OnKey("Right");
             });
 
         Console.WriteLine("done");

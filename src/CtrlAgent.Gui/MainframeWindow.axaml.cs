@@ -17,6 +17,14 @@ public sealed partial class MainframeWindow : Window
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
+
+        // The reticle pointer: this mode is meant to be driven from a couch,
+        // but a mouse should feel deliberate here rather than borrowed from
+        // the desktop. Null means the backend refused it — keep the default.
+        if (MainframeCursor.Reticle is { } reticle)
+        {
+            Cursor = reticle;
+        }
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainframeViewModel viewModel && !ReferenceEquals(viewModel, _observed))
@@ -40,10 +48,7 @@ public sealed partial class MainframeWindow : Window
         };
     }
 
-    /// <summary>
-    /// Keeps the focused tile on screen: the rail is wider than the display
-    /// once the four approval tiles join it, so focus must drag the viewport.
-    /// </summary>
+    /// <summary>Keeps the focused settings tile on screen.</summary>
     private void OnFocusMoved(int index)
     {
         if (TileRail.ContainerFromIndex(index) is Control container)
@@ -51,6 +56,32 @@ public sealed partial class MainframeWindow : Window
             container.BringIntoView();
         }
     }
+
+    /// <summary>Hovering a settings tile moves focus to it, so the pointer and
+    /// the d-pad drive the same highlight rather than competing ones.</summary>
+    private void OnTilePointerEntered(object? sender, PointerEventArgs eventArgs)
+    {
+        if (DataContext is MainframeViewModel viewModel &&
+            sender is Control { DataContext: MainframeTile tile })
+        {
+            viewModel.FocusTile(tile);
+        }
+    }
+
+    /// <summary>Clicking a settings tile runs it — the same path A takes.</summary>
+    private void OnTilePointerPressed(object? sender, PointerPressedEventArgs eventArgs)
+    {
+        if (DataContext is MainframeViewModel viewModel &&
+            sender is Control { DataContext: MainframeTile tile } &&
+            eventArgs.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            eventArgs.Handled = true;
+            viewModel.ActivateTile(tile);
+        }
+    }
+
+    private void OnToggleSettings(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
+        (DataContext as MainframeViewModel)?.ToggleSettings();
 
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
     {
@@ -65,6 +96,7 @@ public sealed partial class MainframeWindow : Window
             Key.Right => "Right",
             Key.Enter => "Enter",
             Key.Escape => "Escape",
+            Key.Tab => "Tab",
             Key.F1 => "F1",
             Key.F2 => "F2",
             Key.F11 => "F11",

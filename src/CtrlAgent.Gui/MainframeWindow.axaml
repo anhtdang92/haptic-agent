@@ -57,6 +57,31 @@
       </Setter>
     </Style>
 
+    <!-- HUD chips: a shortcut and what it does. Read-only by design — these
+         are not buttons, they are the map of the pad in your hands. -->
+    <Style Selector="Border.hudChip">
+      <Setter Property="Background" Value="#8A16233C" />
+      <Setter Property="BorderBrush" Value="#14FFFFFF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="14,9" />
+    </Style>
+    <!-- Approval bindings glow amber the moment a request is pending, so the
+         buttons that answer it announce themselves without moving. -->
+    <Style Selector="Border.hudChip.armed">
+      <Setter Property="Background" Value="#2EFFA020" />
+      <Setter Property="BorderBrush" Value="#80FFB020" />
+      <Setter Property="BoxShadow" Value="0 0 22 0 #33FFA020" />
+    </Style>
+    <Style Selector="Border.hudKey">
+      <Setter Property="Background" Value="#4D0E1728" />
+      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="MinWidth" Value="86" />
+    </Style>
+
     <!-- Bottom-legend button glyphs -->
     <Style Selector="Border.glyph">
       <Setter Property="Width" Value="32" />
@@ -134,6 +159,18 @@
           </StackPanel>
           <TextBlock Text="{Binding Main.ProfileName}" FontSize="15" Foreground="#5A7099" VerticalAlignment="Center" />
           <TextBlock Text="{Binding Main.PermissionModeLabel}" FontSize="15" Foreground="#7DD3FC" VerticalAlignment="Center" />
+          <!-- Clickable settings entry: the pad presses View, the mouse
+               clicks here. Same toggle either way. -->
+          <Button Classes="ghost"
+                  Click="OnToggleSettings"
+                  Cursor="Hand"
+                  FontSize="14"
+                  ToolTip.Tip="Settings — permission mode, profile, shortcuts (View on the pad)">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="⚙" FontSize="15" VerticalAlignment="Center" />
+              <TextBlock Text="Settings" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
         </StackPanel>
         <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
                Height="44"
@@ -187,7 +224,7 @@
                        Fill="#12FFFFFF" Stroke="#1FFFFFFF" StrokeThickness="1" />
               <TextBlock Text="Nothing from the agent yet"
                          FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
-              <TextBlock Text="Press A on Submit prompt, or Y to speak one"
+              <TextBlock Text="Use a shortcut below, or press Y to speak a prompt"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -222,13 +259,43 @@
         </StackPanel>
       </Border>
 
-      <!-- Action rail: scrolls horizontally, because the approval tiles push
-           it wider than the screen. The focused tile is always scrolled into
-           view (see MainframeWindow.OnFocusMoved). -->
+      <!-- Action HUD: the live profile bindings, shown rather than offered.
+           Every agent action fires from its own shortcut, so there is nothing
+           here to focus and nothing destructive a stray d-pad press can land
+           on. Approval bindings light up while a request is pending. -->
+      <ItemsControl Grid.Row="3"
+                    ItemsSource="{Binding Main.Bindings}"
+                    HorizontalAlignment="Center"
+                    IsVisible="{Binding IsHudVisible}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="10" MaxWidth="1500" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="gui:BindingRow">
+            <Border Classes="hudChip" Classes.armed="{Binding IsApproval}">
+              <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Border Classes="hudKey">
+                  <TextBlock Text="{Binding Chord}"
+                             FontFamily="Cascadia Mono,Consolas,monospace"
+                             FontSize="14" Foreground="#7DD3FC"
+                             HorizontalAlignment="Center" />
+                </Border>
+                <TextBlock Text="{Binding Action}" FontSize="15" Foreground="#DDE9FF" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- Settings panel: the one place focus navigation exists. Tiles respond
+           to hover and click as well as the d-pad, so a mouse works here. -->
       <ScrollViewer Grid.Row="3"
                     x:Name="TileScroller"
                     HorizontalScrollBarVisibility="Hidden"
-                    VerticalScrollBarVisibility="Disabled">
+                    VerticalScrollBarVisibility="Disabled"
+                    IsVisible="{Binding IsSettingsVisible}">
       <ItemsControl x:Name="TileRail" ItemsSource="{Binding Tiles}" HorizontalAlignment="Center">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
@@ -237,7 +304,10 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="gui:MainframeTile">
-            <Border Classes="tile" Classes.focused="{Binding IsFocused}">
+            <Border Classes="tile" Classes.focused="{Binding IsFocused}"
+                    PointerEntered="OnTilePointerEntered"
+                    PointerPressed="OnTilePointerPressed"
+                    Cursor="Hand">
               <StackPanel VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="{Binding Glyph}"
                            FontSize="36"
@@ -260,22 +330,21 @@
       <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="26" HorizontalAlignment="Center" Margin="0,26,0,0">
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Border Classes="glyph" BorderBrush="#6EBE45"><TextBlock Text="A" FontSize="14" FontWeight="Bold" Foreground="#6EBE45" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-          <TextBlock Text="Select" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
+          <TextBlock Text="Select (in settings)" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Border Classes="glyph" BorderBrush="#E85555"><TextBlock Text="B" FontSize="14" FontWeight="Bold" Foreground="#E85555" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
           <TextBlock Text="Back / Exit" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Classes="glyph" BorderBrush="#4C8DF5"><TextBlock Text="X" FontSize="14" FontWeight="Bold" Foreground="#4C8DF5" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-          <TextBlock Text="Shortcuts" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
+          <Border Classes="glyph" BorderBrush="#8FA9D6"><TextBlock Text="⧉" FontSize="14" FontWeight="Bold" Foreground="#8FA9D6" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <TextBlock Text="View — Settings" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Border Classes="glyph" BorderBrush="#E8C531"><TextBlock Text="Y" FontSize="14" FontWeight="Bold" Foreground="#E8C531" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
           <TextBlock Text="Voice prompt" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
-        <TextBlock Text="D-pad / stick — Navigate" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
-        <TextBlock Text="Paddles &amp; chords stay live for approvals" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
+        <TextBlock Text="Every action above is a shortcut — nothing to navigate" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
       </StackPanel>
     </Grid>
 

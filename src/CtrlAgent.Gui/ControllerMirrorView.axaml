@@ -32,6 +32,26 @@
                         Background="{Binding LeftShoulderBrush}" RenderTransform="rotate(-3deg)" />
                 <Border Canvas.Left="228" Canvas.Top="16" Width="98" Height="15" CornerRadius="8,8,3,3"
                         Background="{Binding RightShoulderBrush}" RenderTransform="rotate(3deg)" />
+                <!-- Bumper crowns: a lit top face so they read as rounded bars
+                     you could press, not painted rectangles -->
+                <Border Canvas.Left="98" Canvas.Top="17" Width="90" Height="5" CornerRadius="3"
+                        IsHitTestVisible="False" RenderTransform="rotate(-3deg)" Opacity="0.75">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                      <GradientStop Color="#59FFFFFF" Offset="0" />
+                      <GradientStop Color="#00FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+                <Border Canvas.Left="232" Canvas.Top="17" Width="90" Height="5" CornerRadius="3"
+                        IsHitTestVisible="False" RenderTransform="rotate(3deg)" Opacity="0.75">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                      <GradientStop Color="#59FFFFFF" Offset="0" />
+                      <GradientStop Color="#00FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
                 <TextBlock Canvas.Left="136" Canvas.Top="18" Text="LB" FontSize="8" Foreground="#8FA9D6" IsHitTestVisible="False" />
                 <TextBlock Canvas.Left="272" Canvas.Top="18" Text="RB" FontSize="8" Foreground="#8FA9D6" IsHitTestVisible="False" />
 
@@ -47,26 +67,53 @@
 
                 <!-- Grips: flared, lit from above like molded plastic -->
                 <Ellipse Canvas.Left="38" Canvas.Top="58" Width="96" Height="152"
-                         Stroke="#2C3B5E" StrokeThickness="1.5"
+                         Stroke="#3E5680" StrokeThickness="1.2"
                          RenderTransform="rotate(-18deg)">
                   <Ellipse.Fill>
                     <LinearGradientBrush StartPoint="30%,0%" EndPoint="70%,100%">
-                      <GradientStop Color="#1E2C49" Offset="0" />
-                      <GradientStop Color="#10182A" Offset="0.45" />
-                      <GradientStop Color="#080D18" Offset="1" />
+                      <GradientStop Color="#33496F" Offset="0" />
+                      <GradientStop Color="#1E2C49" Offset="0.45" />
+                      <GradientStop Color="#121C31" Offset="1" />
                     </LinearGradientBrush>
                   </Ellipse.Fill>
                 </Ellipse>
                 <Ellipse Canvas.Left="286" Canvas.Top="58" Width="96" Height="152"
-                         Stroke="#2C3B5E" StrokeThickness="1.5"
+                         Stroke="#3E5680" StrokeThickness="1.2"
                          RenderTransform="rotate(18deg)">
                   <Ellipse.Fill>
                     <LinearGradientBrush StartPoint="70%,0%" EndPoint="30%,100%">
-                      <GradientStop Color="#1E2C49" Offset="0" />
-                      <GradientStop Color="#10182A" Offset="0.45" />
-                      <GradientStop Color="#080D18" Offset="1" />
+                      <GradientStop Color="#33496F" Offset="0" />
+                      <GradientStop Color="#1E2C49" Offset="0.45" />
+                      <GradientStop Color="#121C31" Offset="1" />
                     </LinearGradientBrush>
                   </Ellipse.Fill>
+                </Ellipse>
+
+                <!-- Grip rim light: the same ellipse again, stroked with a
+                     gradient that is bright where the light hits and gone
+                     underneath. This edge is what turns a flat silhouette
+                     into moulded plastic — outline alone reads as wireframe. -->
+                <Ellipse Canvas.Left="38" Canvas.Top="58" Width="96" Height="152"
+                         StrokeThickness="2.5" IsHitTestVisible="False"
+                         RenderTransform="rotate(-18deg)">
+                  <Ellipse.Stroke>
+                    <LinearGradientBrush StartPoint="20%,0%" EndPoint="60%,75%">
+                      <GradientStop Color="#8CBFDDFF" Offset="0" />
+                      <GradientStop Color="#2699C8F0" Offset="0.35" />
+                      <GradientStop Color="#00FFFFFF" Offset="0.7" />
+                    </LinearGradientBrush>
+                  </Ellipse.Stroke>
+                </Ellipse>
+                <Ellipse Canvas.Left="286" Canvas.Top="58" Width="96" Height="152"
+                         StrokeThickness="2.5" IsHitTestVisible="False"
+                         RenderTransform="rotate(18deg)">
+                  <Ellipse.Stroke>
+                    <LinearGradientBrush StartPoint="80%,0%" EndPoint="40%,75%">
+                      <GradientStop Color="#8CBFDDFF" Offset="0" />
+                      <GradientStop Color="#2699C8F0" Offset="0.35" />
+                      <GradientStop Color="#00FFFFFF" Offset="0.7" />
+                    </LinearGradientBrush>
+                  </Ellipse.Stroke>
                 </Ellipse>
 
                 <!-- Body shell: navy glass with a faint cyan underglow -->
@@ -91,6 +138,35 @@
                     </LinearGradientBrush>
                   </Border.Background>
                 </Border>
+
+                <!-- Body rim + underside: a lit top edge and a shadowed belly.
+                     Cheap ambient occlusion — the shell now has a near side. -->
+                <Border Canvas.Left="78" Canvas.Top="30" Width="264" Height="120" CornerRadius="46"
+                        BorderThickness="1.5" IsHitTestVisible="False">
+                  <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                      <GradientStop Color="#8CAFD4F5" Offset="0" />
+                      <GradientStop Color="#1AFFFFFF" Offset="0.35" />
+                      <GradientStop Color="#00FFFFFF" Offset="0.7" />
+                    </LinearGradientBrush>
+                  </Border.BorderBrush>
+                </Border>
+                <Border Canvas.Left="92" Canvas.Top="112" Width="236" Height="34" CornerRadius="30"
+                        IsHitTestVisible="False" Opacity="0.55">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                      <GradientStop Color="#00000000" Offset="0" />
+                      <GradientStop Color="#73000000" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+
+                <!-- Machined detail: vent slits, the kind of grille a moulded
+                     shell actually carries -->
+                <Border Canvas.Left="104" Canvas.Top="60" Width="16" Height="2" CornerRadius="1" Background="#26FFFFFF" IsHitTestVisible="False" />
+                <Border Canvas.Left="104" Canvas.Top="66" Width="16" Height="2" CornerRadius="1" Background="#1AFFFFFF" IsHitTestVisible="False" />
+                <Border Canvas.Left="300" Canvas.Top="60" Width="16" Height="2" CornerRadius="1" Background="#26FFFFFF" IsHitTestVisible="False" />
+                <Border Canvas.Left="300" Canvas.Top="66" Width="16" Height="2" CornerRadius="1" Background="#1AFFFFFF" IsHitTestVisible="False" />
 
                 <!-- Guide button (nexus): domed with a glow -->
                 <Ellipse Canvas.Left="188" Canvas.Top="16" Width="44" Height="44" Fill="#3300D4FF" />
@@ -155,6 +231,20 @@
                 <Ellipse Canvas.Left="252" Canvas.Top="79" Width="26" Height="26" Fill="{Binding XBrush}" Stroke="#33456B" StrokeThickness="1" />
                 <Ellipse Canvas.Left="308" Canvas.Top="79" Width="26" Height="26" Fill="{Binding BBrush}" Stroke="#33456B" StrokeThickness="1" />
                 <Ellipse Canvas.Left="280" Canvas.Top="106" Width="26" Height="26" Fill="{Binding ABrush}" Stroke="#33456B" StrokeThickness="1" />
+                <!-- Dome shading: clear at the top-left where the light lands,
+                     darkening to the rim. Laid over the bound fills so the
+                     caps curve without losing their state colour. -->
+                <Canvas.Resources>
+                  <RadialGradientBrush x:Key="CapDome" Center="34%,28%" GradientOrigin="34%,28%" RadiusX="78%" RadiusY="78%">
+                    <GradientStop Color="#00000000" Offset="0" />
+                    <GradientStop Color="#1A000000" Offset="0.55" />
+                    <GradientStop Color="#73000000" Offset="1" />
+                  </RadialGradientBrush>
+                </Canvas.Resources>
+                <Ellipse Canvas.Left="280" Canvas.Top="52" Width="26" Height="26" Fill="{StaticResource CapDome}" IsHitTestVisible="False" />
+                <Ellipse Canvas.Left="252" Canvas.Top="79" Width="26" Height="26" Fill="{StaticResource CapDome}" IsHitTestVisible="False" />
+                <Ellipse Canvas.Left="308" Canvas.Top="79" Width="26" Height="26" Fill="{StaticResource CapDome}" IsHitTestVisible="False" />
+                <Ellipse Canvas.Left="280" Canvas.Top="106" Width="26" Height="26" Fill="{StaticResource CapDome}" IsHitTestVisible="False" />
                 <!-- Gloss caps (never intercept the bound fills underneath) -->
                 <Ellipse Canvas.Left="284" Canvas.Top="54" Width="18" Height="9" Fill="#40FFFFFF" IsHitTestVisible="False" />
                 <Ellipse Canvas.Left="256" Canvas.Top="81" Width="18" Height="9" Fill="#40FFFFFF" IsHitTestVisible="False" />
@@ -178,6 +268,12 @@
                 <Border Canvas.Left="155" Canvas.Top="154" Width="16" Height="14" CornerRadius="3" Background="{Binding DPadDownBrush}" />
                 <Border Canvas.Left="141" Canvas.Top="140" Width="14" Height="14" CornerRadius="3" Background="{Binding DPadLeftBrush}" />
                 <Border Canvas.Left="171" Canvas.Top="140" Width="14" Height="14" CornerRadius="3" Background="{Binding DPadRightBrush}" />
+                <!-- Bevel: a catch-light on the top face of each pad, so the
+                     cross sits proud of the dish instead of lying flat in it. -->
+                <Border Canvas.Left="156.5" Canvas.Top="127" Width="13" Height="2" CornerRadius="1" Background="#40FFFFFF" IsHitTestVisible="False" />
+                <Border Canvas.Left="156.5" Canvas.Top="155" Width="13" Height="2" CornerRadius="1" Background="#26FFFFFF" IsHitTestVisible="False" />
+                <Border Canvas.Left="142" Canvas.Top="141" Width="11" Height="2" CornerRadius="1" Background="#33FFFFFF" IsHitTestVisible="False" />
+                <Border Canvas.Left="172" Canvas.Top="141" Width="11" Height="2" CornerRadius="1" Background="#33FFFFFF" IsHitTestVisible="False" />
                 <Border Canvas.Left="155" Canvas.Top="140" Width="16" Height="14" Background="#131B2C" />
                 <Ellipse Canvas.Left="158" Canvas.Top="142" Width="10" Height="10" IsHitTestVisible="False">
                   <Ellipse.Fill>

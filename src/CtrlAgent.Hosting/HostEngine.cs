@@ -29,10 +29,14 @@ public sealed class HostEngine : IAsyncDisposable
     private Task? _agentTask;
     private ControllerProfile _profile;
     private MappingEngine _mapping;
+    private const int MaxQueuedPrompts = 5;
+
     private string? _pendingSessionId;
     private string? _pendingRequestId;
     private ControllerCapabilities? _lastCapabilities;
     private volatile bool _inputCaptured;
+    private readonly Queue<AgentCommand> _promptQueue = new();
+    private bool _agentBusy;
     private bool _disposed;
 
     public HostEngine(
@@ -67,6 +71,9 @@ public sealed class HostEngine : IAsyncDisposable
     /// <summary>Raised after a new profile is applied at runtime.</summary>
     public event Action<ControllerProfile>? ProfileApplied;
 
+    /// <summary>Raised when the queued-prompt count changes.</summary>
+    public event Action<int>? PromptQueueChanged;
+
     public ControllerProfile Profile => _profile;
 
     public string AdapterId => _adapter.Id;
@@ -88,6 +95,12 @@ public sealed class HostEngine : IAsyncDisposable
         AgentCommandKind.ApproveForSession or
         AgentCommandKind.Decline or
         AgentCommandKind.Cancel;
+
+    /// <summary>States during which a new prompt waits in the queue.</summary>
+    public static bool IsBusyState(AgentStateKind state) => state is
+        AgentStateKind.Working or
+        AgentStateKind.ApprovalRequired or
+        AgentStateKind.WaitingForInput;
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -361,6 +374,8 @@ public sealed class HostEngine : IAsyncDisposable
                     PendingApprovalChanged?.Invoke(null);
                 }
 
+                await UpdateBusyAndFlushQueueAsync(agentEvent.State).ConfigureAwait(false);
+
                 if (isRepeatWorking)
                 {
                     continue;
@@ -387,6 +402,77 @@ public sealed class HostEngine : IAsyncDisposable
         (agentEvent.State == AgentStateKind.Working && agentEvent.RequestId is not null);
 
     private async Task ExecuteSafelyAsync(AgentCommand command)
+    {
+        // Prompts submitted while the agent is mid-turn wait their turn
+        // (Claude-app behavior) instead of interleaving into a running one.
+        if (command.Kind == AgentCommandKind.SubmitPrompt)
+        {
+            int? queuedCount = null;
+            var dropped = false;
+            lock (_sync)
+            {
+                if (_agentBusy)
+                {
+                    if (_promptQueue.Count >= MaxQueuedPrompts)
+                    {
+                        dropped = true;
+                    }
+                    else
+                    {
+                        _promptQueue.Enqueue(command);
+                        queuedCount = _promptQueue.Count;
+                    }
+                }
+                else
+                {
+                    // Optimistic: the Working event may not have landed yet,
+                    // and a double-tap must queue, not double-send.
+                    _agentBusy = true;
+                }
+            }
+
+            if (dropped)
+            {
+                Log($"Prompt queue is full ({MaxQueuedPrompts}); the new prompt was dropped.");
+                return;
+            }
+
+            if (queuedCount is { } count)
+            {
+                Log($"Agent is busy — prompt queued ({count} waiting).");
+                PromptQueueChanged?.Invoke(count);
+                return;
+            }
+        }
+
+        await DispatchAsync(command).ConfigureAwait(false);
+    }
+
+    /// <summary>Flushes one queued prompt when the agent settles.</summary>
+    private async Task UpdateBusyAndFlushQueueAsync(AgentStateKind state)
+    {
+        AgentCommand? next = null;
+        var remaining = 0;
+        lock (_sync)
+        {
+            _agentBusy = IsBusyState(state);
+            if (!_agentBusy && _pendingRequestId is null && _promptQueue.Count > 0)
+            {
+                next = _promptQueue.Dequeue();
+                remaining = _promptQueue.Count;
+                _agentBusy = true;
+            }
+        }
+
+        if (next is not null)
+        {
+            PromptQueueChanged?.Invoke(remaining);
+            Log("Sending queued prompt.");
+            await DispatchAsync(next).ConfigureAwait(false);
+        }
+    }
+
+    private async Task DispatchAsync(AgentCommand command)
     {
         try
         {

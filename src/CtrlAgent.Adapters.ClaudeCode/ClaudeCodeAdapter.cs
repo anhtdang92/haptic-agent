@@ -394,7 +394,8 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
             Decision.AllowOnce =>
                 ClaudePermissionResponse.Allow(requestId, pending.ToolName, pending.Input, forSession: false),
             Decision.AllowForSession =>
-                ClaudePermissionResponse.Allow(requestId, pending.ToolName, pending.Input, forSession: true),
+                ClaudePermissionResponse.Allow(
+                    requestId, pending.ToolName, pending.Input, forSession: true, pending.Suggestions),
             _ =>
                 ClaudePermissionResponse.Deny(requestId, "Declined from the controller."),
         };
@@ -493,11 +494,42 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                     }
                 }
 
+                var initDetails = new List<string>();
+                if (init.Model is { Length: > 0 })
+                {
+                    initDetails.Add(init.Model);
+                }
+
+                if (init.McpSummary is { Length: > 0 })
+                {
+                    initDetails.Add(init.McpSummary);
+                }
+
+                if (init.SlashCommands.Count > 0)
+                {
+                    initDetails.Add($"{init.SlashCommands.Count} commands");
+                }
+
                 Publish(
                     AgentStateKind.Idle,
-                    init.Model is { Length: > 0 }
-                        ? $"Claude Code session {init.SessionId} ready ({init.Model})."
+                    initDetails.Count > 0
+                        ? $"Claude Code session {init.SessionId} ready ({string.Join(" · ", initDetails)})."
                         : $"Claude Code session {init.SessionId} ready.");
+
+                if (init.SlashCommands.Count > 0)
+                {
+                    var listed = string.Join(" ", init.SlashCommands.Take(14));
+                    var more = init.SlashCommands.Count > 14 ? " …" : string.Empty;
+                    Publish(AgentStateKind.Idle, $"Commands: {listed}{more}");
+                }
+
+                break;
+
+            case ClaudeStreamMessage.ToolResultReceived toolResult:
+                _streamedText.Clear();
+                Publish(
+                    AgentStateKind.Working,
+                    toolResult.IsError ? $"→ ⚠ {toolResult.Summary}" : $"→ {toolResult.Summary}");
                 break;
 
             case ClaudeStreamMessage.ThinkingStarted:
@@ -530,10 +562,11 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 break;
 
             case ClaudeStreamMessage.PermissionRequest permission:
-                _pendingPermissions[permission.RequestId] = new PendingPermission(permission.ToolName, permission.Input);
+                _pendingPermissions[permission.RequestId] =
+                    new PendingPermission(permission.ToolName, permission.Input, permission.Suggestions);
                 Publish(
                     AgentStateKind.ApprovalRequired,
-                    $"Claude Code wants to use {permission.ToolName}.",
+                    $"Claude Code wants: {ClaudeStreamParser.DescribeToolUse(permission.ToolName, permission.Input)}",
                     permission.RequestId);
                 break;
 
@@ -683,5 +716,5 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         }
     }
 
-    private sealed record PendingPermission(string ToolName, JsonElement Input);
+    private sealed record PendingPermission(string ToolName, JsonElement Input, JsonElement? Suggestions);
 }

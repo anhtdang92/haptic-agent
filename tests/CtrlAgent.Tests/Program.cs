@@ -31,6 +31,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Captured input passes only approval commands", TestInputCaptureFilterAsync),
+    ("Host engine queues prompts while the agent is busy", TestPromptQueueAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
@@ -444,6 +445,61 @@ static Task TestInputCaptureFilterAsync()
     return Task.CompletedTask;
 }
 
+static async Task TestPromptQueueAsync()
+{
+    var controller = new ScriptedController();
+    var provider = new SingleControllerProvider(controller);
+    var adapter = new MockAgentAdapter();
+    var engine = new HostEngine(
+        provider,
+        adapter,
+        ControllerProfile.Default,
+        new HostEngineOptions("default prompt"));
+
+    var queueCounts = new List<int>();
+    var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    engine.PromptQueueChanged += count =>
+    {
+        lock (queueCounts)
+        {
+            queueCounts.Add(count);
+        }
+    };
+    engine.AgentEventReceived += agentEvent =>
+    {
+        if (agentEvent.State == AgentStateKind.Idle)
+        {
+            ready.TrySetResult();
+        }
+
+        if (agentEvent.State == AgentStateKind.Working && agentEvent.Message == "second prompt")
+        {
+            secondStarted.TrySetResult();
+        }
+    };
+
+    await engine.StartAsync().ConfigureAwait(false);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+
+    // Wait for the adapter's initial Idle so the busy flag starts settled.
+    await ready.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    await engine.SubmitPromptAsync("first prompt").ConfigureAwait(false);
+    await engine.SubmitPromptAsync("second prompt").ConfigureAwait(false);
+
+    // The second prompt must wait for the first turn, then send itself.
+    await secondStarted.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+
+    lock (queueCounts)
+    {
+        Assert(queueCounts.Contains(1), "Expected the second prompt to be queued.");
+        Assert(queueCounts.Contains(0), "Expected the queue to drain after the first turn.");
+    }
+
+    await engine.DisposeAsync().ConfigureAwait(false);
+}
+
 static async Task TestHostEngineEndToEndAsync()
 {
     var controller = new ScriptedController();
@@ -587,10 +643,14 @@ static Task TestValidationReportMarkdownAsync()
 static Task TestClaudeStreamParserAsync()
 {
     var init = ParseClaudeLine(
-        """{"type":"system","subtype":"init","cwd":"/repo","session_id":"sess-1","model":"claude-sonnet-5","tools":[]}""");
+        """{"type":"system","subtype":"init","cwd":"/repo","session_id":"sess-1","model":"claude-sonnet-5","tools":[],"slash_commands":["compact","review"],"mcp_servers":[{"name":"a","status":"connected"},{"name":"b","status":"failed"}]}""");
     Assert(
         init is ClaudeStreamMessage.SessionInit { SessionId: "sess-1", Model: "claude-sonnet-5" },
         "Expected SessionInit with model.");
+    var initMessage = (ClaudeStreamMessage.SessionInit)init;
+    AssertEqual(2, initMessage.SlashCommands.Count);
+    AssertEqual("/compact", initMessage.SlashCommands[0]);
+    AssertEqual("2 MCP servers, 1 failed", initMessage.McpSummary);
 
     var text = ParseClaudeLine(
         """{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello there"}]},"session_id":"sess-1"}""");
@@ -630,13 +690,27 @@ static Task TestClaudeStreamParserAsync()
         """{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"sess-1"}""");
     Assert(failure is ClaudeStreamMessage.TurnResult { IsError: true }, "Expected error result.");
 
+    var toolResult = ParseClaudeLine(
+        """{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"3 files changed"}]},"session_id":"sess-1"}""");
+    Assert(
+        toolResult is ClaudeStreamMessage.ToolResultReceived { Summary: "3 files changed", IsError: false },
+        "Expected tool result snippet.");
+
+    var toolError = ParseClaudeLine(
+        """{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":[{"type":"text","text":"command not found"}]}]},"session_id":"sess-1"}""");
+    Assert(
+        toolError is ClaudeStreamMessage.ToolResultReceived { Summary: "command not found", IsError: true },
+        "Expected tool error snippet from array content.");
+
     var permission = ParseClaudeLine(
-        """{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"rm x"}}}""");
+        """{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"rm x"},"permission_suggestions":[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"rm *"}],"behavior":"allow","destination":"session"}]}}""");
     Assert(
         permission is ClaudeStreamMessage.PermissionRequest { RequestId: "perm-1", ToolName: "Bash" },
         "Expected permission request.");
     var request = (ClaudeStreamMessage.PermissionRequest)permission;
     AssertEqual("rm x", request.Input.GetProperty("command").GetString());
+    Assert(request.Suggestions is not null, "Expected permission suggestions to be captured.");
+    AssertEqual("Bash: rm x", ClaudeStreamParser.DescribeToolUse(request.ToolName, request.Input));
 
     var canceled = ParseClaudeLine("""{"type":"control_cancel_request","request_id":"perm-1"}""");
     Assert(canceled is ClaudeStreamMessage.PermissionCanceled { RequestId: "perm-1" }, "Expected cancellation.");
@@ -673,6 +747,16 @@ static Task TestClaudePermissionResponseAsync()
     AssertEqual("allow", rule.GetProperty("behavior").GetString());
     AssertEqual("session", rule.GetProperty("destination").GetString());
     AssertEqual("Bash", rule.GetProperty("rules")[0].GetProperty("toolName").GetString());
+
+    // When the CLI suggested rules, approve-for-session echoes them verbatim.
+    using var suggestionsDocument = JsonDocument.Parse(
+        """[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"npm test"}],"behavior":"allow","destination":"projectSettings"}]""");
+    var echoed = JsonDocument.Parse(JsonSerializer.Serialize(
+        ClaudePermissionResponse.Allow(
+            "req-4", "Bash", input, forSession: true, suggestionsDocument.RootElement.Clone()))).RootElement;
+    var echoedRule = echoed.GetProperty("response").GetProperty("response").GetProperty("updatedPermissions")[0];
+    AssertEqual("npm test", echoedRule.GetProperty("rules")[0].GetProperty("ruleContent").GetString());
+    AssertEqual("projectSettings", echoedRule.GetProperty("destination").GetString());
 
     var deny = JsonDocument.Parse(JsonSerializer.Serialize(
         ClaudePermissionResponse.Deny("req-3", "Declined."))).RootElement;

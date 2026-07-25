@@ -10,26 +10,35 @@ public static class ClaudePermissionResponse
 {
     /// <summary>
     /// Allow the request. With <paramref name="forSession"/>, additionally adds
-    /// a session-scoped allow rule for the whole tool so subsequent uses do not
-    /// prompt again this session.
+    /// permission rules so subsequent uses do not prompt again this session —
+    /// echoing the CLI's own <paramref name="suggestions"/> when it offered
+    /// them (exactly what the Claude app's "always allow" does), otherwise
+    /// synthesizing a session-scoped allow rule for the whole tool.
     /// </summary>
-    public static object Allow(string requestId, string toolName, JsonElement input, bool forSession)
+    public static object Allow(
+        string requestId,
+        string toolName,
+        JsonElement input,
+        bool forSession,
+        JsonElement? suggestions = null)
     {
         object decision = forSession
             ? new
             {
                 behavior = "allow",
                 updatedInput = input,
-                updatedPermissions = new object[]
-                {
-                    new
+                updatedPermissions = suggestions is { } suggested
+                    ? (object)suggested
+                    : new object[]
                     {
-                        type = "addRules",
-                        rules = new object[] { new { toolName } },
-                        behavior = "allow",
-                        destination = "session",
+                        new
+                        {
+                            type = "addRules",
+                            rules = new object[] { new { toolName } },
+                            behavior = "allow",
+                            destination = "session",
+                        },
                     },
-                },
             }
             : new
             {

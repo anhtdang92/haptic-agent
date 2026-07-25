@@ -9,9 +9,16 @@ namespace CtrlAgent.Adapters.ClaudeCode;
 /// </summary>
 public abstract record ClaudeStreamMessage
 {
-    public sealed record SessionInit(string SessionId, string? Model) : ClaudeStreamMessage;
+    public sealed record SessionInit(
+        string SessionId,
+        string? Model,
+        IReadOnlyList<string> SlashCommands,
+        string? McpSummary) : ClaudeStreamMessage;
 
     public sealed record AssistantActivity(string Summary) : ClaudeStreamMessage;
+
+    /// <summary>A tool finished; the summary is its output snippet.</summary>
+    public sealed record ToolResultReceived(string Summary, bool IsError) : ClaudeStreamMessage;
 
     /// <summary>A streamed chunk of assistant text (requires
     /// <c>--include-partial-messages</c>); consumers accumulate these.</summary>
@@ -22,7 +29,11 @@ public abstract record ClaudeStreamMessage
 
     public sealed record TurnResult(bool IsError, string Summary) : ClaudeStreamMessage;
 
-    public sealed record PermissionRequest(string RequestId, string ToolName, JsonElement Input) : ClaudeStreamMessage;
+    public sealed record PermissionRequest(
+        string RequestId,
+        string ToolName,
+        JsonElement Input,
+        JsonElement? Suggestions = null) : ClaudeStreamMessage;
 
     public sealed record PermissionCanceled(string RequestId) : ClaudeStreamMessage;
 
@@ -44,6 +55,7 @@ public static class ClaudeStreamParser
         {
             "system" => ParseSystem(root),
             "assistant" => ParseAssistant(root),
+            "user" => ParseUserMessage(root),
             "stream_event" => ParseStreamEvent(root),
             "result" => ParseResult(root),
             "control_request" => ParseControlRequest(root),
@@ -55,13 +67,110 @@ public static class ClaudeStreamParser
 
     private static ClaudeStreamMessage ParseSystem(JsonElement root)
     {
-        if (GetString(root, "subtype") == "init" &&
-            GetString(root, "session_id") is { Length: > 0 } sessionId)
+        if (GetString(root, "subtype") != "init" ||
+            GetString(root, "session_id") is not { Length: > 0 } sessionId)
         {
-            return new ClaudeStreamMessage.SessionInit(sessionId, GetString(root, "model"));
+            return new ClaudeStreamMessage.Ignored();
+        }
+
+        var slashCommands = new List<string>();
+        if (root.TryGetProperty("slash_commands", out var commands) &&
+            commands.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var command in commands.EnumerateArray())
+            {
+                if (command.ValueKind == JsonValueKind.String &&
+                    command.GetString() is { Length: > 0 } name)
+                {
+                    slashCommands.Add(name.StartsWith('/') ? name : "/" + name);
+                }
+            }
+        }
+
+        string? mcpSummary = null;
+        if (root.TryGetProperty("mcp_servers", out var servers) &&
+            servers.ValueKind == JsonValueKind.Array)
+        {
+            var total = 0;
+            var failed = 0;
+            foreach (var server in servers.EnumerateArray())
+            {
+                total++;
+                if (GetString(server, "status") is { } status &&
+                    !status.Equals("connected", StringComparison.OrdinalIgnoreCase))
+                {
+                    failed++;
+                }
+            }
+
+            if (total > 0)
+            {
+                mcpSummary = failed > 0
+                    ? $"{total} MCP servers, {failed} failed"
+                    : $"{total} MCP server{(total == 1 ? string.Empty : "s")}";
+            }
+        }
+
+        return new ClaudeStreamMessage.SessionInit(sessionId, GetString(root, "model"), slashCommands, mcpSummary);
+    }
+
+    /// <summary>
+    /// stream-json echoes tool results back as user-role messages; their
+    /// output snippets are what the Claude app shows under each tool call.
+    /// </summary>
+    private static ClaudeStreamMessage ParseUserMessage(JsonElement root)
+    {
+        if (!root.TryGetProperty("message", out var message) ||
+            !message.TryGetProperty("content", out var content) ||
+            content.ValueKind != JsonValueKind.Array)
+        {
+            return new ClaudeStreamMessage.Ignored();
+        }
+
+        foreach (var block in content.EnumerateArray())
+        {
+            if (GetString(block, "type") != "tool_result")
+            {
+                continue;
+            }
+
+            var isError = block.TryGetProperty("is_error", out var errorFlag) &&
+                errorFlag.ValueKind == JsonValueKind.True;
+            var text = ExtractResultText(block);
+            var summary = string.IsNullOrWhiteSpace(text)
+                ? (isError ? "Tool failed." : "Tool finished.")
+                : text;
+            return new ClaudeStreamMessage.ToolResultReceived(Clean(summary, SummaryLength), isError);
         }
 
         return new ClaudeStreamMessage.Ignored();
+    }
+
+    private static string? ExtractResultText(JsonElement block)
+    {
+        if (!block.TryGetProperty("content", out var content))
+        {
+            return null;
+        }
+
+        if (content.ValueKind == JsonValueKind.String)
+        {
+            return content.GetString();
+        }
+
+        if (content.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var part in content.EnumerateArray())
+            {
+                if (GetString(part, "type") == "text" &&
+                    GetString(part, "text") is { Length: > 0 } text)
+                {
+                    return text;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static ClaudeStreamMessage ParseAssistant(JsonElement root)
@@ -150,13 +259,16 @@ public static class ClaudeStreamParser
         return new ClaudeStreamMessage.Ignored();
     }
 
+    private static string DescribeTool(string tool, JsonElement block) =>
+        DescribeToolUse(tool, block.TryGetProperty("input", out var input) ? input : default);
+
     /// <summary>
     /// "Bash: npm test" beats "Using tool: Bash" — surface the input detail
-    /// people actually care about, per well-known tool.
+    /// people actually care about, per well-known tool. Also used to render
+    /// permission requests concretely ("Write: src/App.cs").
     /// </summary>
-    private static string DescribeTool(string tool, JsonElement block)
+    public static string DescribeToolUse(string tool, JsonElement input)
     {
-        var input = block.TryGetProperty("input", out var inputElement) ? inputElement : default;
         if (input.ValueKind != JsonValueKind.Object)
         {
             return $"Using tool: {tool}";
@@ -262,7 +374,17 @@ public static class ClaudeStreamParser
             ? inputElement.Clone()
             : JsonDocument.Parse("{}").RootElement.Clone();
 
-        return new ClaudeStreamMessage.PermissionRequest(requestId, toolName, input);
+        // The CLI may suggest the exact permission rules an "always allow"
+        // should create; echoing them beats synthesizing our own.
+        JsonElement? suggestions = null;
+        if (request.TryGetProperty("permission_suggestions", out var suggested) &&
+            suggested.ValueKind == JsonValueKind.Array &&
+            suggested.GetArrayLength() > 0)
+        {
+            suggestions = suggested.Clone();
+        }
+
+        return new ClaudeStreamMessage.PermissionRequest(requestId, toolName, input, suggestions);
     }
 
     private static ClaudeStreamMessage ParseControlCancel(JsonElement root) =>

@@ -84,6 +84,7 @@ public sealed class MainViewModel : ViewModelBase
     private int _permissionModeIndex;
     private ChatMessage? _streamingBubble;
     private bool _isChatView = true;
+    private int _queuedPromptCount;
     private bool _isSetupVisible;
     private string _setupAgent = "mock";
     private string _setupWorkingDirectory = Environment.CurrentDirectory;
@@ -97,13 +98,7 @@ public sealed class MainViewModel : ViewModelBase
         _setupAgent = options.Agent;
         _setupWorkingDirectory = options.WorkingDirectory;
 
-        SubmitPromptCommand = new RelayCommand(_ =>
-        {
-            Buddy.CountPromptSent();
-            AddChat(isUser: true, isActivity: false,
-                string.IsNullOrWhiteSpace(PromptText) ? "(default prompt)" : PromptText);
-            Fire(e => e.SubmitPromptAsync(PromptText));
-        });
+        SubmitPromptCommand = new RelayCommand(_ => SubmitPromptText(PromptText));
         CyclePermissionModeCommand = new RelayCommand(_ =>
         {
             _permissionModeIndex = (_permissionModeIndex + 1) % PermissionModes.Length;
@@ -230,6 +225,16 @@ public sealed class MainViewModel : ViewModelBase
 
             // Light up the physical controls that can answer this approval.
             ControllerVisual.SetApprovalHighlight(message is null ? null : _approvalControls);
+        });
+        engine.PromptQueueChanged += count => Post(() =>
+        {
+            if (count > QueuedPromptCount)
+            {
+                AddChat(isUser: false, isActivity: true,
+                    $"⏳ Prompt queued ({count} waiting) — sends when the current turn ends.");
+            }
+
+            QueuedPromptCount = count;
         });
         engine.ProfileApplied += applied => Post(() =>
         {
@@ -429,6 +434,36 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     public string PermissionModeLabel => $"mode: {PermissionModes[_permissionModeIndex]}";
+
+    public int QueuedPromptCount
+    {
+        get => _queuedPromptCount;
+        private set
+        {
+            if (Set(ref _queuedPromptCount, value))
+            {
+                Raise(nameof(HasQueuedPrompts));
+                Raise(nameof(QueuedPromptLabel));
+            }
+        }
+    }
+
+    public bool HasQueuedPrompts => _queuedPromptCount > 0;
+
+    public string QueuedPromptLabel => $"queued: {_queuedPromptCount}";
+
+    /// <summary>
+    /// Sends a prompt (typed, voice, or a slash-command tile): user bubble in
+    /// the transcript, bot stats, then the engine — which queues it if the
+    /// agent is mid-turn.
+    /// </summary>
+    public void SubmitPromptText(string? text)
+    {
+        Buddy.CountPromptSent();
+        AddChat(isUser: true, isActivity: false,
+            string.IsNullOrWhiteSpace(text) ? "(default prompt)" : text);
+        Fire(e => e.SubmitPromptAsync(text));
+    }
 
     /// <summary>Show or hide raw controller input lines in the event stream.</summary>
     public bool ShowControllerEvents

@@ -11,6 +11,60 @@
        idle breathes, happy hops and waves, alert bounces urgently,
        error trembles. -->
   <UserControl.Styles>
+    <!-- ==== Projection layer ====
+         The bot reads as something being projected rather than drawn: a lit
+         pad under it, a cone of light, an orbit ring, and motes drifting up.
+         All of it lives OUTSIDE the rig canvas so it stays planted while the
+         bot hops — a base that bounces with its own hologram looks wrong. -->
+    <Style Selector="Ellipse.holoPad">
+      <Style.Animations>
+        <Animation Duration="0:0:3.2" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.5" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.9" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="0.95" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.08" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0.5" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.9" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.mote">
+      <Style.Animations>
+        <Animation Duration="0:0:4.2" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+          <KeyFrame Cue="25%"><Setter Property="Opacity" Value="0.9" /></KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="-58" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.mote.late">
+      <Style.Animations>
+        <Animation Duration="0:0:5.6" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+          <KeyFrame Cue="40%"><Setter Property="Opacity" Value="0.75" /></KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="-70" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
     <!-- Gentle idle breathing whenever nothing dramatic is happening: it
          rises as it "inhales" and widens a touch as it settles. -->
     <Style Selector="Canvas.botRig:not(.moodHappy):not(.moodAlert):not(.moodError)">
@@ -202,6 +256,81 @@
   </UserControl.Styles>
 
   <StackPanel Spacing="4" HorizontalAlignment="Center">
+   <Panel Width="92" Height="122">
+
+    <!-- Projection layer: planted, never inherits the rig's hop. -->
+    <Canvas Width="92" Height="122" IsHitTestVisible="False" ClipToBounds="True">
+      <!-- Aura behind the whole figure -->
+      <Ellipse Canvas.Left="2" Canvas.Top="8" Width="88" Height="104" Opacity="0.75">
+        <Ellipse.Fill>
+          <RadialGradientBrush Center="50%,45%" GradientOrigin="50%,45%">
+            <GradientStop Color="#3300D4FF" Offset="0" />
+            <GradientStop Color="#0F00A6D6" Offset="0.6" />
+            <GradientStop Color="#0000D4FF" Offset="1" />
+          </RadialGradientBrush>
+        </Ellipse.Fill>
+      </Ellipse>
+
+      <!-- Cone of light rising off the pad -->
+      <Path Data="M 30,112 L 62,112 L 74,44 L 18,44 Z" Opacity="0.16">
+        <Path.Fill>
+          <LinearGradientBrush StartPoint="0%,100%" EndPoint="0%,0%">
+            <GradientStop Color="#8C7DD3FC" Offset="0" />
+            <GradientStop Color="#0000D4FF" Offset="1" />
+          </LinearGradientBrush>
+        </Path.Fill>
+      </Path>
+
+      <!-- Orbit ring: fixed, like a projection ring. The travelling dot is a
+           child of a canvas that rotates on a circle and is then flattened,
+           so the dot actually follows the ellipse instead of a circle. -->
+      <Ellipse Canvas.Left="6" Canvas.Top="86" Width="80" Height="26"
+               Stroke="#4400D4FF" StrokeThickness="1.4" />
+      <Canvas Canvas.Left="46" Canvas.Top="99">
+        <Canvas.RenderTransform>
+          <TransformGroup>
+            <RotateTransform Angle="0" />
+            <ScaleTransform ScaleX="1" ScaleY="0.325" />
+          </TransformGroup>
+        </Canvas.RenderTransform>
+        <Canvas.Styles>
+          <Style Selector="Canvas">
+            <Style.Animations>
+              <Animation Duration="0:0:9" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+              </Animation>
+            </Style.Animations>
+          </Style>
+        </Canvas.Styles>
+        <Ellipse Canvas.Left="-2.5" Canvas.Top="-42.5" Width="5" Height="5" Fill="#8FD6FF" />
+      </Canvas>
+
+      <!-- Projection pad -->
+      <Ellipse Classes="holoPad" Canvas.Left="18" Canvas.Top="106" Width="56" Height="14"
+               RenderTransformOrigin="50%,50%">
+        <Ellipse.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1" /></Ellipse.RenderTransform>
+        <Ellipse.Fill>
+          <RadialGradientBrush>
+            <GradientStop Color="#B37DD3FC" Offset="0" />
+            <GradientStop Color="#3300D4FF" Offset="0.6" />
+            <GradientStop Color="#0000D4FF" Offset="1" />
+          </RadialGradientBrush>
+        </Ellipse.Fill>
+      </Ellipse>
+
+      <!-- Motes drifting up out of the pad -->
+      <Ellipse Classes="mote" Canvas.Left="26" Canvas.Top="104" Width="2.5" Height="2.5" Fill="#8FD6FF">
+        <Ellipse.RenderTransform><TranslateTransform Y="0" /></Ellipse.RenderTransform>
+      </Ellipse>
+      <Ellipse Classes="mote late" Canvas.Left="64" Canvas.Top="102" Width="2" Height="2" Fill="#7DD3FC">
+        <Ellipse.RenderTransform><TranslateTransform Y="0" /></Ellipse.RenderTransform>
+      </Ellipse>
+      <Ellipse Classes="mote late" Canvas.Left="44" Canvas.Top="108" Width="2.5" Height="2.5" Fill="#34F5A4">
+        <Ellipse.RenderTransform><TranslateTransform Y="0" /></Ellipse.RenderTransform>
+      </Ellipse>
+    </Canvas>
+
     <!-- Squash-and-stretch pivots at the feet, so scaling reads as weight
          on the ground rather than a floating resize. -->
     <Canvas Width="92" Height="122" Background="Transparent"
@@ -525,6 +654,7 @@
         </Border.Background>
       </Border>
     </Canvas>
+   </Panel>
 
     <!-- Name, level, and XP toward the next level -->
     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">

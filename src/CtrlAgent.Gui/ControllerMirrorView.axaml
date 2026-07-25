@@ -10,8 +10,98 @@
        amber), triggers fill, stick knobs and their gloss track deflection.
        Elite Series 2 layout: asymmetric Xbox sticks, hybrid d-pad disc,
        notched stick rings, guide button, rear paddle blades. -->
+  <UserControl.Styles>
+    <!-- A scan bar sweeps the shell like a diagnostic readout. Slow and dim:
+         it should register as "this thing is powered" rather than compete
+         with the live input it sits on top of. -->
+    <Style Selector="Border.scanBar">
+      <Style.Animations>
+        <Animation Duration="0:0:4.5" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="Opacity" Value="0" />
+          </KeyFrame>
+          <KeyFrame Cue="12%"><Setter Property="Opacity" Value="0.38" /></KeyFrame>
+          <KeyFrame Cue="88%"><Setter Property="Opacity" Value="0.38" /></KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.Y" Value="104" />
+            <Setter Property="Opacity" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- The field the pad sits in, breathing slowly. -->
+    <Style Selector="Ellipse.energyField">
+      <Style.Animations>
+        <Animation Duration="0:0:6" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.45" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.96" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.96" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="0.85" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.04" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.04" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0.45" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.96" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.96" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- Circuit nodes pulse out of phase with each other. -->
+    <Style Selector="Ellipse.node">
+      <Style.Animations>
+        <Animation Duration="0:0:2.2" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0.25" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.25" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.node.slow">
+      <Style.Animations>
+        <Animation Duration="0:0:3.4" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.2" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </UserControl.Styles>
+
   <Viewbox Stretch="Uniform">
               <Canvas Width="420" Height="248">
+
+
+                <!-- ==== Holo layer: the pad is presented, not just drawn ====
+                     An energy field behind it, a targeting frame around it,
+                     and a diagnostic sweep across it. All non-interactive. -->
+                <Ellipse Classes="energyField" Canvas.Left="30" Canvas.Top="10" Width="360" Height="210"
+                         IsHitTestVisible="False" RenderTransformOrigin="50%,50%">
+                  <Ellipse.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1" /></Ellipse.RenderTransform>
+                  <Ellipse.Fill>
+                    <RadialGradientBrush Center="50%,45%" GradientOrigin="50%,45%">
+                      <GradientStop Color="#5200D4FF" Offset="0" />
+                      <GradientStop Color="#2100A6D6" Offset="0.55" />
+                      <GradientStop Color="#0000D4FF" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
+
+                <!-- Targeting brackets -->
+                <Path Data="M 6,26 L 6,6 L 32,6" Stroke="#5900D4FF" StrokeThickness="1.5" IsHitTestVisible="False" />
+                <Path Data="M 388,6 L 414,6 L 414,26" Stroke="#5900D4FF" StrokeThickness="1.5" IsHitTestVisible="False" />
+                <Path Data="M 6,222 L 6,242 L 32,242" Stroke="#5900D4FF" StrokeThickness="1.5" IsHitTestVisible="False" />
+                <Path Data="M 388,242 L 414,242 L 414,222" Stroke="#5900D4FF" StrokeThickness="1.5" IsHitTestVisible="False" />
+                <!-- Tick marks down the sides -->
+                <Path Data="M 6,60 L 14,60 M 6,80 L 12,80 M 6,100 L 14,100 M 6,120 L 12,120 M 6,140 L 14,140"
+                      Stroke="#332E4A78" StrokeThickness="1.5" IsHitTestVisible="False" />
+                <Path Data="M 414,60 L 406,60 M 414,80 L 408,80 M 414,100 L 406,100 M 414,120 L 408,120 M 414,140 L 406,140"
+                      Stroke="#332E4A78" StrokeThickness="1.5" IsHitTestVisible="False" />
 
                 <!-- Trigger pull bars -->
                 <TextBlock Canvas.Left="84" Canvas.Top="1" Text="LT" FontSize="8" Foreground="#5A7099" />
@@ -167,6 +257,23 @@
                 <Border Canvas.Left="104" Canvas.Top="66" Width="16" Height="2" CornerRadius="1" Background="#1AFFFFFF" IsHitTestVisible="False" />
                 <Border Canvas.Left="300" Canvas.Top="60" Width="16" Height="2" CornerRadius="1" Background="#26FFFFFF" IsHitTestVisible="False" />
                 <Border Canvas.Left="300" Canvas.Top="66" Width="16" Height="2" CornerRadius="1" Background="#1AFFFFFF" IsHitTestVisible="False" />
+
+                <!-- Circuit traces: short runs along the bare band between
+                     the bumpers and the controls — the only part of the shell
+                     with nothing on it. Nodes pulse out of phase so the pad
+                     looks powered rather than moulded. Never hit-tests. -->
+                <Path Data="M 100,48 L 132,48 L 140,56 L 158,56"
+                      Stroke="#4400D4FF" StrokeThickness="1.2" IsHitTestVisible="False" />
+                <Path Data="M 320,48 L 288,48 L 280,56 L 262,56"
+                      Stroke="#4400D4FF" StrokeThickness="1.2" IsHitTestVisible="False" />
+                <Path Data="M 92,128 L 112,128 L 120,136"
+                      Stroke="#2E00D4FF" StrokeThickness="1.2" IsHitTestVisible="False" />
+                <Path Data="M 328,128 L 308,128 L 300,136"
+                      Stroke="#2E00D4FF" StrokeThickness="1.2" IsHitTestVisible="False" />
+                <Ellipse Classes="node" Canvas.Left="97" Canvas.Top="45" Width="6" Height="6" Fill="#7DD3FC" IsHitTestVisible="False" />
+                <Ellipse Classes="node slow" Canvas.Left="317" Canvas.Top="45" Width="6" Height="6" Fill="#7DD3FC" IsHitTestVisible="False" />
+                <Ellipse Classes="node slow" Canvas.Left="89.5" Canvas.Top="125.5" Width="5" Height="5" Fill="#34F5A4" IsHitTestVisible="False" />
+                <Ellipse Classes="node" Canvas.Left="325.5" Canvas.Top="125.5" Width="5" Height="5" Fill="#34F5A4" IsHitTestVisible="False" />
 
                 <!-- Guide button (nexus): domed with a glow -->
                 <Ellipse Canvas.Left="188" Canvas.Top="16" Width="44" Height="44" Fill="#3300D4FF" />
@@ -331,6 +438,21 @@
                 <TextBlock Canvas.Left="229" Canvas.Top="238" Text="P4" FontSize="8" Foreground="#5A7099" />
                 <TextBlock Canvas.Left="248" Canvas.Top="238" Text="P3" FontSize="8" Foreground="#5A7099" />
                 <TextBlock Canvas.Left="196" Canvas.Top="214" Text="REAR" FontSize="7" LetterSpacing="2" Foreground="#3D5578" />
+
+                <!-- Diagnostic sweep: travels the length of the shell -->
+                <Border Classes="scanBar" Canvas.Left="80" Canvas.Top="30" Width="260" Height="30"
+                        IsHitTestVisible="False">
+                  <Border.RenderTransform><TranslateTransform Y="0" /></Border.RenderTransform>
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                      <GradientStop Color="#0000D4FF" Offset="0" />
+                      <GradientStop Color="#2600D4FF" Offset="0.42" />
+                      <GradientStop Color="#5E9FE2FF" Offset="0.5" />
+                      <GradientStop Color="#2600D4FF" Offset="0.58" />
+                      <GradientStop Color="#0000D4FF" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
 
               </Canvas>
   </Viewbox>

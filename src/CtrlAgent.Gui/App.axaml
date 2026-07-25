@@ -195,9 +195,23 @@
       <Setter Property="CornerRadius" Value="9" />
     </Style>
 
-    <!-- Lists sit flush inside cards -->
+    <!-- Lists sit flush inside cards; selection follows the neon accent
+         instead of the stock Fluent blue. -->
     <Style Selector="ListBox">
       <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#3312304F" />
+      <Setter Property="BorderBrush" Value="#8C00D4FF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#4416385C" />
+      <Setter Property="BorderBrush" Value="#CC00D4FF" />
+    </Style>
+    <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#4416385C" />
     </Style>
 
     <!-- Tiny filter chips (event-stream toggles): pill glass -->

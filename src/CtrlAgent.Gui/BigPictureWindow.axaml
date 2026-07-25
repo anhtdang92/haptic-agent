@@ -262,7 +262,7 @@
     </Grid>
 
     <!-- Shortcuts screen -->
-    <Border Background="#F2060B14" IsVisible="{Binding IsShortcutsVisible}">
+    <Border Background="#060B14" IsVisible="{Binding IsShortcutsVisible}">
       <DockPanel Margin="72,48">
         <TextBlock DockPanel.Dock="Top"
                    Text="CONTROLLER SHORTCUTS"
@@ -331,7 +331,7 @@
     </Border>
 
     <!-- Voice prompt overlay -->
-    <Border Background="#F2060B14" IsVisible="{Binding IsVoiceVisible}">
+    <Border Background="#060B14" IsVisible="{Binding IsVoiceVisible}">
       <Border Classes="card" MaxWidth="760" Padding="42,36"
               VerticalAlignment="Center" HorizontalAlignment="Center">
         <StackPanel Spacing="20" HorizontalAlignment="Center">

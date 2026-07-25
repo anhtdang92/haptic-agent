@@ -13,20 +13,31 @@ using CtrlAgent.Hosting;
 
 namespace CtrlAgent.Gui;
 
-/// <summary>Stand-in for the Windows-only dictation service.</summary>
+/// <summary>
+/// Stand-in for the Windows-only dictation service. Scripted so the voice
+/// overlay can be rendered in its realistic states.
+/// </summary>
 public sealed class SpeechToTextService : IDisposable
 {
+    /// <summary>When set, recognition "hears" this instead of failing.</summary>
+    public static string? ScriptedResult { get; set; }
+
     public event Action<string>? HypothesisChanged;
 
-    public string? UnavailableReason { get; private set; } = "headless harness";
+    public string? UnavailableReason { get; private set; } =
+        ScriptedResult is null ? "no microphone in the render harness" : null;
 
-    public bool EnsureInitialized()
+    public bool EnsureInitialized() => ScriptedResult is not null;
+
+    public Task<string?> RecognizeOnceAsync()
     {
-        HypothesisChanged?.Invoke(string.Empty);
-        return false;
-    }
+        if (ScriptedResult is { } text)
+        {
+            HypothesisChanged?.Invoke(text);
+        }
 
-    public Task<string?> RecognizeOnceAsync() => Task.FromResult<string?>(null);
+        return Task.FromResult(ScriptedResult);
+    }
 
     public void CancelRecognition() { }
 
@@ -163,6 +174,58 @@ internal static class Harness
                 }
             });
 
+        // A real conversation: drive the mock agent end to end so the
+        // transcript fills with genuine bubbles and activity rows.
+        var chat = new MainViewModel(engine, options);
+        chat.AttachEngine(engine);
+        chat.ControllerStatus = "Xbox Elite Series 2 (paddles)";
+        chat.AgentStatus = "claude";
+        engine.StartAsync().GetAwaiter().GetResult();
+        chat.SubmitPromptText("Add a session picker to Big Picture mode");
+        Pump(3000);
+        chat.SubmitPromptText("Now write tests for it");
+        Pump(3000);
+        Render(new MainWindow { DataContext = chat }, "06-conversation.png");
+
+        // First-run setup overlay.
+        var setup = new MainViewModel(null, options) { IsSetupVisible = true };
+        Render(new MainWindow { DataContext = setup }, "07-first-run.png");
+
+        // Profile editor.
+        Render(new ProfileEditorWindow(engine), "08-profile-editor.png", 900, 620);
+
+        // Overlay HUD, with an approval pending. Built fresh: the shared
+        // engine's completed turns clear the approval on older view models.
+        var hud = new MainViewModel(engine, options);
+        hud.AttachEngine(engine);
+        hud.AgentState = "ApprovalRequired";
+        hud.HasPendingApproval = true;
+        hud.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
+        Render(new OverlayWindow { DataContext = hud }, "09-overlay.png", 380, 200);
+
+        // Notification toast.
+        var toast = new ToastWindow();
+        toast.Configure(
+            "APPROVAL REQUIRED",
+            "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs",
+            "#FFB020",
+            showApprovalButtons: true);
+        Render(toast, "10-toast.png", 340, 150);
+
+        // Big Picture: the fullscreen shortcuts screen.
+        var shortcuts = new BigPictureViewModel(chat);
+        Render(new BigPictureWindow { DataContext = shortcuts }, "11-shortcuts.png", 1600, 900,
+            afterShow: HideIntro,
+            afterSettle: _ => shortcuts.OnKey("F1"));
+
+        // Big Picture: the voice overlay, mid-review of a transcript.
+        SpeechToTextService.ScriptedResult = "Refactor the mapping engine and run the tests";
+        var voice = new BigPictureViewModel(chat);
+        Render(new BigPictureWindow { DataContext = voice }, "12-voice.png", 1600, 900,
+            afterShow: HideIntro,
+            afterSettle: _ => voice.OnKey("F2"));
+        SpeechToTextService.ScriptedResult = null;
+
         // Verify the rail scrolls: walk focus to the far end with the d-pad.
         var bigScrolled = new BigPictureViewModel(approving);
         Render(new BigPictureWindow { DataContext = bigScrolled }, "05-rail-scrolled.png", 1600, 900,
@@ -182,6 +245,34 @@ internal static class Harness
             });
 
         Console.WriteLine("done");
+    }
+
+    /// <summary>The boot intro is opaque until its animation finishes; the
+    /// harness clock does not advance, so retire it manually.</summary>
+    private static void HideIntro(Window window)
+    {
+        if (window.FindControl<Border>("IntroOverlay") is { } intro)
+        {
+            intro.IsVisible = false;
+        }
+    }
+
+    /// <summary>
+    /// Runs the dispatcher for roughly the given wall-clock time while
+    /// driving the headless render timer, so bindings settle, animations
+    /// advance, and a fresh frame is actually produced.
+    /// </summary>
+    private static void Pump(int milliseconds)
+    {
+        for (var elapsed = 0; elapsed < milliseconds; elapsed += 25)
+        {
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Thread.Sleep(25);
+        }
+
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
     }
 
     /// <summary>Reports whether animation-gated elements are actually visible.</summary>
@@ -223,24 +314,15 @@ internal static class Harness
         window.Show();
         afterShow?.Invoke(window);
 
-        // Let layout, bindings, and the first render frame settle.
-        for (var i = 0; i < 40; i++)
-        {
-            Dispatcher.UIThread.RunJobs();
-            Thread.Sleep(25);
-        }
+        // Let layout, bindings, animations, and a render frame settle.
+        Pump(1200);
 
         if (afterSettle is not null)
         {
             afterSettle(window);
-            for (var i = 0; i < 30; i++)
-            {
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(25);
-            }
+            Pump(900);
         }
 
-        Dispatcher.UIThread.RunJobs();
         Diagnose(window, fileName);
 
         var frame = window.GetLastRenderedFrame();

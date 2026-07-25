@@ -70,7 +70,7 @@
       <Setter Property="Foreground" Value="#E8F1FF" />
       <Setter Property="BorderBrush" Value="#1FFFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="14,7" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="Medium" />
@@ -88,6 +88,81 @@
           <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.08" />
         </Transitions>
       </Setter>
+      <!-- Custom template so every button is lit like a piece of hardware:
+           a specular hairline catching light along the top edge, and a power
+           rail along the bottom that ignites on hover/focus. Together they
+           give the surface thickness — the thing flat fills never have.
+           PART_ContentPresenter keeps its name and template bindings, so all
+           the class variants below still restyle it exactly as before. -->
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Panel>
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Background="{TemplateBinding Background}"
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="{TemplateBinding CornerRadius}"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              RecognizesAccessKey="True" />
+            <!-- Specular: light falling on the top bevel -->
+            <Border Name="Specular"
+                    Height="1"
+                    Margin="7,1,7,0"
+                    VerticalAlignment="Top"
+                    IsHitTestVisible="False"
+                    Opacity="0.5">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                  <GradientStop Color="#00FFFFFF" Offset="0" />
+                  <GradientStop Color="#99FFFFFF" Offset="0.5" />
+                  <GradientStop Color="#00FFFFFF" Offset="1" />
+                </LinearGradientBrush>
+              </Border.Background>
+              <Border.Transitions>
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+                </Transitions>
+              </Border.Transitions>
+            </Border>
+            <!-- Power rail: dim at rest, full under pointer or focus -->
+            <Border Name="EdgeLight"
+                    Height="2"
+                    Margin="7,0"
+                    VerticalAlignment="Bottom"
+                    IsHitTestVisible="False"
+                    Opacity="0.55">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                  <GradientStop Color="#0000D4FF" Offset="0" />
+                  <GradientStop Color="#3300D4FF" Offset="0.18" />
+                  <GradientStop Color="#F27DD3FC" Offset="0.5" />
+                  <GradientStop Color="#3300D4FF" Offset="0.82" />
+                  <GradientStop Color="#0000D4FF" Offset="1" />
+                </LinearGradientBrush>
+              </Border.Background>
+              <Border.Transitions>
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+                </Transitions>
+              </Border.Transitions>
+            </Border>
+          </Panel>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <!-- The rail ignites under the pointer and for keyboard/controller focus -->
+    <Style Selector="Button:pointerover /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button:focus-visible /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button:pressed /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0.15" />
     </Style>
     <!-- Micro-interaction: buttons compress slightly on press -->
     <Style Selector="Button:pressed">
@@ -136,6 +211,20 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <!-- A cyan rail on a cyan button is invisible; the accent gets a bright
+         white filament instead, so it still reads as the same system. -->
+    <Style Selector="Button.accent /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0.5" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#00FFFFFF" Offset="0" />
+            <GradientStop Color="#E6FFFFFF" Offset="0.5" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background">
         <Setter.Value>
@@ -168,6 +257,21 @@
           <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
         </Transitions>
       </Setter>
+    </Style>
+    <!-- Ghosts stay fully dark at rest — edge lighting with no surface under
+         it is just a line floating in space. Both the specular and the rail
+         arrive with the material, on hover. -->
+    <Style Selector="Button.ghost /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.ghost /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0.5" />
     </Style>
     <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="#5920304F" />

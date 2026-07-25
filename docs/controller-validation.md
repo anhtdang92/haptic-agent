@@ -181,6 +181,7 @@ The DualSense adapter reads raw HID reports directly; the byte layout is communi
 
 - confirm every button, stick, trigger, and the touchpad click parse correctly (USB input report `0x01`, Bluetooth `0x31`);
 - confirm rumble output and the cyan lightbar apply (output report `0x02` USB / `0x31` Bluetooth with CRC32);
+- confirm adaptive-trigger resistance: while an approval is pending the trigger pulls should stiffen in alternating pulses (continuous-resistance effect, mode `0x01`), and release cleanly when the approval resolves or the pad disconnects;
 - on the Edge, confirm the rear paddles and Fn buttons surface as the four paddle controls;
 - confirm disconnect/reconnect recovers without restarting the host, and that rumble always stops on disconnect.
 

@@ -31,6 +31,27 @@ public enum DualSenseButtons : uint
     RightPaddle = 1 << 22,
 }
 
+/// <summary>
+/// One adaptive-trigger effect. Mode 0x00 clears any resistance; mode 0x01 is
+/// continuous resistance from <see cref="StartPosition"/> with the given
+/// <see cref="Force"/> (both raw 0..255, per the community-documented layout).
+/// </summary>
+public readonly record struct DualSenseTriggerEffect(byte Mode, byte StartPosition, byte Force)
+{
+    public static DualSenseTriggerEffect Off { get; } = new(0x00, 0, 0);
+
+    /// <summary>Continuous resistance scaled from 0..1; 0 clears the effect.
+    /// The pull stiffens early (start ≈ 12% travel) so it reads as feedback,
+    /// not a broken trigger.</summary>
+    public static DualSenseTriggerEffect Resistance(float strength)
+    {
+        var clamped = Math.Clamp(strength, 0f, 1f);
+        return clamped <= 0f
+            ? Off
+            : new DualSenseTriggerEffect(0x01, 0x20, (byte)Math.Round(clamped * 255f));
+    }
+}
+
 /// <summary>One decoded input snapshot. Raw axes are 0..255 as on the wire.</summary>
 public readonly record struct DualSenseInputState(
     byte LeftStickX,
@@ -126,20 +147,25 @@ public static class DualSenseProtocol
     public static float NormalizeTrigger(byte raw) => raw / 255f;
 
     /// <summary>
-    /// USB output report: rumble motors plus lightbar and player-LED state.
-    /// lowFrequency drives the left (heavy) motor, highFrequency the right
-    /// (light) motor. The DualSense has no trigger rumble motors.
+    /// USB output report: rumble motors, lightbar/player-LED state, and
+    /// adaptive-trigger effects. lowFrequency drives the left (heavy) motor,
+    /// highFrequency the right (light) motor. The DualSense has no trigger
+    /// rumble motors — trigger channels are expressed as adaptive resistance.
     /// </summary>
     public static byte[] BuildUsbOutput(
         float lowFrequency,
         float highFrequency,
         byte lightbarRed,
         byte lightbarGreen,
-        byte lightbarBlue)
+        byte lightbarBlue,
+        DualSenseTriggerEffect leftTrigger = default,
+        DualSenseTriggerEffect rightTrigger = default)
     {
         var report = new byte[UsbOutputReportLength];
         report[0] = 0x02;
-        WritePayload(report.AsSpan(1), lowFrequency, highFrequency, lightbarRed, lightbarGreen, lightbarBlue);
+        WritePayload(
+            report.AsSpan(1), lowFrequency, highFrequency,
+            lightbarRed, lightbarGreen, lightbarBlue, leftTrigger, rightTrigger);
         return report;
     }
 
@@ -153,13 +179,17 @@ public static class DualSenseProtocol
         float highFrequency,
         byte lightbarRed,
         byte lightbarGreen,
-        byte lightbarBlue)
+        byte lightbarBlue,
+        DualSenseTriggerEffect leftTrigger = default,
+        DualSenseTriggerEffect rightTrigger = default)
     {
         var report = new byte[BluetoothOutputReportLength];
         report[0] = 0x31;
         report[1] = (byte)((sequenceNumber & 0x0F) << 4);
         report[2] = 0x10;
-        WritePayload(report.AsSpan(3), lowFrequency, highFrequency, lightbarRed, lightbarGreen, lightbarBlue);
+        WritePayload(
+            report.AsSpan(3), lowFrequency, highFrequency,
+            lightbarRed, lightbarGreen, lightbarBlue, leftTrigger, rightTrigger);
 
         var crc = ComputeOutputCrc(report.AsSpan(0, BluetoothOutputReportLength - 4));
         report[74] = (byte)(crc & 0xFF);
@@ -199,14 +229,26 @@ public static class DualSenseProtocol
         float highFrequency,
         byte lightbarRed,
         byte lightbarGreen,
-        byte lightbarBlue)
+        byte lightbarBlue,
+        DualSenseTriggerEffect leftTrigger,
+        DualSenseTriggerEffect rightTrigger)
     {
-        // valid_flag0: compatible rumble + haptics select; valid_flag1:
-        // lightbar + player-indicator control.
-        payload[0] = 0x03;
+        // valid_flag0: compatible rumble + haptics select + right/left
+        // trigger-effect control (always claimed so mode 0x00 actively
+        // clears stale resistance); valid_flag1: lightbar + player LEDs.
+        payload[0] = 0x0F;
         payload[1] = 0x14;
         payload[2] = ToMotor(highFrequency);
         payload[3] = ToMotor(lowFrequency);
+
+        // Right trigger effect block, then left, per the documented layout.
+        payload[10] = rightTrigger.Mode;
+        payload[11] = rightTrigger.StartPosition;
+        payload[12] = rightTrigger.Force;
+        payload[21] = leftTrigger.Mode;
+        payload[22] = leftTrigger.StartPosition;
+        payload[23] = leftTrigger.Force;
+
         payload[43] = 0x04; // center player LED
         payload[44] = lightbarRed;
         payload[45] = lightbarGreen;

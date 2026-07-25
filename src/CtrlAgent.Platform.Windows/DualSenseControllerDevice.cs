@@ -68,12 +68,15 @@ public sealed class DualSenseControllerDevice : IControllerDevice
         ? $"DualSense Edge ({Transport})"
         : $"DualSense ({Transport})";
 
+    // Trigger channels are expressed as adaptive-trigger resistance (the
+    // DualSense has no trigger rumble motors) — a pattern's trigger values
+    // physically stiffen the pull, e.g. while an approval is pending.
     public ControllerCapabilities Capabilities => new(
         HasFourPaddles: _isEdge,
         HasLowFrequencyRumble: true,
         HasHighFrequencyRumble: true,
-        HasLeftTriggerRumble: false,
-        HasRightTriggerRumble: false);
+        HasLeftTriggerRumble: true,
+        HasRightTriggerRumble: true);
 
     public bool IsConnected => _isConnected;
 
@@ -138,8 +141,12 @@ public sealed class DualSenseControllerDevice : IControllerDevice
                 foreach (var frame in pattern.Frames)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    await SendOutputAsync(frame.LowFrequency, frame.HighFrequency, cancellationToken)
-                        .ConfigureAwait(false);
+                    await SendOutputAsync(
+                        frame.LowFrequency,
+                        frame.HighFrequency,
+                        frame.LeftTrigger,
+                        frame.RightTrigger,
+                        cancellationToken).ConfigureAwait(false);
                     await Task.Delay(frame.Duration, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -266,12 +273,25 @@ public sealed class DualSenseControllerDevice : IControllerDevice
     private void Publish(ControllerControl control, ControllerInputEventKind kind, float value) =>
         _events.Writer.TryWrite(new ControllerInputEvent(Id, control, kind, value, DateTimeOffset.UtcNow));
 
-    private async ValueTask SendOutputAsync(float lowFrequency, float highFrequency, CancellationToken cancellationToken)
+    private ValueTask SendOutputAsync(float lowFrequency, float highFrequency, CancellationToken cancellationToken) =>
+        SendOutputAsync(lowFrequency, highFrequency, 0f, 0f, cancellationToken);
+
+    private async ValueTask SendOutputAsync(
+        float lowFrequency,
+        float highFrequency,
+        float leftTriggerResistance,
+        float rightTriggerResistance,
+        CancellationToken cancellationToken)
     {
+        var leftEffect = DualSenseTriggerEffect.Resistance(leftTriggerResistance);
+        var rightEffect = DualSenseTriggerEffect.Resistance(rightTriggerResistance);
+
         // Lightbar stays CtrlAgent cyan on every packet.
         var report = _isBluetooth
-            ? DualSenseProtocol.BuildBluetoothOutput(_sequence++, lowFrequency, highFrequency, 0x00, 0xD4, 0xFF)
-            : DualSenseProtocol.BuildUsbOutput(lowFrequency, highFrequency, 0x00, 0xD4, 0xFF);
+            ? DualSenseProtocol.BuildBluetoothOutput(
+                _sequence++, lowFrequency, highFrequency, 0x00, 0xD4, 0xFF, leftEffect, rightEffect)
+            : DualSenseProtocol.BuildUsbOutput(
+                lowFrequency, highFrequency, 0x00, 0xD4, 0xFF, leftEffect, rightEffect);
 
         if (report.Length != _outputReportLength && _outputReportLength > 0)
         {

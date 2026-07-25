@@ -22,7 +22,7 @@ Both sides of CtrlAgent are pluggable: controllers implement `IControllerDevice`
 |---|---|
 | Xbox-family pads (XInput) | Supported — buttons, sticks, triggers, two-motor rumble |
 | Xbox Elite Series 2 (GameInput bridge) | Supported over USB — adds trigger rumble. Paddles are **experimental**: hardware validation (2026-07-24) showed the PC GameInput redistributable never reports them, so fallback chords activate instead. Bluetooth uses the XInput path |
-| PlayStation 5 DualSense | Implemented — raw HID (buttons, sticks, triggers, rumble, cyan lightbar); USB and Bluetooth; hardware verification pending |
+| PlayStation 5 DualSense | Implemented — raw HID (buttons, sticks, triggers, rumble, cyan lightbar, **adaptive triggers**: the pull stiffens while an approval is pending); USB and Bluetooth; hardware verification pending |
 | DualSense Edge | Implemented — rear paddles/Fn map to the four paddle controls; hardware verification pending |
 | Other popular pads (SDL/GameInput) | Planned |
 
@@ -57,7 +57,7 @@ Haptic scheduler <-----------------+
 - .NET 10 managed host and platform-independent core, with a shared `HostEngine` hosting layer under both the console host and the GUI
 - XInput controller discovery, buttons, sticks, triggers, reconnect handling, and two-motor rumble
 - Native GameInput v3 bridge for four-channel rumble (Elite paddle support is experimental — the PC GameInput redistributable never reports the paddles, per hardware validation, so the bridge honestly reports no paddles and the fallback chord layer activates)
-- PS5 DualSense/DualSense Edge over raw HID: USB and Bluetooth input reports, rumble, lightbar, Edge rear paddles (protocol fully unit-tested; real-pad verification pending)
+- PS5 DualSense/DualSense Edge over raw HID: USB and Bluetooth input reports, rumble, lightbar, adaptive-trigger resistance driven by the haptic patterns' trigger channels (the triggers physically stiffen while an approval waits), Edge rear paddles (protocol fully unit-tested; real-pad verification pending)
 - XInput fallback approval chords when independent paddles are unavailable
 - Safe mapping priority that prevents approval chords from falling through to ordinary actions
 - Versioned JSON controller profiles with press, release, tap, hold, double-press, and axis-threshold gestures, capability-activated layers, collision detection, and validated approval safeguards

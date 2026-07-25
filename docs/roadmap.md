@@ -71,7 +71,7 @@ Target: all popular controllers × all popular agentic coding platforms. The lau
 | Controller | Path | Status |
 |---|---|---|
 | Xbox family | XInput (done) + GameInput bridge for trigger rumble (done); Elite paddles experimental — the PC redistributable never reports them (2026-07-24 evidence), pending a raw-report path | Supported |
-| PS5 DualSense | Raw HID input reports + HID output for rumble/lightbar (community-documented format; no OS driver needed) | Implemented — hardware verification pending |
+| PS5 DualSense | Raw HID input reports + HID output for rumble/lightbar/adaptive triggers (community-documented format; no OS driver needed) | Implemented — trigger channels render as adaptive resistance; hardware verification pending |
 | DualSense Edge | Same HID path; rear paddles + Fn buttons map to the four paddle controls | Implemented — hardware verification pending |
 | Generic pads | SDL2 or GameInput enumeration | Candidate |
 

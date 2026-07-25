@@ -823,11 +823,28 @@ static Task TestDualSenseProtocolAsync()
     var output = DualSenseProtocol.BuildUsbOutput(1f, 0.5f, 0x00, 0xD4, 0xFF);
     AssertEqual(DualSenseProtocol.UsbOutputReportLength, output.Length);
     AssertEqual((byte)0x02, output[0]);
-    AssertEqual((byte)0x03, output[1]);
+    AssertEqual((byte)0x0F, output[1]);  // rumble + haptics + both trigger-effect flags
     AssertEqual((byte)128, output[3]);   // high-frequency → right motor
     AssertEqual((byte)255, output[4]);   // low-frequency → left motor
+    AssertEqual((byte)0x00, output[11]); // no effect requested → mode 0 clears
+    AssertEqual((byte)0x00, output[22]);
     AssertEqual((byte)0xD4, output[46]);
     AssertEqual((byte)0xFF, output[47]);
+
+    // Adaptive triggers: right block at payload 10..12, left at 21..23.
+    var resisting = DualSenseProtocol.BuildUsbOutput(
+        0f, 0f, 0x00, 0xD4, 0xFF,
+        DualSenseTriggerEffect.Resistance(1f),
+        DualSenseTriggerEffect.Resistance(0.5f));
+    AssertEqual((byte)0x01, resisting[11]); // right: continuous resistance
+    AssertEqual((byte)0x20, resisting[12]);
+    AssertEqual((byte)128, resisting[13]);
+    AssertEqual((byte)0x01, resisting[22]); // left
+    AssertEqual((byte)0x20, resisting[23]);
+    AssertEqual((byte)255, resisting[24]);
+    Assert(
+        DualSenseTriggerEffect.Resistance(0f) == DualSenseTriggerEffect.Off,
+        "Zero strength must clear the trigger effect.");
 
     // Bluetooth output: correct frame plus a self-consistent trailing CRC32.
     var btOutput = DualSenseProtocol.BuildBluetoothOutput(3, 0.25f, 0f, 0x00, 0xD4, 0xFF);

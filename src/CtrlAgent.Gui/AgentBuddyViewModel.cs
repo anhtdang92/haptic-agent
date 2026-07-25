@@ -32,6 +32,8 @@ public sealed class AgentBuddyViewModel : ViewModelBase
     private readonly DispatcherTimer _tipTimer;
     private readonly List<string> _tips = [];
     private BotStats _stats = BotStats.TryLoad() ?? new BotStats(0, 0, 0, 0);
+    private ControllerProfile? _profile;
+    private ControllerCapabilities? _capabilities;
     private int _pokeIndex;
     private int _tipIndex;
     private string _message = "Booting up…";
@@ -109,6 +111,32 @@ public sealed class AgentBuddyViewModel : ViewModelBase
     /// <summary>Rebuilds every hint from the profile's actual bindings.</summary>
     public void SetProfile(ControllerProfile profile)
     {
+        _profile = profile;
+        RebuildHints();
+    }
+
+    /// <summary>
+    /// The connected device changed. Hints are rebuilt because a shortcut the
+    /// hardware cannot send is worse than no shortcut at all — coaching "P1"
+    /// on a pad that never reports paddles sends the user down a dead end.
+    /// </summary>
+    public void SetCapabilities(ControllerCapabilities? capabilities)
+    {
+        _capabilities = capabilities;
+        if (_profile is not null)
+        {
+            RebuildHints();
+        }
+    }
+
+    private void RebuildHints()
+    {
+        var profile = _profile;
+        if (profile is null)
+        {
+            return;
+        }
+
         _tips.Clear();
 
         AddTip(profile, AgentCommandKind.SubmitPrompt, "send me a prompt");
@@ -221,9 +249,17 @@ public sealed class AgentBuddyViewModel : ViewModelBase
         }
     }
 
-    private static string? FindHint(ControllerProfile profile, AgentCommandKind command)
+    /// <summary>
+    /// The first binding for this command that the connected device can
+    /// actually produce. Filtering matters because the default profile lists
+    /// paddle bindings ahead of their chord fallbacks, so an unfiltered "first
+    /// match" always names a paddle even on hardware that has none.
+    /// </summary>
+    private string? FindHint(ControllerProfile profile, AgentCommandKind command)
     {
-        var binding = profile.Bindings.FirstOrDefault(candidate => candidate.Command == command);
+        var binding = profile
+            .ReachableBindings(_capabilities)
+            .FirstOrDefault(candidate => candidate.Command == command);
         return binding is null ? null : ControlLabels.Chord(binding);
     }
 

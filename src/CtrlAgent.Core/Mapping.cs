@@ -62,6 +62,58 @@ public sealed record ControllerProfile(
     private static readonly IReadOnlySet<ControllerControl> RightShoulder =
         new HashSet<ControllerControl> { ControllerControl.RightShoulder };
 
+    /// <summary>
+    /// True when a device with these capabilities can physically produce the
+    /// control. Unknown capabilities optimistically allow everything, matching
+    /// <see cref="MappingEngine"/>'s layer rule.
+    /// </summary>
+    public static bool IsControlAvailable(
+        ControllerControl control,
+        ControllerCapabilities? capabilities) =>
+        control is not (ControllerControl.PaddleLeft1
+            or ControllerControl.PaddleLeft2
+            or ControllerControl.PaddleRight1
+            or ControllerControl.PaddleRight2)
+        || (capabilities?.HasFourPaddles ?? true);
+
+    /// <summary>
+    /// True when this binding could actually fire on a device with these
+    /// capabilities — its layer is active and every control it needs exists.
+    /// UI that advertises shortcuts must filter through this, or it will coach
+    /// inputs the hardware cannot send (Elite paddles over PC GameInput).
+    /// </summary>
+    public bool IsBindingReachable(InputBinding binding, ControllerCapabilities? capabilities)
+    {
+        if (!IsLayerActive(binding.Layer, capabilities) ||
+            !IsControlAvailable(binding.Control, capabilities))
+        {
+            return false;
+        }
+
+        return binding.Modifiers is not { Count: > 0 } modifiers ||
+            modifiers.All(modifier => IsControlAvailable(modifier, capabilities));
+    }
+
+    /// <summary>Bindings reachable on a device with these capabilities, in profile order.</summary>
+    public IEnumerable<InputBinding> ReachableBindings(ControllerCapabilities? capabilities) =>
+        Bindings.Where(binding => IsBindingReachable(binding, capabilities));
+
+    private bool IsLayerActive(string? layer, ControllerCapabilities? capabilities)
+    {
+        if (layer is null)
+        {
+            return true;
+        }
+
+        var activation = Layers?.FirstOrDefault(candidate => candidate.Name == layer)?.Activation;
+        return activation switch
+        {
+            LayerActivation.RequiresPaddles => capabilities?.HasFourPaddles ?? true,
+            LayerActivation.WithoutPaddles => !(capabilities?.HasFourPaddles ?? false),
+            _ => true,
+        };
+    }
+
     public static ControllerProfile Default { get; } = new(
         "default",
         [

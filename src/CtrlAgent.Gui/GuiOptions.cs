@@ -56,6 +56,23 @@ public sealed record GuiOptions(
             throw new ArgumentException("--agent must be 'mock', 'codex', or 'claude'.");
         }
 
+        // Match AppOptions: fail loudly here rather than starting a host that
+        // cannot work. An unquoted path with spaces reaches us truncated, and
+        // a silent accept turns that into a mystery further downstream.
+        if (!Directory.Exists(workingDirectory))
+        {
+            throw new ArgumentException(
+                $"Working directory not found: {workingDirectory}. " +
+                "If the path contains spaces, quote it.");
+        }
+
+        if (profilePath is not null && !File.Exists(profilePath))
+        {
+            throw new ArgumentException(
+                $"Profile not found: {profilePath}. " +
+                "If the path contains spaces, quote it.");
+        }
+
         return new GuiOptions(
             agent.ToLowerInvariant(),
             workingDirectory,

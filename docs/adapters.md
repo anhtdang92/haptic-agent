@@ -72,7 +72,7 @@ Both adapters implement the same recovery behavior — new adapters should too:
 
 ## Writing a new adapter
 
-1. New project `src/CtrlAgent.Adapters.<Name>` referencing **Core only**; add it to the solution and to the hosts' project references and `--agent` switch (both `AppOptions`/`Program` and `GuiOptions`/`HostEngine` until the shared hosting layer exists).
+1. New project `src/CtrlAgent.Adapters.<Name>` referencing **Core only**; add it to the solution and to the hosts' project references and `--agent` switch. The shared `HostEngine` covers the host loops, but each host still selects its own adapter, so update both switches: `Program.CreateAgentAdapter` in `CtrlAgent.App` and `App.CreateAgentAdapter` in `CtrlAgent.Gui`.
 2. Keep protocol parsing in a pure, testable class (see `ClaudeStreamParser`); the process-management class should never touch raw JSON fields.
 3. Publish events through an unbounded `Channel<AgentEvent>`; `ReadEventsAsync` just drains it. Never block the event stream on I/O.
 4. Honor the pending-approval lifecycle and the resilience pattern above.

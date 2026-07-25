@@ -191,6 +191,16 @@ internal static class Harness
         var setup = new MainViewModel(null, options) { IsSetupVisible = true };
         Render(new MainWindow { DataContext = setup }, "07-first-run.png");
 
+        // Startup failure. A dead host used to be indistinguishable from a
+        // disconnected one, so this surface is worth a render check.
+        var failed = new MainViewModel(null, options)
+        {
+            StartupError = "Unknown argument: Files\\Archived\\Coding_Projects\\haptic-agent",
+            ControllerStatus = "Failed to start",
+            AgentStatus = "Failed to start",
+        };
+        Render(new MainWindow { DataContext = failed }, "13-startup-error.png");
+
         // Profile editor.
         Render(new ProfileEditorWindow(engine), "08-profile-editor.png", 900, 620);
 

@@ -11,56 +11,177 @@
        idle breathes, happy hops and waves, alert bounces urgently,
        error trembles. -->
   <UserControl.Styles>
-    <!-- Gentle idle bob whenever nothing dramatic is happening -->
+    <!-- Gentle idle breathing whenever nothing dramatic is happening: it
+         rises as it "inhales" and widens a touch as it settles. -->
     <Style Selector="Canvas.botRig:not(.moodHappy):not(.moodAlert):not(.moodError)">
       <Style.Animations>
         <Animation Duration="0:0:5" IterationCount="Infinite">
-          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-          <KeyFrame Cue="50%"><Setter Property="TranslateTransform.Y" Value="-2.5" /></KeyFrame>
-          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="TranslateTransform.Y" Value="-2.5" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.99" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.015" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
 
-    <!-- Happy: a double hop, like a tamagotchi celebrating -->
+    <!-- Happy: two big celebratory hops that settle into a proud sway, with
+         squash on launch and landing (the body carries scale + translate on
+         one TransformGroup so both animate together). Runs once — a
+         celebration that loops forever stops reading as a celebration. -->
     <Style Selector="Canvas.botRig.moodHappy">
       <Style.Animations>
-        <Animation Duration="0:0:0.95" IterationCount="Infinite">
-          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-          <KeyFrame Cue="22%"><Setter Property="TranslateTransform.Y" Value="-9" /></KeyFrame>
-          <KeyFrame Cue="42%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-          <KeyFrame Cue="60%"><Setter Property="TranslateTransform.Y" Value="-4" /></KeyFrame>
-          <KeyFrame Cue="75%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+        <Animation Duration="0:0:2.6" IterationCount="1" FillMode="Forward">
+          <!-- anticipation: crouch -->
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="6%">
+            <Setter Property="TranslateTransform.Y" Value="2" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.06" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.92" />
+          </KeyFrame>
+          <!-- hop 1: stretch up, apex, squash on landing -->
+          <KeyFrame Cue="14%">
+            <Setter Property="TranslateTransform.Y" Value="-11" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.94" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.08" />
+          </KeyFrame>
+          <KeyFrame Cue="22%">
+            <Setter Property="TranslateTransform.Y" Value="-13" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="31%">
+            <Setter Property="TranslateTransform.Y" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.08" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.90" />
+          </KeyFrame>
+          <!-- hop 2: smaller -->
+          <KeyFrame Cue="40%">
+            <Setter Property="TranslateTransform.Y" Value="-7" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.96" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.05" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="TranslateTransform.Y" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.05" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.94" />
+          </KeyFrame>
+          <!-- settle into a proud sway -->
+          <KeyFrame Cue="62%">
+            <Setter Property="TranslateTransform.Y" Value="-2" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="80%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.Y" Value="-1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
-    <!-- …with both arms waving -->
+    <!-- Shadow reacts to the hop: smaller and fainter the higher it goes -->
+    <Style Selector="Canvas.botRig.moodHappy > Ellipse.shadow">
+      <Style.Animations>
+        <Animation Duration="0:0:2.6" IterationCount="1" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="22%">
+            <Setter Property="Opacity" Value="0.35" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.66" />
+          </KeyFrame>
+          <KeyFrame Cue="31%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.1" />
+          </KeyFrame>
+          <KeyFrame Cue="40%">
+            <Setter Property="Opacity" Value="0.55" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.8" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.05" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- …with both arms waving, easing off as the celebration settles -->
     <Style Selector="Canvas.botRig.moodHappy > Border.armL">
       <Style.Animations>
-        <Animation Duration="0:0:0.45" IterationCount="Infinite" PlaybackDirection="Alternate">
+        <Animation Duration="0:0:0.42" IterationCount="6" PlaybackDirection="Alternate" FillMode="Forward">
           <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="16" /></KeyFrame>
-          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="52" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="54" /></KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
     <Style Selector="Canvas.botRig.moodHappy > Border.armR">
       <Style.Animations>
-        <Animation Duration="0:0:0.45" IterationCount="Infinite" PlaybackDirection="Alternate">
+        <Animation Duration="0:0:0.42" IterationCount="6" PlaybackDirection="Alternate" FillMode="Forward">
           <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="-16" /></KeyFrame>
-          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="-52" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="-54" /></KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
 
-    <!-- Alert: quick urgent bounces — answer me! -->
+    <!-- Alert: quick urgent bounces with a little squash on each landing -->
     <Style Selector="Canvas.botRig.moodAlert">
       <Style.Animations>
         <Animation Duration="0:0:0.55" IterationCount="Infinite">
-          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-          <KeyFrame Cue="35%"><Setter Property="TranslateTransform.Y" Value="-5" /></KeyFrame>
-          <KeyFrame Cue="70%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
-          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="30%">
+            <Setter Property="TranslateTransform.Y" Value="-6" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.04" />
+          </KeyFrame>
+          <KeyFrame Cue="58%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.95" />
+          </KeyFrame>
+          <KeyFrame Cue="75%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Canvas.botRig.moodAlert > Ellipse.shadow">
+      <Style.Animations>
+        <Animation Duration="0:0:0.55" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="30%"><Setter Property="Opacity" Value="0.6" /></KeyFrame>
+          <KeyFrame Cue="58%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
@@ -81,15 +202,29 @@
   </UserControl.Styles>
 
   <StackPanel Spacing="4" HorizontalAlignment="Center">
+    <!-- Squash-and-stretch pivots at the feet, so scaling reads as weight
+         on the ground rather than a floating resize. -->
     <Canvas Width="92" Height="122" Background="Transparent"
             Classes="botRig"
             Classes.moodHappy="{Binding IsHappy}"
             Classes.moodAlert="{Binding IsAlert}"
             Classes.moodError="{Binding IsError}"
+            RenderTransformOrigin="50%,93%"
             Cursor="Hand" PointerPressed="OnPoke">
+      <Canvas.RenderTransform>
+        <TransformGroup>
+          <ScaleTransform ScaleX="1" ScaleY="1" />
+          <TranslateTransform X="0" Y="0" />
+        </TransformGroup>
+      </Canvas.RenderTransform>
 
-      <!-- Ground shadow -->
-      <Ellipse Canvas.Left="24" Canvas.Top="113" Width="44" Height="7" Fill="#33000000" />
+      <!-- Ground shadow: shrinks and fades as the bot leaves the ground -->
+      <Ellipse Classes="shadow" Canvas.Left="24" Canvas.Top="113" Width="44" Height="7" Fill="#33000000"
+               RenderTransformOrigin="50%,50%">
+        <Ellipse.RenderTransform>
+          <ScaleTransform ScaleX="1" ScaleY="1" />
+        </Ellipse.RenderTransform>
+      </Ellipse>
 
       <!-- Antenna: stem + halo + mood-colored tip -->
       <Border Canvas.Left="44" Canvas.Top="10" Width="4" Height="13" CornerRadius="2" Background="#2E4A78" />

@@ -163,7 +163,42 @@
          left to right, separated by hairlines; the live value carries the
          weight and the dot carries the state. -->
     <Border DockPanel.Dock="Top" Classes="card" Padding="20,13" Margin="0,4,0,0">
-      <StackPanel Orientation="Horizontal" Spacing="22">
+      <!-- Docked, not one long StackPanel: the session cluster used to carry
+           HorizontalAlignment="Right" inside a horizontal StackPanel, which
+           does nothing — it simply trailed the profile block wherever that
+           block happened to end. It is declared first so it keeps its width
+           at small window sizes; the facts take what is left. -->
+      <DockPanel LastChildFill="True">
+
+        <!-- Session knobs: what the agent is running as. Every one of these
+             is also a controller binding, so the labels read from the engine
+             rather than from a local counter (see PermissionModeLabel). -->
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
+                    VerticalAlignment="Center" Margin="16,0,0,0">
+          <TextBlock Text="{Binding SessionId}"
+                     FontSize="11" Foreground="#4C6A93"
+                     FontFamily="Cascadia Mono,Consolas,monospace"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" MaxWidth="150" />
+          <Button Content="{Binding PermissionModeLabel}"
+                  Command="{Binding CyclePermissionModeCommand}"
+                  Classes="knob"
+                  ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
+          <Button Content="{Binding ModelLabel}"
+                  Command="{Binding CycleModelCommand}"
+                  Classes="knob"
+                  ToolTip.Tip="Cycle the model: default, sonnet, opus, haiku, fable" />
+          <Button Content="{Binding EffortLabel}"
+                  Command="{Binding CycleEffortCommand}"
+                  Classes="knob"
+                  ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
+          <Button Content="compact"
+                  Command="{Binding CompactCommand}"
+                  Classes="knob"
+                  ToolTip.Tip="Compact the conversation, freeing context" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="22">
 
         <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
           <Ellipse Width="7" Height="7" VerticalAlignment="Center"
@@ -226,26 +261,14 @@
           </StackPanel>
         </StackPanel>
 
-        <!-- Session id and permission mode sit right, quietly -->
-        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right"
-                    VerticalAlignment="Center">
-          <TextBlock Text="{Binding SessionId}"
-                     FontSize="11" Foreground="#4C6A93"
-                     FontFamily="Cascadia Mono,Consolas,monospace"
-                     VerticalAlignment="Center"
-                     TextTrimming="CharacterEllipsis" MaxWidth="190" />
-          <Button Content="{Binding PermissionModeLabel}"
-                  Command="{Binding CyclePermissionModeCommand}"
-                  FontSize="10" Padding="10,3" CornerRadius="9"
-                  VerticalAlignment="Center"
-                  ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits" />
         </StackPanel>
-      </StackPanel>
+      </DockPanel>
     </Border>
 
     <!-- Action row: the only always-visible command strip -->
     <DockPanel DockPanel.Dock="Top" Margin="0,14,0,0">
-      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="6,0,0,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="6,0,0,0"
+                  VerticalAlignment="Bottom">
         <Border Background="#33FFB020"
                 BorderBrush="#66FFB020"
                 BorderThickness="1"
@@ -261,14 +284,21 @@
         <Button Content="Review" Command="{Binding ReviewCommand}" />
         <Button Content="New session" Command="{Binding NewSessionCommand}" />
       </StackPanel>
+      <!-- Multi-line: a coding agent gets pasted stack traces and numbered
+           steps, and a single-line box silently flattened them. Enter still
+           submits (handled in code-behind so it beats the newline insert);
+           Shift+Enter is the newline. The box grows to a few lines, then
+           scrolls, so a long paste never eats the window. -->
       <TextBox Text="{Binding PromptText}"
                FontSize="14"
                Padding="14,10"
-               Watermark="Ask the agent anything — Enter submits">
-        <TextBox.KeyBindings>
-          <KeyBinding Gesture="Enter" Command="{Binding SubmitPromptCommand}" />
-        </TextBox.KeyBindings>
-      </TextBox>
+               AcceptsReturn="True"
+               AcceptsTab="False"
+               TextWrapping="Wrap"
+               MaxHeight="132"
+               VerticalContentAlignment="Top"
+               x:Name="PromptBox"
+               Watermark="Ask the agent anything — Enter submits, Shift+Enter for a new line" />
     </DockPanel>
 
     <!-- Approval banner: docked in the flow directly under the prompt row, so

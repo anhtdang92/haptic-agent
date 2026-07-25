@@ -3,9 +3,9 @@
              xmlns:gui="using:CtrlAgent.Gui"
              x:Class="CtrlAgent.Gui.BotView"
              x:DataType="gui:AgentBuddyViewModel"
-             ToolTip.Tip="{Binding StatsSummary}">
+             ToolTip.Tip="{Binding Message}">
 
-  <!-- CTRL·BOT, the tamagotchi companion. One shared drawing used by the
+  <!-- CTRL·BOT, the resident companion. One shared drawing used by the
        main window and Mainframe; consumers wrap it in a Viewbox to scale.
        Click/tap pokes the bot. Whole-body mood animations live here:
        idle breathes, happy hops and waves, alert bounces urgently,
@@ -656,23 +656,8 @@
     </Canvas>
    </Panel>
 
-    <!-- Name, level, and XP toward the next level -->
-    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-      <TextBlock Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5" VerticalAlignment="Center" />
-      <Border Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1" CornerRadius="4" Padding="4,0">
-        <TextBlock Text="{Binding LevelText}" FontSize="8" FontWeight="Bold" Foreground="#7DD3FC" />
-      </Border>
-      <Border Width="58" Height="5" CornerRadius="2.5" Background="#141F36"
-              BorderBrush="#552E4A78" BorderThickness="1" VerticalAlignment="Center">
-        <Border Width="{Binding XpBarWidth}" Height="3" CornerRadius="1.5" HorizontalAlignment="Left">
-          <Border.Background>
-            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-              <GradientStop Color="#00D4FF" Offset="0" />
-              <GradientStop Color="#34F5A4" Offset="1" />
-            </LinearGradientBrush>
-          </Border.Background>
-        </Border>
-      </Border>
-    </StackPanel>
+    <!-- Nameplate. No level badge or XP bar: the bot keeps no score. -->
+    <TextBlock Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5"
+               HorizontalAlignment="Center" />
   </StackPanel>
 </UserControl>

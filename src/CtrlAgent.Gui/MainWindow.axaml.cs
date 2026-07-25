@@ -16,6 +16,11 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         DataContextChanged += (_, _) => ObserveLog();
 
+        // Tunnel, not bubble: with AcceptsReturn the TextBox handles Enter
+        // itself and marks the event handled, so a bubbling handler (or a
+        // KeyBinding) never sees the key we want to intercept.
+        PromptBox.AddHandler(KeyDownEvent, OnPromptKeyDown, RoutingStrategies.Tunnel);
+
         // F11 = enter Mainframe, the standard fullscreen key.
         KeyDown += (_, eventArgs) =>
         {
@@ -25,6 +30,23 @@ public sealed partial class MainWindow : Window
                 (Avalonia.Application.Current as App)?.ShowMainframe();
             }
         };
+    }
+
+    // Enter sends; Shift+Enter falls through to the TextBox and becomes a
+    // newline. Sending on plain Enter is the habit every chat client teaches,
+    // and a prompt is far more often one line than several.
+    private void OnPromptKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Key != Key.Enter || eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return;
+        }
+
+        eventArgs.Handled = true;
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.SubmitPromptCommand.Execute(null);
+        }
     }
 
     // Keeps the event stream pinned to the newest entry.
@@ -40,20 +62,35 @@ public sealed partial class MainWindow : Window
         viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
     }
 
-    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
-    {
-        if (eventArgs.Action == NotifyCollectionChangedAction.Add && EventStream.ItemCount > 0)
-        {
-            EventStream.ScrollIntoView(EventStream.ItemCount - 1);
-        }
-    }
+    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
+        StickToBottom(EventStream, eventArgs);
 
-    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
+    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
+        StickToBottom(ChatList, eventArgs);
+
+    /// <summary>
+    /// Follows new items only while the view is already at the bottom. It used
+    /// to follow unconditionally, so scrolling up to read what the agent did
+    /// two minutes ago was undone by the next event — and during a busy turn
+    /// that is several times a second, which made the history unreadable
+    /// exactly when you most wanted to read it. Scrolling back down re-arms it.
+    /// </summary>
+    private static void StickToBottom(ListBox list, NotifyCollectionChangedEventArgs eventArgs)
     {
-        if (eventArgs.Action == NotifyCollectionChangedAction.Add && ChatList.ItemCount > 0)
+        if (eventArgs.Action != NotifyCollectionChangedAction.Add || list.ItemCount == 0)
         {
-            ChatList.ScrollIntoView(ChatList.ItemCount - 1);
+            return;
         }
+
+        // Measured before layout runs for the new item, so the extent is still
+        // the pre-add one. The tolerance covers partially-visible last rows.
+        if (list.Scroll is { } scroll &&
+            scroll.Offset.Y < scroll.Extent.Height - scroll.Viewport.Height - 32)
+        {
+            return;
+        }
+
+        list.ScrollIntoView(list.ItemCount - 1);
     }
 
     private async void OnBrowseWorkingDirectory(object? sender, RoutedEventArgs eventArgs)

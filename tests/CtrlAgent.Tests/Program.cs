@@ -37,6 +37,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Captured input passes only approval commands", TestInputCaptureFilterAsync),
     ("Host engine queues prompts while the agent is busy", TestPromptQueueAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
+    ("Host engine tracks session settings from every route", TestSessionSettingsTrackingAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
 };
@@ -724,6 +725,44 @@ static async Task TestHostEngineProfileSwapAsync()
     AssertEqual("custom", engine.Profile.Name);
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
     AssertEqual("custom", (await applied.Task.WaitAsync(timeout.Token).ConfigureAwait(false)).Name);
+}
+
+// The GUI labels model/effort/mode from engine.Settings. Before this, the
+// permission mode was the one knob the engine did not track: a GUI kept a
+// private cycle index, so a mode set from a controller binding moved the
+// session without moving the label, and the two disagreed from then on.
+static async Task TestSessionSettingsTrackingAsync()
+{
+    var controller = new ScriptedController();
+    await using var engine = new HostEngine(
+        new SingleControllerProvider(controller),
+        new MockAgentAdapter(),
+        ControllerProfile.Default,
+        new HostEngineOptions("prompt"));
+
+    var published = new List<SessionSettings>();
+    engine.SessionSettingsChanged += settings => published.Add(settings);
+
+    // Unset until asked: the agent starts on its own defaults.
+    Assert(engine.Settings.Model is null, "Model must start unset.");
+    Assert(engine.Settings.PermissionMode is null, "Permission mode must start unset.");
+
+    await engine.SetPermissionModeAsync("plan").ConfigureAwait(false);
+    AssertEqual("plan", engine.Settings.PermissionMode!);
+
+    await engine.CycleModelAsync().ConfigureAwait(false);
+    AssertEqual("default", engine.Settings.Model!);
+    await engine.CycleModelAsync().ConfigureAwait(false);
+    AssertEqual("sonnet", engine.Settings.Model!);
+
+    await engine.CycleEffortAsync().ConfigureAwait(false);
+    AssertEqual("low", engine.Settings.Effort!);
+
+    // One knob moving must not clear the others.
+    AssertEqual("plan", engine.Settings.PermissionMode!);
+    AssertEqual("sonnet", engine.Settings.Model!);
+    AssertEqual(4, published.Count);
+    AssertEqual("sonnet", published[^1].Model!);
 }
 
 static Task TestValidationReportGatesAsync()

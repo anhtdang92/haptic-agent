@@ -384,6 +384,9 @@ public sealed class MainframeViewModel : ViewModelBase
         switch (tile.Id)
         {
             case "mode": Main.CyclePermissionModeCommand.Execute(null); break;
+            case "model": Main.CycleModelCommand.Execute(null); break;
+            case "effort": Main.CycleEffortCommand.Execute(null); break;
+            case "compact": Main.CompactCommand.Execute(null); break;
             case "workspace": WorkspacePickerRequested?.Invoke(); break;
             case "profile": ProfileEditorRequested?.Invoke(); break;
             case "shortcuts": ToggleShortcuts(); break;
@@ -662,6 +665,9 @@ public sealed class MainframeViewModel : ViewModelBase
         // shortcuts, shown in the HUD, so nothing destructive is ever one
         // wandering d-pad press away.
         Tiles.Add(new MainframeTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
+        Tiles.Add(new MainframeTile { Id = "model", Glyph = "🧠", Label = "Model" });
+        Tiles.Add(new MainframeTile { Id = "effort", Glyph = "⚡", Label = "Effort" });
+        Tiles.Add(new MainframeTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
         Tiles.Add(new MainframeTile { Id = "workspace", Glyph = "🗂", Label = "Workspace" });
         Tiles.Add(new MainframeTile { Id = "profile", Glyph = "⚙", Label = "Controller profile" });
         Tiles.Add(new MainframeTile { Id = "shortcuts", Glyph = "🎮", Label = "All shortcuts" });

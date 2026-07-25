@@ -80,8 +80,7 @@ public sealed class MainViewModel : ViewModelBase
     private bool _showControllerEvents = true;
     private readonly List<LogEntry> _logHistory = [];
     private DateTimeOffset _lastViewPress = DateTimeOffset.MinValue;
-    private static readonly string[] PermissionModes = [.. AgentModes.PermissionModes];
-    private int _permissionModeIndex;
+    private SessionSettings _settings = new(null, null, null);
     private ChatMessage? _streamingBubble;
     private bool _isChatView = true;
     private bool _isTranscriptEmpty = true;
@@ -104,14 +103,24 @@ public sealed class MainViewModel : ViewModelBase
         _setupWorkingDirectory = options.WorkingDirectory;
         _workspacePath = options.WorkingDirectory;
 
-        SubmitPromptCommand = new RelayCommand(_ => SubmitPromptText(PromptText));
-        CyclePermissionModeCommand = new RelayCommand(_ =>
+        SubmitPromptCommand = new RelayCommand(_ =>
         {
-            _permissionModeIndex = (_permissionModeIndex + 1) % PermissionModes.Length;
-            Raise(nameof(PermissionModeLabel));
-            var mode = PermissionModes[_permissionModeIndex];
-            Fire(e => e.SetPermissionModeAsync(mode));
+            // Clear on send. The text stayed put before, which read as "that
+            // didn't go through" and made the next prompt a select-all away.
+            var text = PromptText;
+            PromptText = string.Empty;
+            SubmitPromptText(text);
         });
+
+        // Step from what the engine says the session is on, not from a local
+        // counter: a controller binding or a Mainframe tile can move the mode
+        // too, and a private index desyncs the moment one of them does.
+        CyclePermissionModeCommand = new RelayCommand(_ =>
+            Fire(e => e.SetPermissionModeAsync(
+                AgentModes.Next(AgentModes.PermissionModes, e.Settings.PermissionMode))));
+        CycleModelCommand = new RelayCommand(_ => Fire(e => e.CycleModelAsync()));
+        CycleEffortCommand = new RelayCommand(_ => Fire(e => e.CycleEffortAsync()));
+        CompactCommand = new RelayCommand(_ => Fire(e => e.CompactContextAsync()));
         InterruptCommand = new RelayCommand(_ => Fire(e => e.InterruptAsync()));
         NewSessionCommand = new RelayCommand(_ => Fire(e => e.NewSessionAsync()));
         ReviewCommand = new RelayCommand(_ => Fire(e => e.ReviewChangesAsync()));
@@ -196,6 +205,14 @@ public sealed class MainViewModel : ViewModelBase
         IsAgentActive = false;
         AgentDotBrush = DotOff;
         QueuedPromptCount = 0;
+
+        // A new engine means a new session, which starts on the agent's own
+        // defaults — carrying the old workspace's model/effort/mode labels
+        // over would claim settings the new session never received.
+        _settings = new SessionSettings(null, null, null);
+        Raise(nameof(PermissionModeLabel));
+        Raise(nameof(ModelLabel));
+        Raise(nameof(EffortLabel));
     }
 
     /// <summary>
@@ -232,6 +249,11 @@ public sealed class MainViewModel : ViewModelBase
         ProfileDotBrush = DotGood;
         _profile = engine.Profile;
         RefreshBindingRows();
+
+        _settings = engine.Settings;
+        Raise(nameof(PermissionModeLabel));
+        Raise(nameof(ModelLabel));
+        Raise(nameof(EffortLabel));
 
         Buddy.SetProfile(engine.Profile);
         _approvalControls = ComputeApprovalControls(engine.Profile);
@@ -307,17 +329,18 @@ public sealed class MainViewModel : ViewModelBase
         });
         engine.PendingApprovalChanged += message => Post(() =>
         {
-            if (message is null && HasPendingApproval)
-            {
-                // Answered from anywhere — controller, GUI, overlay, or toast.
-                Buddy.CountApprovalResolved();
-            }
-
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
 
             // Light up the physical controls that can answer this approval.
             ControllerVisual.SetApprovalHighlight(message is null ? null : _approvalControls);
+        });
+        engine.SessionSettingsChanged += settings => Post(() =>
+        {
+            _settings = settings;
+            Raise(nameof(PermissionModeLabel));
+            Raise(nameof(ModelLabel));
+            Raise(nameof(EffortLabel));
         });
         engine.PromptQueueChanged += count => Post(() =>
         {
@@ -553,7 +576,21 @@ public sealed class MainViewModel : ViewModelBase
         private set => Set(ref _isTranscriptEmpty, value);
     }
 
-    public string PermissionModeLabel => $"mode: {PermissionModes[_permissionModeIndex]}";
+    /// <summary>
+    /// The session knobs, mirrored from the engine so every route that can
+    /// change them — chip, tile, or controller binding — moves the same label.
+    /// </summary>
+    public string PermissionModeLabel => $"mode: {_settings.PermissionMode ?? "default"}";
+
+    public string ModelLabel => $"model: {_settings.Model ?? "default"}";
+
+    public string EffortLabel => $"effort: {_settings.Effort ?? "default"}";
+
+    public ICommand CycleModelCommand { get; }
+
+    public ICommand CycleEffortCommand { get; }
+
+    public ICommand CompactCommand { get; }
 
     public int QueuedPromptCount
     {
@@ -574,12 +611,11 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>
     /// Sends a prompt (typed, voice, or a slash-command tile): user bubble in
-    /// the transcript, bot stats, then the engine — which queues it if the
-    /// agent is mid-turn.
+    /// the transcript, then the engine — which queues it if the agent is
+    /// mid-turn.
     /// </summary>
     public void SubmitPromptText(string? text)
     {
-        Buddy.CountPromptSent();
         AddChat(isUser: true, isActivity: false,
             string.IsNullOrWhiteSpace(text) ? "(default prompt)" : text);
         Fire(e => e.SubmitPromptAsync(text));

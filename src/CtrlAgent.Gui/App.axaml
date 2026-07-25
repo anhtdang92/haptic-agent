@@ -258,6 +258,16 @@
         </Transitions>
       </Setter>
     </Style>
+    <!-- Session knob: a pill in the status strip that both reports a value
+         and steps it. Sized down so four of them read as one instrument
+         cluster next to the facts rather than as four commands. -->
+    <Style Selector="Button.knob">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <!-- Segmented toolbar item: lives inside a rail that already supplies the
          chrome, so the item itself is bare until hovered. Squarer corners than
          a standalone button because it is one cell of a strip. -->

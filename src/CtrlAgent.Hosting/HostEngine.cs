@@ -8,6 +8,18 @@ public sealed record ControllerSnapshot(string Id, string DisplayName, Controlle
 public sealed record HostEngineOptions(string DefaultPrompt, bool LogAnalogChanges = false);
 
 /// <summary>
+/// The per-session knobs the engine tracks so UIs can label them: the model
+/// and effort cycles, and the permission mode. Null means "whatever the agent
+/// started with" — the engine has not been asked to change it.
+/// <para>
+/// These live on the engine rather than in each UI because a binding, a
+/// button, and a voice command all reach the same session: a UI keeping its
+/// own cycle position starts lying the moment any other route moves it.
+/// </para>
+/// </summary>
+public sealed record SessionSettings(string? Model, string? Effort, string? PermissionMode);
+
+/// <summary>
 /// The shared host: runs the controller-session loop and the agent-event loop
 /// on top of any <see cref="IControllerProvider"/> and <see cref="IAgentAdapter"/>.
 /// Both the console host and the GUI build on this engine, so behavior changes
@@ -152,15 +164,13 @@ public sealed class HostEngine : IAsyncDisposable
     public Task CycleEffortAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.CycleEffort));
 
-    /// <summary>The model and effort last requested through this engine, so
-    /// UIs can label the current position of each cycle. Null until set —
-    /// the agent's own default is whatever it started with.</summary>
-    public string? CurrentModel { get; private set; }
+    /// <summary>The model, effort, and permission mode last requested through
+    /// this engine, so UIs can label the current position of each cycle.</summary>
+    public SessionSettings Settings { get; private set; } = new(null, null, null);
 
-    public string? CurrentEffort { get; private set; }
-
-    /// <summary>Raised when a cycle advances, with (model, effort).</summary>
-    public event Action<string?, string?>? SessionSettingsChanged;
+    /// <summary>Raised whenever <see cref="Settings"/> changes, from any
+    /// route — controller binding, GUI button, or console command.</summary>
+    public event Action<SessionSettings>? SessionSettingsChanged;
 
     public Task NextSessionAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.NextSession));
@@ -442,33 +452,42 @@ public sealed class HostEngine : IAsyncDisposable
         {
             case AgentCommandKind.CycleModel:
             {
-                var next = AgentModes.Next(AgentModes.ModelCycle, CurrentModel);
-                CurrentModel = next;
-                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                var next = AgentModes.Next(AgentModes.ModelCycle, Settings.Model);
+                PublishSettings(Settings with { Model = next });
                 return command with { Kind = AgentCommandKind.SetModel, Text = next };
             }
 
             case AgentCommandKind.CycleEffort:
             {
-                var next = AgentModes.Next(AgentModes.EffortCycle, CurrentEffort);
-                CurrentEffort = next;
-                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                var next = AgentModes.Next(AgentModes.EffortCycle, Settings.Effort);
+                PublishSettings(Settings with { Effort = next });
                 return command with { Kind = AgentCommandKind.SetEffort, Text = next };
             }
 
             case AgentCommandKind.SetModel when command.Text is { Length: > 0 }:
-                CurrentModel = command.Text;
-                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                PublishSettings(Settings with { Model = command.Text });
                 return command;
 
             case AgentCommandKind.SetEffort when command.Text is { Length: > 0 }:
-                CurrentEffort = command.Text;
-                SessionSettingsChanged?.Invoke(CurrentModel, CurrentEffort);
+                PublishSettings(Settings with { Effort = command.Text });
+                return command;
+
+            // Tracked for the same reason the cycles are: a mode set from a
+            // controller binding has to move the label a GUI shows, or the
+            // two disagree about what the session is doing.
+            case AgentCommandKind.SetPermissionMode when command.Text is { Length: > 0 }:
+                PublishSettings(Settings with { PermissionMode = command.Text });
                 return command;
 
             default:
                 return command;
         }
+    }
+
+    private void PublishSettings(SessionSettings settings)
+    {
+        Settings = settings;
+        SessionSettingsChanged?.Invoke(settings);
     }
 
     private async Task ExecuteSafelyAsync(AgentCommand command)

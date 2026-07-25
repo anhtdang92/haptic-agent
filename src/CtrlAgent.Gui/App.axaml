@@ -8,42 +8,47 @@
 
     <!-- ==== CtrlAgent design system: deep-space glass + neon cyan ==== -->
 
+    <!-- Deep-space field: a near-black canvas with one soft cyan bloom
+         drifting through it. Calm, with depth — nothing competes with the
+         content sitting on top. -->
     <Style Selector="Window">
       <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif" />
       <Setter Property="Background">
         <Setter.Value>
-          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-            <GradientStop Color="#05070D" Offset="0" />
-            <GradientStop Color="#0A1322" Offset="0.45" />
-            <GradientStop Color="#081020" Offset="0.75" />
-            <GradientStop Color="#05070D" Offset="1" />
-          </LinearGradientBrush>
+          <RadialGradientBrush Center="22%,8%" GradientOrigin="22%,8%" RadiusX="95%" RadiusY="85%">
+            <GradientStop Color="#0E1A2E" Offset="0" />
+            <GradientStop Color="#080E1A" Offset="0.55" />
+            <GradientStop Color="#04060B" Offset="1" />
+          </RadialGradientBrush>
         </Setter.Value>
       </Setter>
     </Style>
 
-    <!-- Uppercase micro-labels -->
+    <!-- Section labels whisper: neutral slate, wide tracking. Cyan is
+         reserved for things that are actually live. -->
     <Style Selector="TextBlock.label">
       <Setter Property="FontSize" Value="10" />
-      <Setter Property="LetterSpacing" Value="2.5" />
-      <Setter Property="Foreground" Value="#7DD3FC" />
-      <Setter Property="Opacity" Value="0.75" />
+      <Setter Property="LetterSpacing" Value="2.2" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Foreground" Value="#6B84AD" />
     </Style>
 
-    <!-- Glass cards with a faint cyan aura -->
+    <!-- Surfaces, not boxes: a barely-there lift off the field with a
+         hairline top edge, generous curvature, and a soft ambient shadow.
+         No hard borders anywhere. -->
     <Style Selector="Border.card">
       <Setter Property="Background">
         <Setter.Value>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Color="#CC101A2E" Offset="0" />
-            <GradientStop Color="#CC0B1322" Offset="1" />
+            <GradientStop Color="#8A16233C" Offset="0" />
+            <GradientStop Color="#8A0D1524" Offset="1" />
           </LinearGradientBrush>
         </Setter.Value>
       </Setter>
-      <Setter Property="BorderBrush" Value="#3D2E4A78" />
+      <Setter Property="BorderBrush" Value="#14FFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="BoxShadow" Value="0 2 24 0 #1A00D4FF" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="BoxShadow" Value="0 10 34 0 #66000000" />
     </Style>
 
     <!-- Alert card variant: amber glow for approvals -->
@@ -142,6 +147,36 @@
         </Setter.Value>
       </Setter>
       <Setter Property="BorderBrush" Value="#8CFFFFFF" />
+    </Style>
+
+    <!-- Ghost: window-level tools (Big Picture, Overlay, Profile…). These
+         are always present, so they must never read as loud as the action
+         row. No fill and no border at rest — the material only materializes
+         under the pointer, the way a macOS toolbar item does. -->
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="#93A9CC" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="11,6" />
+    </Style>
+    <Style Selector="Button.ghost /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#5920304F" />
+      <Setter Property="BorderBrush" Value="#26FFFFFF" />
+      <Setter Property="TextElement.Foreground" Value="#E8F1FF" />
+    </Style>
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#800E1728" />
+      <Setter Property="BorderBrush" Value="#598FD6FF" />
     </Style>
 
     <!-- Approve / deny: tinted glass — the color is the material, not a

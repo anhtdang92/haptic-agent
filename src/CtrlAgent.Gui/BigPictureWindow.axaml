@@ -168,7 +168,12 @@
                          MaxLines="5"
                          TextTrimming="CharacterEllipsis" />
             </Border>
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <TextBlock Classes="placeholder"
+                       FontSize="15"
+                       Text="Nothing from the agent yet — press A on Submit prompt, or Y to speak one."
+                       IsVisible="{Binding IsFeedEmpty}" />
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          IsVisible="{Binding !IsFeedEmpty}">
               <ItemsControl ItemsSource="{Binding Responses}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="x:String">
@@ -199,8 +204,14 @@
         </StackPanel>
       </Border>
 
-      <!-- Action rail -->
-      <ItemsControl Grid.Row="3" ItemsSource="{Binding Tiles}" HorizontalAlignment="Center">
+      <!-- Action rail: scrolls horizontally, because the approval tiles push
+           it wider than the screen. The focused tile is always scrolled into
+           view (see BigPictureWindow.OnFocusMoved). -->
+      <ScrollViewer Grid.Row="3"
+                    x:Name="TileScroller"
+                    HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollBarVisibility="Disabled">
+      <ItemsControl x:Name="TileRail" ItemsSource="{Binding Tiles}" HorizontalAlignment="Center">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" />
@@ -225,6 +236,7 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      </ScrollViewer>
 
       <!-- Button legend -->
       <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="26" HorizontalAlignment="Center" Margin="0,26,0,0">

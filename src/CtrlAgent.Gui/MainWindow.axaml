@@ -214,10 +214,13 @@
 
           <!-- Conversation: what you said, what the agent replied, and what
                it did in between -->
+          <Panel IsVisible="{Binding IsChatView}">
+          <TextBlock Classes="placeholder"
+                     Text="No conversation yet — type a prompt and press Enter, or press A on the controller."
+                     IsVisible="{Binding IsTranscriptEmpty}" />
           <ListBox x:Name="ChatList"
                    Classes="chat"
-                   ItemsSource="{Binding Transcript}"
-                   IsVisible="{Binding IsChatView}">
+                   ItemsSource="{Binding Transcript}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="gui:ChatMessage">
                 <Panel>
@@ -237,6 +240,7 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+          </Panel>
 
           <Panel IsVisible="{Binding !IsChatView}">
           <TextBlock Classes="placeholder"

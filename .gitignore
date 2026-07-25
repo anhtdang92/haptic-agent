@@ -427,3 +427,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# UI render harness output
+tools/CtrlAgent.UiRender/shots/

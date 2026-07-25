@@ -60,6 +60,7 @@ public sealed class BigPictureViewModel : ViewModelBase
     private string _transcript = string.Empty;
     private string _latestResponse = "Waiting for the agent…";
     private bool _lastResponseWasWorking;
+    private bool _isFeedEmpty = true;
     private bool _detached;
 
     public BigPictureViewModel(MainViewModel main)
@@ -87,6 +88,11 @@ public sealed class BigPictureViewModel : ViewModelBase
     /// <summary>Raised when the user asks to leave Big Picture mode.</summary>
     public event Action? CloseRequested;
 
+    /// <summary>Raised with the focused tile index so the rail can scroll it
+    /// into view — the rail is wider than the screen once approval tiles
+    /// join it.</summary>
+    public event Action<int>? FocusMoved;
+
     public MainViewModel Main { get; }
 
     public ObservableCollection<BigPictureTile> Tiles { get; } = [];
@@ -98,6 +104,14 @@ public sealed class BigPictureViewModel : ViewModelBase
     {
         get => _latestResponse;
         private set => Set(ref _latestResponse, value);
+    }
+
+    /// <summary>True until the agent says something, so the feed can explain
+    /// itself instead of showing an empty panel.</summary>
+    public bool IsFeedEmpty
+    {
+        get => _isFeedEmpty;
+        private set => Set(ref _isFeedEmpty, value);
     }
 
     public bool IsShortcutsVisible
@@ -374,6 +388,7 @@ public sealed class BigPictureViewModel : ViewModelBase
             }
         }
 
+        IsFeedEmpty = Responses.Count == 0;
         _lastResponseWasWorking = agentEvent.State == AgentStateKind.Working;
         LatestResponse = agentEvent.Message;
     }
@@ -435,5 +450,7 @@ public sealed class BigPictureViewModel : ViewModelBase
         {
             Tiles[index].IsFocused = index == _focusIndex;
         }
+
+        FocusMoved?.Invoke(_focusIndex);
     }
 }

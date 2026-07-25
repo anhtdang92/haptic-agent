@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
 using CtrlAgent.Adapters.ClaudeCode;
+using CtrlAgent.Adapters.Codex;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Controllers.DualSense;
 using CtrlAgent.Core;
@@ -32,6 +33,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
     ("Executable resolver probes PATH and PATHEXT", TestExecutableResolverAsync),
     ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
+    ("Codex protocol parser classifies app-server traffic", TestCodexProtocolParserAsync),
+    ("Codex turn status maps to the right agent state", TestCodexTurnStatusAsync),
     ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Captured input passes only approval commands", TestInputCaptureFilterAsync),
@@ -763,6 +766,123 @@ static async Task TestSessionSettingsTrackingAsync()
     AssertEqual("sonnet", engine.Settings.Model!);
     AssertEqual(4, published.Count);
     AssertEqual("sonnet", published[^1].Model!);
+}
+
+// The Codex classification used to live inside the adapter, entangled with
+// the process and the event channel, so none of it could be exercised without
+// spawning a real app-server. These are the shapes the wire actually sends.
+static Task TestCodexProtocolParserAsync()
+{
+    // A server request expecting an answer: id present alongside method.
+    var approval = ParseCodex("""
+        {"method":"item/tool/requestApproval","id":42,
+         "params":{"threadId":"th-1","turnId":"tn-9","command":"rm -rf build"}}
+        """);
+    var request = AssertIs<CodexMessage.UserActionRequired>(approval);
+    AssertEqual("42", request.RequestId);           // raw text, so a numeric id stays numeric
+    AssertEqual("th-1", request.ThreadId!);
+    AssertEqual("tn-9", request.TurnId!);
+    AssertEqual("rm -rf build", request.Message);
+    AssertEqual(AgentStateKind.ApprovalRequired, request.State);
+
+    // Free-form input blocks the turn too, but it is not an approval — the
+    // controller's approve/decline bindings must not claim to answer it.
+    var input = ParseCodex("""
+        {"method":"item/tool/requestUserInput","id":"abc","params":{"reason":"Which branch?"}}
+        """);
+    var inputRequest = AssertIs<CodexMessage.UserActionRequired>(input);
+    AssertEqual(AgentStateKind.WaitingForInput, inputRequest.State);
+    AssertEqual("Which branch?", inputRequest.Message);
+    AssertEqual("\"abc\"", inputRequest.RequestId);   // string ids keep their quotes
+
+    // "reason" wins over "command", and the method name is the last resort.
+    var bare = AssertIs<CodexMessage.UserActionRequired>(
+        ParseCodex("""{"method":"item/tool/requestApproval","id":1,"params":{}}"""));
+    AssertEqual("item/tool/requestApproval", bare.Message);
+
+    // Notifications: no id.
+    var started = AssertIs<CodexMessage.ThreadStarted>(
+        ParseCodex("""{"method":"thread/started","params":{"thread":{"id":"th-7"}}}"""));
+    AssertEqual("th-7", started.ThreadId!);
+
+    // A malformed thread/started is still a thread/started; the adapter simply
+    // has no id to remember.
+    Assert(
+        AssertIs<CodexMessage.ThreadStarted>(ParseCodex("""{"method":"thread/started"}""")).ThreadId is null,
+        "A thread/started without an id must parse with a null id.");
+
+    var turn = AssertIs<CodexMessage.TurnStarted>(
+        ParseCodex("""{"method":"turn/started","params":{"threadId":"th-1","turn":{"id":"tn-2"}}}"""));
+    AssertEqual("tn-2", turn.TurnId!);
+
+    var resolved = AssertIs<CodexMessage.ServerRequestResolved>(
+        ParseCodex("""{"method":"serverRequest/resolved","params":{"requestId":42}}"""));
+    AssertEqual("42", resolved.RequestId);
+
+    // Responses to our own requests: no method, id correlates the reply.
+    var ok = AssertIs<CodexMessage.ResponseReceived>(
+        ParseCodex("""{"id":7,"result":{"thread":{"id":"th-3"}}}"""));
+    AssertEqual(7L, ok.Id);
+    Assert(ok.Error is null, "A result response must not carry an error.");
+    AssertEqual("th-3", ok.Result.GetProperty("thread").GetProperty("id").GetString()!);
+
+    var failed = AssertIs<CodexMessage.ResponseReceived>(
+        ParseCodex("""{"id":8,"error":{"code":-32000,"message":"nope"}}"""));
+    Assert(failed.Error is not null && failed.Error.Contains("nope", StringComparison.Ordinal),
+        "An error response must carry the raw error JSON.");
+
+    // A missing result is an empty object, not a crash: callers index into it.
+    AssertEqual(
+        JsonValueKind.Object,
+        AssertIs<CodexMessage.ResponseReceived>(ParseCodex("""{"id":9}""")).Result.ValueKind);
+
+    // Anything unrecognized is inert rather than an error event.
+    AssertIs<CodexMessage.Ignored>(ParseCodex("""{"method":"item/started","params":{}}"""));
+    AssertIs<CodexMessage.Ignored>(ParseCodex("""{"jsonrpc":"2.0"}"""));
+    return Task.CompletedTask;
+}
+
+// Turn status drives which rumble fires, so the mapping is worth pinning.
+static Task TestCodexTurnStatusAsync()
+{
+    AssertEqual(AgentStateKind.Completed, TurnState("""{"turn":{"status":"completed"}}"""));
+    AssertEqual(AgentStateKind.Error, TurnState("""{"turn":{"status":"failed"}}"""));
+
+    // Interrupted is Idle, not Error: the user stopped the turn deliberately
+    // and must not be buzzed at for it.
+    AssertEqual(AgentStateKind.Idle, TurnState("""{"turn":{"status":"interrupted"}}"""));
+    AssertEqual(AgentStateKind.Idle, TurnState("""{"turn":{"status":"INTERRUPTED"}}"""));
+
+    // An absent status is treated as a normal completion.
+    AssertEqual(AgentStateKind.Completed, TurnState("""{"turn":{}}"""));
+
+    // A failure message replaces the generic summary; without one the status
+    // still names itself.
+    var withError = AssertIs<CodexMessage.TurnFinished>(ParseCodex(
+        """{"method":"turn/completed","params":{"turn":{"status":"failed","error":{"message":"sandbox denied"}}}}"""));
+    AssertEqual("sandbox denied", withError.Summary);
+    AssertEqual(
+        "Codex turn completed.",
+        AssertIs<CodexMessage.TurnFinished>(
+            ParseCodex("""{"method":"turn/completed","params":{"turn":{"status":"completed"}}}""")).Summary);
+    return Task.CompletedTask;
+
+    static AgentStateKind TurnState(string turnParams) =>
+        AssertIs<CodexMessage.TurnFinished>(
+            ParseCodex($$"""{"method":"turn/completed","params":{{turnParams}}}""")).State;
+}
+
+static CodexMessage ParseCodex(string json)
+{
+    using var document = JsonDocument.Parse(json);
+    return CodexProtocolParser.Parse(document.RootElement);
+}
+
+static T AssertIs<T>(CodexMessage message)
+    where T : CodexMessage
+{
+    Assert(message is T, $"Expected {typeof(T).Name} but got {message.GetType().Name}.");
+    return (T)message;
 }
 
 static Task TestValidationReportGatesAsync()

@@ -66,7 +66,9 @@ public sealed class MainframeViewModel : ViewModelBase
     private static readonly IBrush ApproveAccent = new SolidColorBrush(Color.Parse("#34F5A4"));
     private static readonly IBrush DenyAccent = new SolidColorBrush(Color.Parse("#FF5A78"));
 
-    private const int MaxResponses = 8;
+    // Was 8. Reading back through a long reply is the point of the scroll
+    // binding, and eight messages is roughly one tool call.
+    private const int MaxResponses = 60;
     private const float StickEngage = 0.6f;
     private const float StickRelease = 0.4f;
 
@@ -74,6 +76,7 @@ public sealed class MainframeViewModel : ViewModelBase
     private readonly SpeechToTextService _speech = new();
     private readonly Action<ControllerInputEvent> _inputHandler;
     private readonly Action<AgentEvent> _agentHandler;
+    private readonly Action<int> _scrollHandler;
 
     private int _focusIndex;
     private bool _stickLatched;
@@ -97,9 +100,11 @@ public sealed class MainframeViewModel : ViewModelBase
 
         _inputHandler = inputEvent => Dispatcher.UIThread.Post(() => OnControllerInput(inputEvent));
         _agentHandler = agentEvent => Dispatcher.UIThread.Post(() => OnAgentEvent(agentEvent));
+        _scrollHandler = direction => Dispatcher.UIThread.Post(() => FeedScrollRequested?.Invoke(direction));
         _engine.ControllerInputReceived += _inputHandler;
         _engine.AgentEventReceived += _agentHandler;
         _engine.PendingApprovalChanged += OnPendingApprovalChanged;
+        _engine.OutputScrollRequested += _scrollHandler;
         _speech.HypothesisChanged += text => Dispatcher.UIThread.Post(() =>
         {
             if (_isListening)
@@ -126,6 +131,9 @@ public sealed class MainframeViewModel : ViewModelBase
 
     /// <summary>Raised when the attach-files picker should open.</summary>
     public event Action? AttachFileRequested;
+
+    /// <summary>Raised when the agent feed should page. -1 back, +1 forward.</summary>
+    public event Action<int>? FeedScrollRequested;
 
     /// <summary>
     /// Starts dictation from outside — a controller binding routed through the
@@ -257,6 +265,7 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine.PendingApprovalChanged -= OnPendingApprovalChanged;
         Main.PropertyChanged -= OnMainPropertyChanged;
         _engine.SetInputCapture(false);
+        _engine.OutputScrollRequested -= _scrollHandler;
         _speech.Dispose();
     }
 

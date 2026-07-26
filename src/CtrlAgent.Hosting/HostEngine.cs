@@ -106,7 +106,11 @@ public sealed class HostEngine : IAsyncDisposable
         AgentCommandKind.ApproveOnce or
         AgentCommandKind.ApproveForSession or
         AgentCommandKind.Decline or
-        AgentCommandKind.Cancel;
+        AgentCommandKind.Cancel or
+        // Reading is not navigation. Capturing input for a menu must not also
+        // freeze the text you were part-way through reading.
+        AgentCommandKind.ScrollOutputUp or
+        AgentCommandKind.ScrollOutputDown;
 
     /// <summary>States during which a new prompt waits in the queue.</summary>
     public static bool IsBusyState(AgentStateKind state) => state is
@@ -182,6 +186,10 @@ public sealed class HostEngine : IAsyncDisposable
     /// <summary>A binding asked to attach files. Host-handled for the same
     /// reason — a file picker is UI.</summary>
     public event Action? AttachFileRequested;
+
+    /// <summary>A binding asked to page the agent's output. -1 is back toward
+    /// older text, +1 forward toward the newest.</summary>
+    public event Action<int>? OutputScrollRequested;
 
     /// <summary>Starts dictation, as if a bound control had been pressed.</summary>
     public Task StartVoicePromptAsync() =>
@@ -613,6 +621,14 @@ public sealed class HostEngine : IAsyncDisposable
 
             case AgentCommandKind.AttachFile:
                 AttachFileRequested?.Invoke();
+                return;
+
+            case AgentCommandKind.ScrollOutputUp:
+                OutputScrollRequested?.Invoke(-1);
+                return;
+
+            case AgentCommandKind.ScrollOutputDown:
+                OutputScrollRequested?.Invoke(+1);
                 return;
         }
 

@@ -49,10 +49,14 @@ public static class ControllerProfileValidator
                 errors.Add($"Binding on '{chord}' references undefined layer '{binding.Layer}'.");
             }
 
+            // The sign picks the half of the axis, so the magnitude is what has
+            // to be in range. A zero threshold would fire at rest.
             if (binding.Gesture == InputGesture.AxisThreshold &&
-                (binding.MinimumValue <= 0f || binding.MinimumValue > 1f))
+                (Math.Abs(binding.MinimumValue) <= 0f || Math.Abs(binding.MinimumValue) > 1f))
             {
-                errors.Add($"AxisThreshold binding on '{chord}' needs a minimumValue between 0 and 1.");
+                errors.Add(
+                    $"AxisThreshold binding on '{chord}' needs a minimumValue between -1 and 1, " +
+                    "excluding 0 (negative means the negative half of the axis).");
             }
 
             if (binding.HoldDuration is { } hold && hold <= TimeSpan.Zero)
@@ -113,9 +117,19 @@ public static class ControllerProfileValidator
         {
             var chord = Describe(binding);
 
-            if (!seen.Add($"{chord}|{binding.Gesture}"))
+            // An axis carries two independent directions, so up and down on the
+            // same stick are distinct bindings rather than a collision. Every
+            // other gesture collides on the chord alone.
+            var identity = binding.Gesture == InputGesture.AxisThreshold
+                ? $"{chord}|{binding.Gesture}|{(binding.MinimumValue < 0f ? "neg" : "pos")}"
+                : $"{chord}|{binding.Gesture}";
+
+            if (!seen.Add(identity))
             {
-                errors.Add($"Duplicate {binding.Gesture} binding on '{chord}'.");
+                var direction = binding.Gesture == InputGesture.AxisThreshold
+                    ? binding.MinimumValue < 0f ? " (negative direction)" : " (positive direction)"
+                    : string.Empty;
+                errors.Add($"Duplicate {binding.Gesture} binding on '{chord}'{direction}.");
             }
 
             if (!gesturesByChord.TryGetValue(chord, out var gestures))

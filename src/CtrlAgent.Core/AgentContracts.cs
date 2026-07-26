@@ -76,6 +76,19 @@ public enum AgentCommandKind
     /// burning a turn of their own.
     /// </summary>
     AttachFile,
+
+    /// <summary>
+    /// Page back through what the agent has said. Host-handled.
+    /// <para>
+    /// Without this the tool can show you a long reply and let you approve it
+    /// from the couch, but not <em>read</em> it — you could see that something
+    /// happened and never find out what.
+    /// </para>
+    /// </summary>
+    ScrollOutputUp,
+
+    /// <summary>Page forward through the agent's output, back toward newest.</summary>
+    ScrollOutputDown,
 }
 
 /// <summary>

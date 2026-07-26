@@ -175,6 +175,20 @@ public sealed record ControllerProfile(
                 AgentCommandKind.AttachFile,
                 Modifiers: new HashSet<ControllerControl> { ControllerControl.LeftShoulder }),
 
+            // Right stick reads the agent's output. A stick rather than a
+            // chord because reading is the one thing you do repeatedly, and a
+            // signed threshold because up and down must differ.
+            new(
+                ControllerControl.RightThumbstickY,
+                InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputUp,
+                MinimumValue: 0.6f),
+            new(
+                ControllerControl.RightThumbstickY,
+                InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputDown,
+                MinimumValue: -0.6f),
+
             new(ControllerControl.LeftThumbstickButton, InputGesture.Press, AgentCommandKind.CycleEffort),
             new(ControllerControl.RightThumbstickButton, InputGesture.Press, AgentCommandKind.CycleModel),
         ]);
@@ -254,7 +268,7 @@ public sealed class MappingEngine
             // deterministic and clock-free.
             TimeSpan? doublePressInterval = null;
             TimeSpan? heldDuration = null;
-            float previousAxisMagnitude = 0f;
+            float previousAxisValue = 0f;
 
             switch (inputEvent.Kind)
             {
@@ -280,7 +294,7 @@ public sealed class MappingEngine
                     break;
 
                 case ControllerInputEventKind.ValueChanged:
-                    previousAxisMagnitude = Math.Abs(_axisValues.GetValueOrDefault(inputEvent.Control));
+                    previousAxisValue = _axisValues.GetValueOrDefault(inputEvent.Control);
                     _axisValues[inputEvent.Control] = inputEvent.Value;
                     break;
             }
@@ -292,7 +306,7 @@ public sealed class MappingEngine
                     inputEvent,
                     doublePressInterval,
                     heldDuration,
-                    previousAxisMagnitude))
+                    previousAxisValue))
                 .ToArray();
 
             if (inputEvent.Kind == ControllerInputEventKind.Pressed)
@@ -332,12 +346,21 @@ public sealed class MappingEngine
         }
     }
 
+    /// <summary>
+    /// Whether an axis just crossed its threshold, in the direction the
+    /// threshold's sign asks for. A zero threshold is treated as positive.
+    /// </summary>
+    private static bool CrossedThreshold(float value, float previous, float threshold) =>
+        threshold < 0f
+            ? value <= threshold && previous > threshold
+            : value >= threshold && previous < threshold;
+
     private bool StructurallyMatches(
         InputBinding binding,
         ControllerInputEvent inputEvent,
         TimeSpan? doublePressInterval,
         TimeSpan? heldDuration,
-        float previousAxisMagnitude)
+        float previousAxisValue)
     {
         if (binding.Control != inputEvent.Control)
         {
@@ -350,12 +373,19 @@ public sealed class MappingEngine
                 inputEvent.Kind == ControllerInputEventKind.Pressed,
             InputGesture.Release =>
                 inputEvent.Kind == ControllerInputEventKind.Released,
-            // Latches on the upward crossing: analog jitter above the
-            // threshold must not re-fire the command.
+            // Latches on the crossing: analog jitter past the threshold must
+            // not re-fire the command.
+            //
+            // A NEGATIVE threshold means the negative half of the axis, so
+            // "stick up" and "stick down" are separately bindable. They were
+            // not before: both sides compared Math.Abs, so one binding fired
+            // in both directions and a scroll-up/scroll-down pair was
+            // impossible to express. Positive thresholds keep their meaning,
+            // except that they no longer fire when the stick is pushed the
+            // other way — which was surprising rather than useful.
             InputGesture.AxisThreshold =>
                 inputEvent.Kind == ControllerInputEventKind.ValueChanged &&
-                Math.Abs(inputEvent.Value) >= binding.MinimumValue &&
-                previousAxisMagnitude < binding.MinimumValue,
+                CrossedThreshold(inputEvent.Value, previousAxisValue, binding.MinimumValue),
             InputGesture.Tap =>
                 inputEvent.Kind == ControllerInputEventKind.Released &&
                 heldDuration is { } tapDuration &&

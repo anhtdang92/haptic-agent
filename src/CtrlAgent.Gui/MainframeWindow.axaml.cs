@@ -37,11 +37,13 @@ public sealed partial class MainframeWindow : Window
             {
                 if (_observed is not null)
                 {
+                    _observed.FeedScrollRequested -= OnFeedScroll;
                     _observed.FocusMoved -= OnFocusMoved;
                 }
 
                 _observed = viewModel;
                 viewModel.FocusMoved += OnFocusMoved;
+                viewModel.FeedScrollRequested += OnFeedScroll;
             }
         };
         Opened += async (_, _) =>
@@ -52,6 +54,28 @@ public sealed partial class MainframeWindow : Window
             await Task.Delay(TimeSpan.FromSeconds(2.6));
             IntroOverlay.IsVisible = false;
         };
+    }
+
+    /// <summary>
+    /// Pages the agent feed from a controller binding.
+    /// <para>
+    /// Pages rather than lines: a flick of the stick should move a readable
+    /// amount, and line-by-line scrolling from across a room is unusable. The
+    /// page is a fraction of the viewport so a couple of lines carry over and
+    /// you can tell where you were.
+    /// </para>
+    /// </summary>
+    private void OnFeedScroll(int direction)
+    {
+        if (FeedScroller is not { } scroller)
+        {
+            return;
+        }
+
+        var page = Math.Max(80, scroller.Viewport.Height * 0.8);
+        var target = scroller.Offset.Y + (direction * page);
+        var highest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
+        scroller.Offset = scroller.Offset.WithY(Math.Clamp(target, 0, highest));
     }
 
     /// <summary>Keeps the focused settings tile on screen.</summary>

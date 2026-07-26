@@ -226,12 +226,11 @@ public sealed class MainViewModel : ViewModelBase
     /// a double-press of View.
     /// <para>
     /// The Guide press is best-effort by transport. Raw-HID DualSense reports
-    /// the PS button reliably. XInput only reports the Xbox button through the
-    /// undocumented ordinal-100 entry point, and the GameInput bridge cannot
-    /// report it at all — the SDK reserves that button for the system. Steam
-    /// and the Xbox Game Bar also hook it globally, so a press may be consumed
-    /// before it reaches us. View double-press stays as the shortcut that
-    /// works on every transport.
+    /// the PS button reliably; XInput only through the undocumented ordinal-100
+    /// entry point; the GameInput bridge when the device advertises the button
+    /// and background guide access was requested. Steam and the Xbox Game Bar
+    /// hook it globally, so a press may still be consumed before it reaches us.
+    /// View double-press stays as the shortcut that works on every transport.
     /// </para>
     /// </summary>
     public event Action? MainframeRequested;

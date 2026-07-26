@@ -57,7 +57,18 @@ public sealed record ControllerCapabilities(
     bool HasLowFrequencyRumble,
     bool HasHighFrequencyRumble,
     bool HasLeftTriggerRumble,
-    bool HasRightTriggerRumble);
+    bool HasRightTriggerRumble,
+    /// <summary>
+    /// Whether this transport can deliver the Xbox/PS (Guide) button.
+    /// Per-transport and not guessable from the pad: raw-HID DualSense always
+    /// reports it, XInput only through the undocumented ordinal-100 entry
+    /// point, and the GameInput bridge only when the device advertises
+    /// <c>GameInputSystemButtonGuide</c> and background guide access was
+    /// granted. Defaults to true so a device that says nothing keeps its
+    /// bindings visible — the same "assume reachable unless told otherwise"
+    /// rule the paddle flag uses.
+    /// </summary>
+    bool HasGuideButton = true);
 
 public interface IControllerProvider : IAsyncDisposable
 {

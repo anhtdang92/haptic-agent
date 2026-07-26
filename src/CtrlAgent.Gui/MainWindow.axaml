@@ -298,6 +298,14 @@
     <DockPanel DockPanel.Dock="Top" Margin="0,14,0,0">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="6,0,0,0"
                   VerticalAlignment="Bottom">
+        <Button Content="🎙"
+                Command="{Binding StartVoiceCommand}"
+                FontSize="15"
+                ToolTip.Tip="Speak a prompt (Y on the controller)" />
+        <Button Content="📎"
+                Command="{Binding AttachFileCommand}"
+                FontSize="15"
+                ToolTip.Tip="Attach files for the next prompt (LB+X on the controller)" />
         <Border Background="#33FFB020"
                 BorderBrush="#66FFB020"
                 BorderThickness="1"
@@ -329,6 +337,49 @@
                x:Name="PromptBox"
                Watermark="Ask the agent anything — Enter submits, Shift+Enter for a new line" />
     </DockPanel>
+
+    <!-- Attached files: shown under the prompt because they are part of what
+         the next Submit sends, not a separate thing that happened. -->
+    <Border DockPanel.Dock="Top"
+            Classes="card"
+            Padding="12,8"
+            Margin="0,8,0,0"
+            IsVisible="{Binding HasAttachments}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right"
+                Classes="ghost"
+                Content="Clear"
+                FontSize="11"
+                Command="{Binding ClearAttachmentsCommand}" />
+        <TextBlock DockPanel.Dock="Left"
+                   Text="📎"
+                   FontSize="13"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0" />
+        <StackPanel Spacing="3">
+          <TextBlock Text="{Binding AttachmentLabel}" Classes="label" FontSize="9" />
+          <ItemsControl ItemsSource="{Binding Attachments}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Border Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                        CornerRadius="6" Padding="7,2">
+                  <TextBlock Text="{Binding}"
+                             FontSize="11"
+                             Foreground="#B9CCEF"
+                             MaxWidth="320"
+                             TextTrimming="CharacterEllipsis" />
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </DockPanel>
+    </Border>
 
     <!-- Approval banner: docked in the flow directly under the prompt row, so
          it pushes content down rather than covering the controls you need to

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
@@ -120,6 +121,8 @@ public sealed class App : Application
             viewModel.SetupCompleted += StartWithOptions;
             viewModel.MainframeRequested += ShowMainframe;
             viewModel.WorkspacePickerRequested += () => _ = ShowWorkspacePickerAsync();
+            viewModel.AttachFileRequested += () => _ = ShowAttachFilePickerAsync();
+            viewModel.VoicePromptRequested += () => _ = DictateIntoPromptAsync();
             if (startupError is null)
             {
                 if (firstRun)
@@ -340,6 +343,7 @@ public sealed class App : Application
         var window = new MainframeWindow { DataContext = viewModel };
         viewModel.CloseRequested += window.Close;
         viewModel.WorkspacePickerRequested += () => _ = ShowWorkspacePickerAsync();
+        viewModel.AttachFileRequested += () => _ = ShowAttachFilePickerAsync();
         viewModel.ProfileEditorRequested += async () =>
         {
             if (_viewModel?.Engine is { } engine)
@@ -438,6 +442,96 @@ public sealed class App : Application
         {
             await SwitchWorkspaceAsync(chosen);
         }
+    }
+
+    /// <summary>
+    /// Picks files to hand the agent. Multi-select, because "look at these
+    /// three" is the normal case; the paths land on the prompt and are sent
+    /// with it.
+    /// </summary>
+    public async Task ShowAttachFilePickerAsync()
+    {
+        if (_viewModel is null || OwnerWindow() is not { } owner)
+        {
+            return;
+        }
+
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Attach files for the agent",
+            AllowMultiple = true,
+        });
+
+        var paths = files
+            .Select(file => file.TryGetLocalPath())
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .ToList();
+
+        if (paths.Count > 0)
+        {
+            _viewModel.AddAttachments(paths);
+            _viewModel.AppendLog($"Attached {paths.Count} file(s) for the next prompt.");
+        }
+    }
+
+    /// <summary>
+    /// Dictates into the prompt box. When Mainframe owns the screen it runs
+    /// its own voice overlay instead — that surface shows the transcript large
+    /// enough to read from a couch and lets the pad confirm or discard it.
+    /// </summary>
+    public async Task DictateIntoPromptAsync()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        if (_mainframe is { IsVisible: true } fullscreen)
+        {
+            fullscreen.StartVoiceFromBinding();
+            return;
+        }
+
+        using var speech = new SpeechToTextService();
+        if (!speech.EnsureInitialized())
+        {
+            _viewModel.AppendLog($"[error] Voice input unavailable: {speech.UnavailableReason}");
+            return;
+        }
+
+        _viewModel.AppendLog("Listening… speak your prompt.");
+        var heard = await speech.RecognizeOnceAsync();
+        if (string.IsNullOrWhiteSpace(heard))
+        {
+            _viewModel.AppendLog("Nothing was heard.");
+            return;
+        }
+
+        // Appended, not replaced: dictation often tops up something typed.
+        _viewModel.PromptText = string.IsNullOrWhiteSpace(_viewModel.PromptText)
+            ? heard
+            : $"{_viewModel.PromptText} {heard}";
+    }
+
+    private Window? OwnerWindow()
+    {
+        if (_mainframe is { IsVisible: true } fullscreen)
+        {
+            return fullscreen;
+        }
+
+        if (_mainWindow is { } main)
+        {
+            if (!main.IsVisible)
+            {
+                main.Show();
+            }
+
+            return main;
+        }
+
+        return null;
     }
 
     /// <summary>Workspaces used before, most recent first.</summary>

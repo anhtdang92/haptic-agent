@@ -162,6 +162,19 @@ public sealed record ControllerProfile(
                 InputGesture.Press,
                 AgentCommandKind.SetPermissionMode,
                 Text: "plan"),
+            // Y is free as a plain press (it only carries an approval as RB+Y),
+            // and it is where the Mainframe already put voice, so binding it
+            // makes the same button work everywhere instead of only there.
+            new(ControllerControl.Y, InputGesture.Press, AgentCommandKind.StartVoicePrompt),
+
+            // LB+X to attach: a chord, because picking files opens a modal and
+            // a stray face-button press should not.
+            new(
+                ControllerControl.X,
+                InputGesture.Press,
+                AgentCommandKind.AttachFile,
+                Modifiers: new HashSet<ControllerControl> { ControllerControl.LeftShoulder }),
+
             new(ControllerControl.LeftThumbstickButton, InputGesture.Press, AgentCommandKind.CycleEffort),
             new(ControllerControl.RightThumbstickButton, InputGesture.Press, AgentCommandKind.CycleModel),
         ]);

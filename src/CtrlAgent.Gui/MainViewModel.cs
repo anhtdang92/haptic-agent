@@ -134,6 +134,13 @@ public sealed class MainViewModel : ViewModelBase
         PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
         StartSetupCommand = new RelayCommand(_ => CompleteSetup());
         PickWorkspaceCommand = new RelayCommand(_ => WorkspacePickerRequested?.Invoke());
+        AttachFileCommand = new RelayCommand(_ => AttachFileRequested?.Invoke());
+        StartVoiceCommand = new RelayCommand(_ => VoicePromptRequested?.Invoke());
+        ClearAttachmentsCommand = new RelayCommand(_ =>
+        {
+            Attachments.Clear();
+            RaiseAttachmentState();
+        });
         DismissStartupErrorCommand = new RelayCommand(_ =>
         {
             StartupError = string.Empty;
@@ -156,6 +163,12 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Raised when the user picks a different workspace to work in.</summary>
     public event Action? WorkspacePickerRequested;
+
+    /// <summary>Raised when files should be picked (button or controller binding).</summary>
+    public event Action? AttachFileRequested;
+
+    /// <summary>Raised when dictation should start (button or controller binding).</summary>
+    public event Action? VoicePromptRequested;
 
     /// <summary>Absolute path of the directory the agent is working in.</summary>
     public string WorkspacePath
@@ -215,6 +228,8 @@ public sealed class MainViewModel : ViewModelBase
         // A new engine means a new session, which starts on the agent's own
         // defaults — carrying the old workspace's model/effort/mode labels
         // over would claim settings the new session never received.
+        Attachments.Clear();
+        RaiseAttachmentState();
         _settings = new SessionSettings(null, null, null);
         Raise(nameof(PermissionModeLabel));
         Raise(nameof(ModelLabel));
@@ -364,6 +379,8 @@ public sealed class MainViewModel : ViewModelBase
             // Light up the physical controls that can answer this approval.
             ControllerVisual.SetApprovalHighlight(message is null ? null : _approvalControls);
         });
+        engine.VoicePromptRequested += () => Post(() => VoicePromptRequested?.Invoke());
+        engine.AttachFileRequested += () => Post(() => AttachFileRequested?.Invoke());
         engine.SessionSettingsChanged += settings => Post(() =>
         {
             _settings = settings;
@@ -450,6 +467,44 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Opens the workspace picker.</summary>
     public ICommand PickWorkspaceCommand { get; }
+
+    /// <summary>Files chosen to hand to the agent with the next prompt.</summary>
+    public ObservableCollection<string> Attachments { get; } = [];
+
+    public bool HasAttachments => Attachments.Count > 0;
+
+    public string AttachmentLabel =>
+        Attachments.Count == 1 ? "1 file attached" : $"{Attachments.Count} files attached";
+
+    /// <summary>Opens the file picker.</summary>
+    public ICommand AttachFileCommand { get; }
+
+    /// <summary>Drops every attachment without sending anything.</summary>
+    public ICommand ClearAttachmentsCommand { get; }
+
+    /// <summary>Starts dictation.</summary>
+    public ICommand StartVoiceCommand { get; }
+
+    /// <summary>Adds picked files, ignoring ones already on the list.</summary>
+    public void AddAttachments(IEnumerable<string> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        foreach (var path in paths)
+        {
+            if (!string.IsNullOrWhiteSpace(path) && !Attachments.Contains(path))
+            {
+                Attachments.Add(path);
+            }
+        }
+
+        RaiseAttachmentState();
+    }
+
+    private void RaiseAttachmentState()
+    {
+        Raise(nameof(HasAttachments));
+        Raise(nameof(AttachmentLabel));
+    }
 
     public ICommand DismissStartupErrorCommand { get; }
 
@@ -694,9 +749,16 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public void SubmitPromptText(string? text)
     {
+        var composed = PromptComposer.Compose(text, [.. Attachments]);
+        if (Attachments.Count > 0)
+        {
+            Attachments.Clear();
+            RaiseAttachmentState();
+        }
+
         AddChat(isUser: true, isActivity: false,
-            string.IsNullOrWhiteSpace(text) ? "(default prompt)" : text);
-        Fire(e => e.SubmitPromptAsync(text));
+            string.IsNullOrWhiteSpace(composed) ? "(default prompt)" : composed);
+        Fire(e => e.SubmitPromptAsync(string.IsNullOrWhiteSpace(composed) ? null : composed));
     }
 
     /// <summary>Show or hide raw controller input lines in the event stream.</summary>

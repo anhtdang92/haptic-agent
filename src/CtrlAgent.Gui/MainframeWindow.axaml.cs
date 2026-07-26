@@ -11,6 +11,12 @@ namespace CtrlAgent.Gui;
 /// </summary>
 public sealed partial class MainframeWindow : Window
 {
+    /// <summary>Lets the app start dictation here when this window owns the
+    /// screen, so a controller binding reaches the large voice overlay rather
+    /// than quietly typing into a prompt box nobody can see.</summary>
+    public void StartVoiceFromBinding() =>
+        (DataContext as MainframeViewModel)?.StartVoiceFromBinding();
+
     private MainframeViewModel? _observed;
 
     public MainframeWindow()

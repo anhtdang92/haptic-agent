@@ -124,6 +124,15 @@ public sealed class MainframeViewModel : ViewModelBase
     /// <summary>Raised when the settings panel asks to change workspace.</summary>
     public event Action? WorkspacePickerRequested;
 
+    /// <summary>Raised when the attach-files picker should open.</summary>
+    public event Action? AttachFileRequested;
+
+    /// <summary>
+    /// Starts dictation from outside — a controller binding routed through the
+    /// engine, rather than the hardcoded Y this used to depend on.
+    /// </summary>
+    public void StartVoiceFromBinding() => StartVoice();
+
     /// <summary>Raised with the focused tile index so the rail can scroll it
     /// into view — the rail is wider than the screen once approval tiles
     /// join it.</summary>
@@ -312,7 +321,9 @@ public sealed class MainframeViewModel : ViewModelBase
             case ControllerControl.DPadRight: MoveFocus(+1); break;
             case ControllerControl.A: Activate(); break;
             case ControllerControl.B: Back(); break;
-            case ControllerControl.Y: StartVoice(); break;
+            // Y is no longer handled here: it is bound to StartVoicePrompt in
+            // the profile and arrives through the engine, so handling it in
+            // both places started dictation twice on a single press.
         }
     }
 
@@ -387,6 +398,8 @@ public sealed class MainframeViewModel : ViewModelBase
             case "model": Main.CycleModelCommand.Execute(null); break;
             case "effort": Main.CycleEffortCommand.Execute(null); break;
             case "compact": Main.CompactCommand.Execute(null); break;
+            case "attach": AttachFileRequested?.Invoke(); break;
+            case "voice": StartVoice(); break;
             case "workspace": WorkspacePickerRequested?.Invoke(); break;
             case "profile": ProfileEditorRequested?.Invoke(); break;
             case "shortcuts": ToggleShortcuts(); break;
@@ -668,6 +681,8 @@ public sealed class MainframeViewModel : ViewModelBase
         Tiles.Add(new MainframeTile { Id = "model", Glyph = "🧠", Label = "Model" });
         Tiles.Add(new MainframeTile { Id = "effort", Glyph = "⚡", Label = "Effort" });
         Tiles.Add(new MainframeTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
+        Tiles.Add(new MainframeTile { Id = "attach", Glyph = "📎", Label = "Attach files" });
+        Tiles.Add(new MainframeTile { Id = "voice", Glyph = "🎙", Label = "Speak a prompt" });
         Tiles.Add(new MainframeTile { Id = "workspace", Glyph = "🗂", Label = "Workspace" });
         Tiles.Add(new MainframeTile { Id = "profile", Glyph = "⚙", Label = "Controller profile" });
         Tiles.Add(new MainframeTile { Id = "shortcuts", Glyph = "🎮", Label = "All shortcuts" });

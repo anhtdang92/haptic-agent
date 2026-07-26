@@ -29,6 +29,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
     ("Guide bindings hide on transports that cannot send it", TestGuideReachabilityAsync),
+    ("Attachments ride along with the next prompt", TestPromptComposerAsync),
+    ("Host-handled commands never reach the adapter", TestHostHandledCommandsAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
@@ -591,6 +593,67 @@ static Task TestGuideReachabilityAsync()
     AssertEqual(0, chord.ReachableBindings(withoutGuide).Count());
     AssertEqual(1, chord.ReachableBindings(withGuide).Count());
     return Task.CompletedTask;
+}
+
+static Task TestPromptComposerAsync()
+{
+    // No attachments: the prompt is untouched.
+    AssertEqual("fix the tests", PromptComposer.Compose("fix the tests", []));
+
+    // The ask comes first, then the files — the agent should read what to do
+    // before the bookkeeping.
+    var one = PromptComposer.Compose("review this", ["/repo/a.cs"]);
+    Assert(one.StartsWith("review this", StringComparison.Ordinal), "The instruction leads.");
+    Assert(one.Contains("Attached file:", StringComparison.Ordinal), "Singular for one file.");
+    Assert(one.Contains("- /repo/a.cs", StringComparison.Ordinal), "The path is listed.");
+
+    var many = PromptComposer.Compose("compare", ["/repo/a.cs", "/repo/b.cs"]);
+    Assert(many.Contains("Attached files:", StringComparison.Ordinal), "Plural for several.");
+    Assert(many.Contains("- /repo/b.cs", StringComparison.Ordinal), "Every path is listed.");
+
+    // Attaching without typing still sends something meaningful rather than a
+    // prompt that begins with a blank line.
+    var bare = PromptComposer.Compose("   ", ["/repo/a.cs"]);
+    Assert(bare.StartsWith("Attached file:", StringComparison.Ordinal), "No leading blank.");
+    return Task.CompletedTask;
+}
+
+// StartVoicePrompt and AttachFile are bindable so a controller can reach them,
+// but they are UI actions — an adapter has no idea what a microphone is, and
+// forwarding them would surface as "Unsupported command" errors.
+static async Task TestHostHandledCommandsAsync()
+{
+    var recording = new RecordingAdapter();
+    await using var engine = new HostEngine(
+        new SingleControllerProvider(new ScriptedController()),
+        recording,
+        ControllerProfile.Default,
+        new HostEngineOptions("prompt"));
+
+    var voice = 0;
+    var attach = 0;
+    engine.VoicePromptRequested += () => voice++;
+    engine.AttachFileRequested += () => attach++;
+
+    await engine.StartVoicePromptAsync().ConfigureAwait(false);
+    await engine.AttachFileAsync().ConfigureAwait(false);
+
+    AssertEqual(1, voice);
+    AssertEqual(1, attach);
+    AssertEqual(0, recording.Commands.Count);
+
+    // An ordinary command still gets through, so the interception is targeted.
+    await engine.InterruptAsync().ConfigureAwait(false);
+    AssertEqual(1, recording.Commands.Count);
+    AssertEqual(AgentCommandKind.Interrupt, recording.Commands[0].Kind);
+
+    // Both are in the default profile, so a stock controller can reach them.
+    Assert(
+        ControllerProfile.Default.Bindings.Any(b => b.Command == AgentCommandKind.StartVoicePrompt),
+        "The default profile must bind voice.");
+    Assert(
+        ControllerProfile.Default.Bindings.Any(b => b.Command == AgentCommandKind.AttachFile),
+        "The default profile must bind attach.");
 }
 
 static async Task TestHapticHubAsync()
@@ -1604,6 +1667,41 @@ internal sealed class BlockingController : IControllerDevice
     public ValueTask DisposeAsync()
     {
         Completed.TrySetResult(true);
+        return ValueTask.CompletedTask;
+    }
+}
+
+
+/// <summary>Records commands instead of doing anything with them.</summary>
+internal sealed class RecordingAdapter : IAgentAdapter
+{
+    private readonly System.Threading.Channels.Channel<AgentEvent> _events =
+        System.Threading.Channels.Channel.CreateUnbounded<AgentEvent>();
+
+    public List<AgentCommand> Commands { get; } = [];
+
+    public string Id => "recording";
+
+    public bool IsStarted { get; private set; }
+
+    public ValueTask StartAsync(CancellationToken cancellationToken = default)
+    {
+        IsStarted = true;
+        return ValueTask.CompletedTask;
+    }
+
+    public IAsyncEnumerable<AgentEvent> ReadEventsAsync(CancellationToken cancellationToken = default) =>
+        _events.Reader.ReadAllAsync(cancellationToken);
+
+    public ValueTask ExecuteAsync(AgentCommand command, CancellationToken cancellationToken = default)
+    {
+        lock (Commands) Commands.Add(command);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _events.Writer.TryComplete();
         return ValueTask.CompletedTask;
     }
 }

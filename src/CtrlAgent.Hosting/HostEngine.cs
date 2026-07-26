@@ -172,6 +172,25 @@ public sealed class HostEngine : IAsyncDisposable
     /// route — controller binding, GUI button, or console command.</summary>
     public event Action<SessionSettings>? SessionSettingsChanged;
 
+    /// <summary>
+    /// A binding asked for dictation. Host-handled: the mic and the prompt box
+    /// are UI, so the engine only forwards the intent and never sends anything
+    /// to the adapter.
+    /// </summary>
+    public event Action? VoicePromptRequested;
+
+    /// <summary>A binding asked to attach files. Host-handled for the same
+    /// reason — a file picker is UI.</summary>
+    public event Action? AttachFileRequested;
+
+    /// <summary>Starts dictation, as if a bound control had been pressed.</summary>
+    public Task StartVoicePromptAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.StartVoicePrompt));
+
+    /// <summary>Opens the attach-files picker.</summary>
+    public Task AttachFileAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.AttachFile));
+
     public Task NextSessionAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.NextSession));
 
@@ -583,6 +602,20 @@ public sealed class HostEngine : IAsyncDisposable
 
     private async Task DispatchAsync(AgentCommand command)
     {
+        // Host-handled commands stop here. They are bindable so a controller
+        // can reach them, but they are UI actions — an adapter has no idea what
+        // a microphone or a file picker is.
+        switch (command.Kind)
+        {
+            case AgentCommandKind.StartVoicePrompt:
+                VoicePromptRequested?.Invoke();
+                return;
+
+            case AgentCommandKind.AttachFile:
+                AttachFileRequested?.Invoke();
+                return;
+        }
+
         command = ResolveCycle(command);
 
         try

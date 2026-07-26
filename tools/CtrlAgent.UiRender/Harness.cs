@@ -4,9 +4,13 @@ using System.Threading.Channels;
 using Avalonia;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media.Imaging;
+using Avalonia.Input;
+using Avalonia.Media;
+using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
@@ -140,6 +144,9 @@ internal static class Harness
         viewModel.AppendLog("[agent] Working: Bash: dotnet test");
         viewModel.AppendLog("[agent] Error: build failed in CtrlAgent.Core");
         viewModel.AppendLog("[agent] Completed: All tests pass (12.4s · 3 turns · $0.09)");
+
+        RenderButtonGallery();
+        CheckPressDarkens();
 
         Render(new MainWindow { DataContext = viewModel }, "01-main-window.png");
 
@@ -445,6 +452,164 @@ internal static class Harness
         }
 
         window.Close();
+    }
+
+    /// <summary>
+    /// Every button variant in every state, side by side.
+    /// <para>
+    /// Buttons are the one part of the design system that cannot be judged from
+    /// the app screenshots: nothing in them is hovered, focused, pressed or
+    /// disabled, so most of what a button style says is invisible. Pseudo-classes
+    /// are forced here so all of it renders at once.
+    /// </para>
+    /// </summary>
+    private static void RenderButtonGallery()
+    {
+        string[] variants = ["accent", "", "approve", "deny", "ghost", "tool", "knob"];
+        string[] states = ["rest", ":pointerover", "disabled"];
+
+        var grid = new StackPanel { Spacing = 22, Margin = new Thickness(28) };
+        grid.Children.Add(new TextBlock
+        {
+            Text = "BUTTON MATRIX — rest / hover / disabled (press is measured, see CheckPressDarkens)",
+            FontSize = 12,
+            Foreground = Brushes.SlateGray,
+        });
+
+        foreach (var variant in variants)
+        {
+            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 14 };
+            row.Children.Add(new TextBlock
+            {
+                Text = string.IsNullOrEmpty(variant) ? "(default)" : variant,
+                Width = 90,
+                FontSize = 12,
+                Foreground = Brushes.Gray,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            });
+
+            foreach (var state in states)
+            {
+                var button = new Button { Content = state == "rest" ? "Submit" : state.TrimStart(':') };
+                if (!string.IsNullOrEmpty(variant))
+                {
+                    button.Classes.Add(variant);
+                }
+
+                if (state == "disabled")
+                {
+                    button.IsEnabled = false;
+                }
+                else if (state != "rest")
+                {
+                    ((IPseudoClasses)button.Classes).Set(state, true);
+                }
+
+                row.Children.Add(button);
+            }
+
+            grid.Children.Add(row);
+        }
+
+        var window = new Window
+        {
+            Width = 760,
+            Height = 460,
+            Content = new ScrollViewer { Content = grid },
+        };
+
+        Render(window, "17-buttons.png");
+    }
+
+    /// <summary>
+    /// Presses each button variant with real input and requires the surface to
+    /// get <em>darker</em>.
+    /// <para>
+    /// This is an assertion rather than a screenshot because <c>:pressed</c> is
+    /// driven by the read-only <c>Button.IsPressed</c> and cannot be forced, and
+    /// because real input can only press one button at a time — a matrix column
+    /// of pressed buttons is not renderable.
+    /// </para>
+    /// <para>
+    /// It exists because <c>approve</c> and <c>deny</c> had drifted to
+    /// rest #26 → hover #4D → pressed #66: the harder you pushed, the brighter
+    /// they got. Nothing catches that except looking, and nobody was.
+    /// </para>
+    /// </summary>
+    private static void CheckPressDarkens()
+    {
+        foreach (var variant in new[] { "accent", "", "approve", "deny", "ghost", "tool", "knob" })
+        {
+            var name = string.IsNullOrEmpty(variant) ? "(default)" : variant;
+            var button = new Button { Content = "Press me", Margin = new Thickness(40) };
+            if (!string.IsNullOrEmpty(variant))
+            {
+                button.Classes.Add(variant);
+            }
+
+            var window = new Window { Width = 320, Height = 140, Content = button };
+            window.Show();
+            Pump(320);
+
+            var presenter = button.GetVisualDescendants()
+                .OfType<ContentPresenter>()
+                .FirstOrDefault(candidate => candidate.Name == "PART_ContentPresenter");
+            if (presenter is null || button.GetTransformedBounds() is not { } placed)
+            {
+                Faults.Add($"buttons: could not measure the '{name}' variant.");
+                window.Close();
+                continue;
+            }
+
+            var atRest = Luminance(presenter.Background);
+
+            ((IPseudoClasses)button.Classes).Set(":pointerover", true);
+            Pump(220);
+            var whileHovered = Luminance(presenter.Background);
+            ((IPseudoClasses)button.Classes).Set(":pointerover", false);
+            Pump(120);
+
+            var box = placed.Bounds.TransformToAABB(placed.Transform);
+            window.MouseDown(box.Center, MouseButton.Left);
+            Pump(220);
+            var whilePressed = Luminance(presenter.Background);
+            window.MouseUp(box.Center, MouseButton.Left);
+            window.Close();
+
+            // Measured against hover, not rest: `tool` is fully transparent at
+            // rest inside its rail, so any visible press is "brighter" than
+            // nothing. Hover is the lit state a press actually recesses from.
+            if (whilePressed > whileHovered + 0.005)
+            {
+                Faults.Add(
+                    $"buttons: '{name}' gets brighter when pressed than when hovered " +
+                    $"(hover {whileHovered:0.000} -> press {whilePressed:0.000}). A press must recess.");
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"  press '{name}': rest {atRest:0.000} / hover {whileHovered:0.000} / press {whilePressed:0.000}");
+            }
+        }
+    }
+
+    /// <summary>Perceived lightness of a fill, gradients averaged, alpha applied.</summary>
+    private static double Luminance(IBrush? brush)
+    {
+        switch (brush)
+        {
+            case ISolidColorBrush solid:
+                return Weight(solid.Color);
+            case IGradientBrush gradient when gradient.GradientStops.Count > 0:
+                return gradient.GradientStops.Average(stop => Weight(stop.Color));
+            default:
+                return 0;
+        }
+
+        // Alpha matters: these fills sit on a dark field, so a translucent
+        // colour is darker in practice than its RGB suggests.
+        static double Weight(Color color) =>
+            ((0.2126 * color.R) + (0.7152 * color.G) + (0.0722 * color.B)) / 255.0 * (color.A / 255.0);
     }
 
     /// <summary>Opacity as actually seen: this element's, times every ancestor's.</summary>

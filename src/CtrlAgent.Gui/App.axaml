@@ -200,7 +200,7 @@
     <!-- The primary action breathes, so the eye lands on it without it ever
          demanding attention. Targets the templated presenter because BoxShadow
          is not a property of Button itself. -->
-    <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="Button.accent:not(:disabled) /template/ ContentPresenter#PART_ContentPresenter">
       <Style.Animations>
         <Animation Duration="0:0:3.4" IterationCount="Infinite" Easing="SineEaseInOut">
           <KeyFrame Cue="0%"><Setter Property="BoxShadow" Value="0 0 12 0 #3300D4FF" /></KeyFrame>
@@ -241,9 +241,9 @@
       <Setter Property="Background">
         <Setter.Value>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-            <GradientStop Color="#66EAFF" Offset="0" />
-            <GradientStop Color="#38DDFF" Offset="0.45" />
-            <GradientStop Color="#659EFF" Offset="1" />
+            <GradientStop Color="#3FE4FF" Offset="0" />
+            <GradientStop Color="#12D9FF" Offset="0.45" />
+            <GradientStop Color="#4489F7" Offset="1" />
           </LinearGradientBrush>
         </Setter.Value>
       </Setter>
@@ -255,8 +255,8 @@
          row. No fill and no border at rest — the material only materializes
          under the pointer, the way a macOS toolbar item does. -->
     <Style Selector="Button.ghost">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Background" Value="#3D101A2E" />
+      <Setter Property="BorderBrush" Value="#14FFFFFF" />
       <Setter Property="Foreground" Value="#93A9CC" />
       <Setter Property="FontWeight" Value="Normal" />
       <Setter Property="FontSize" Value="12" />
@@ -355,7 +355,8 @@
       <Setter Property="BorderBrush" Value="#CC34F5A4" />
     </Style>
     <Style Selector="Button.approve:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#6634F5A4" />
+      <Setter Property="Background" Value="#1A1F8C60" />
+      <Setter Property="BorderBrush" Value="#B334F5A4" />
     </Style>
     <Style Selector="Button.deny">
       <Setter Property="Foreground" Value="#FFB4C0" />
@@ -368,7 +369,83 @@
       <Setter Property="BorderBrush" Value="#CCFF5A78" />
     </Style>
     <Style Selector="Button.deny:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#66FF5A78" />
+      <Setter Property="Background" Value="#1A8C2F42" />
+      <Setter Property="BorderBrush" Value="#B3FF5A78" />
+    </Style>
+
+    <!-- ==== One state model for every button variant ====
+         Declared after the variants so it wins, and expressed once rather
+         than per-variant, which is how approve and deny drifted into getting
+         *brighter* the harder you pressed them.
+
+         rest     surface lit from above (specular on), rail idling
+         hover    fill lifts, border brightens, rail ignites
+         pressed  fill DARKENS below rest, an inset shadow puts the face below
+                  the rim, the specular dies because the top bevel has tilted
+                  out of the light, and the whole control compresses
+         disabled a flat neutral surface, not a faded coloured one -->
+
+    <!-- The press: recessed, not merely a different colour. -->
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BoxShadow" Value="inset 0 2 6 0 #8C000000" />
+    </Style>
+    <Style Selector="Button:pressed /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0.08" />
+    </Style>
+    <Style Selector="Button:pressed">
+      <Setter Property="RenderTransform" Value="scale(0.97)" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ Border#Specular">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- Disabled: a dead surface. Fading a coloured button leaves it looking
+         like a working button behind fog — the colour still reads as "primary"
+         or "destructive" when neither is true any more. -->
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Foreground" Value="#5A7099" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#420E1728" />
+      <Setter Property="BorderBrush" Value="#14FFFFFF" />
+      <Setter Property="BoxShadow" Value="none" />
+    </Style>
+    <Style Selector="Button:disabled /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button:disabled /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0.12" />
+    </Style>
+
+    <!-- Accent pressed: the same hue driven down into shadow, so it still
+         reads as the primary action while clearly being held down. -->
+    <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#0E7E9B" Offset="0" />
+            <GradientStop Color="#0A6F94" Offset="0.45" />
+            <GradientStop Color="#1B4694" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#40FFFFFF" />
+    </Style>
+    <Style Selector="Button.accent:pressed">
+      <Setter Property="Foreground" Value="#CFEAFF" />
+    </Style>
+
+    <!-- Quiet variants had no press state at all beyond the scale: on a still
+         frame, and on a slow display, the click simply did not land. -->
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#8C05080F" />
+      <Setter Property="BorderBrush" Value="#8C7DD3FC" />
+    </Style>
+    <Style Selector="Button.tool:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#8C05080F" />
+      <Setter Property="BorderBrush" Value="#8C7DD3FC" />
     </Style>
 
     <!-- Inputs: same glass material — hairline at rest, cyan when focused -->

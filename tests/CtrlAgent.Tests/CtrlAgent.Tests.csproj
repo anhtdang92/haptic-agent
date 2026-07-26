@@ -7,6 +7,7 @@
     <ProjectReference Include="..\..\src\CtrlAgent.Adapters.Mock\CtrlAgent.Adapters.Mock.csproj" />
     <ProjectReference Include="..\..\src\CtrlAgent.Adapters.ClaudeCode\CtrlAgent.Adapters.ClaudeCode.csproj" />
     <ProjectReference Include="..\..\src\CtrlAgent.Adapters.Codex\CtrlAgent.Adapters.Codex.csproj" />
+    <ProjectReference Include="..\..\src\CtrlAgent.Presentation\CtrlAgent.Presentation.csproj" />
     <ProjectReference Include="..\..\src\CtrlAgent.Hosting\CtrlAgent.Hosting.csproj" />
     <ProjectReference Include="..\..\src\CtrlAgent.Controllers.DualSense\CtrlAgent.Controllers.DualSense.csproj" />
   </ItemGroup>

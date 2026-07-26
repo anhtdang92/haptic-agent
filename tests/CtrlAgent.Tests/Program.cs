@@ -7,6 +7,7 @@ using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Controllers.DualSense;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
+using CtrlAgent.Presentation;
 
 var tests = new (string Name, Func<Task> Run)[]
 {
@@ -43,6 +44,10 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Host engine tracks session settings from every route", TestSessionSettingsTrackingAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
+    ("An interrupt feels the same on every adapter", TestInterruptIsUniformAsync),
+    ("Transcript folds streaming prose into one bubble", TestTranscriptFoldingAsync),
+    ("Log lines classify most-severe first", TestLogClassificationAsync),
+    ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
 };
 
 var failures = 0;
@@ -848,10 +853,15 @@ static Task TestCodexTurnStatusAsync()
     AssertEqual(AgentStateKind.Completed, TurnState("""{"turn":{"status":"completed"}}"""));
     AssertEqual(AgentStateKind.Error, TurnState("""{"turn":{"status":"failed"}}"""));
 
-    // Interrupted is Idle, not Error: the user stopped the turn deliberately
-    // and must not be buzzed at for it.
-    AssertEqual(AgentStateKind.Idle, TurnState("""{"turn":{"status":"interrupted"}}"""));
-    AssertEqual(AgentStateKind.Idle, TurnState("""{"turn":{"status":"INTERRUPTED"}}"""));
+    // A deliberate stop reports as AgentInterrupt.State, identically across
+    // every adapter, so the same button never means two different things.
+    AssertEqual(AgentInterrupt.State, TurnState("""{"turn":{"status":"interrupted"}}"""));
+    AssertEqual(AgentInterrupt.State, TurnState("""{"turn":{"status":"INTERRUPTED"}}"""));
+    Assert(AgentInterrupt.State != AgentStateKind.Error, "An interrupt must never read as an error.");
+    AssertEqual(
+        AgentInterrupt.Message,
+        AssertIs<CodexMessage.TurnFinished>(
+            ParseCodex("""{"method":"turn/completed","params":{"turn":{"status":"interrupted"}}}""")).Summary);
 
     // An absent status is treated as a normal completion.
     AssertEqual(AgentStateKind.Completed, TurnState("""{"turn":{}}"""));
@@ -883,6 +893,150 @@ static T AssertIs<T>(CodexMessage message)
 {
     Assert(message is T, $"Expected {typeof(T).Name} but got {message.GetType().Name}.");
     return (T)message;
+}
+
+// The same button must not mean two different things in the hand. Claude
+// reported an interrupt as Completed while Codex and the mock reported Idle,
+// which routes to no pattern at all — so interrupting produced a confirming
+// buzz on one agent and silence on another.
+static async Task TestInterruptIsUniformAsync()
+{
+    // The shared answer must produce a real cue. Idle deliberately routes to
+    // null, which is exactly the trap this invariant exists to avoid.
+    var router = new FeedbackRouter();
+    var pattern = router.Route(new AgentEvent(
+        "test", "session", AgentInterrupt.State, DateTimeOffset.UtcNow, AgentInterrupt.Message));
+    Assert(pattern is not null, "An interrupt must route to a haptic pattern, not silence.");
+
+    // The mock is the adapter a test can drive end to end; it must publish the
+    // shared state rather than its own idea of one.
+    await using var adapter = new MockAgentAdapter();
+    await adapter.StartAsync().ConfigureAwait(false);
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    var events = adapter.ReadEventsAsync(timeout.Token).GetAsyncEnumerator(timeout.Token);
+
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.SubmitPrompt, Text: "work"), timeout.Token)
+        .ConfigureAwait(false);
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.Interrupt), timeout.Token)
+        .ConfigureAwait(false);
+
+    var sawInterrupt = false;
+    while (await events.MoveNextAsync().ConfigureAwait(false))
+    {
+        if (events.Current.Message == AgentInterrupt.Message)
+        {
+            AssertEqual(AgentInterrupt.State, events.Current.State);
+            sawInterrupt = true;
+            break;
+        }
+    }
+
+    Assert(sawInterrupt, "The mock adapter must publish the shared interrupt event.");
+}
+
+static AgentEvent Event(AgentStateKind state, string message) =>
+    new("test", "session", state, DateTimeOffset.UtcNow, message);
+
+// The rule that matters: streamed prose updates ONE bubble, and anything that
+// is not prose closes it so the next chunk starts a fresh one. Getting this
+// wrong either erases text the user was reading or shatters a reply into a
+// wall of fragments.
+static Task TestTranscriptFoldingAsync()
+{
+    var folder = new TranscriptFolder();
+
+    AssertIsAction<TranscriptAction.StartBubble>(folder.Fold(Event(AgentStateKind.Working, "Let me")));
+    var update = AssertIsAction<TranscriptAction.UpdateBubble>(
+        folder.Fold(Event(AgentStateKind.Working, "Let me check")));
+    AssertEqual("Let me check", update.Text);
+    Assert(folder.IsStreaming, "Prose must leave the bubble open.");
+
+    // A tool call is activity: it closes the bubble...
+    var tool = AssertIsAction<TranscriptAction.AddActivity>(
+        folder.Fold(Event(AgentStateKind.Working, "Bash: dotnet test")));
+    AssertEqual("Bash: dotnet test", tool.Text);
+    Assert(!folder.IsStreaming, "Activity must close the open bubble.");
+
+    // ...so the prose after it starts a new one rather than overwriting.
+    AssertIsAction<TranscriptAction.StartBubble>(folder.Fold(Event(AgentStateKind.Working, "Tests pass")));
+
+    // An approval does NOT close the bubble: it interrupts a sentence the
+    // agent will finish once answered.
+    var locked = AssertIsAction<TranscriptAction.AddActivity>(
+        folder.Fold(Event(AgentStateKind.ApprovalRequired, "wants: Write: a.cs")));
+    Assert(locked.Text.StartsWith("🔒", StringComparison.Ordinal), "Approvals are marked.");
+    Assert(folder.IsStreaming, "An approval must not close the bubble.");
+    AssertIsAction<TranscriptAction.UpdateBubble>(folder.Fold(Event(AgentStateKind.Working, "Tests pass, done")));
+
+    // Results close it and are marked by outcome.
+    Assert(
+        AssertIsAction<TranscriptAction.AddActivity>(
+            folder.Fold(Event(AgentStateKind.Completed, "done"))).Text.StartsWith("✓", StringComparison.Ordinal),
+        "Completion is ticked.");
+    Assert(
+        AssertIsAction<TranscriptAction.AddActivity>(
+            folder.Fold(Event(AgentStateKind.Error, "boom"))).Text.StartsWith("✕", StringComparison.Ordinal),
+        "Errors are crossed.");
+
+    // Empty messages contribute nothing and must not open a bubble.
+    AssertIsAction<TranscriptAction.None>(folder.Fold(Event(AgentStateKind.Working, "   ")));
+
+    // Reset is what a workspace swap uses; the next prose must start fresh.
+    folder.Fold(Event(AgentStateKind.Working, "streaming"));
+    folder.Reset();
+    Assert(!folder.IsStreaming, "Reset must close the bubble.");
+    AssertIsAction<TranscriptAction.StartBubble>(folder.Fold(Event(AgentStateKind.Working, "new session")));
+    return Task.CompletedTask;
+}
+
+// Order is the rule: "Approval declined" contains both an approval word and an
+// error word, and it has to read as an error.
+static Task TestLogClassificationAsync()
+{
+    AssertEqual(LogSeverity.Error, LogClassifier.Classify("Approval declined by the user"));
+    AssertEqual(LogSeverity.Error, LogClassifier.Classify("Agent session failed to start"));
+    AssertEqual(LogSeverity.Approval, LogClassifier.Classify("Approval required: Write"));
+    AssertEqual(LogSeverity.Success, LogClassifier.Classify("Controller connected"));
+    AssertEqual(LogSeverity.Agent, LogClassifier.Classify("Turn started"));
+    AssertEqual(LogSeverity.Normal, LogClassifier.Classify("Rumble preview"));
+
+    Assert(LogClassifier.IsControllerEvent("[controller] A pressed"), "Controller lines are taggable.");
+    Assert(!LogClassifier.IsControllerEvent("[agent] working"), "Agent lines are not controller input.");
+    return Task.CompletedTask;
+}
+
+// Highlighting only the A of "RB+A" points the user at the one button that
+// will not work on its own.
+static Task TestApprovalControlsAsync()
+{
+    var controls = ApprovalControls.From(ControllerProfile.Default);
+    Assert(controls.Count > 0, "The default profile must expose approval controls.");
+
+    foreach (var binding in ControllerProfile.Default.Bindings.Where(b => b.RequiresPendingApproval))
+    {
+        Assert(controls.Contains(binding.Control), $"{binding.Control} must be highlighted.");
+        if (binding.Modifiers is { Count: > 0 } modifiers)
+        {
+            foreach (var modifier in modifiers)
+            {
+                Assert(controls.Contains(modifier), $"Modifier {modifier} must be highlighted too.");
+            }
+        }
+    }
+
+    // Bindings that are not approval-gated must not light up.
+    var plain = new ControllerProfile(
+        "plain", [new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt)]);
+    AssertEqual(0, ApprovalControls.From(plain).Count);
+    return Task.CompletedTask;
+}
+
+static T AssertIsAction<T>(TranscriptAction action)
+    where T : TranscriptAction
+{
+    Assert(action is T, $"Expected {typeof(T).Name} but got {action.GetType().Name}.");
+    return (T)action;
 }
 
 static Task TestValidationReportGatesAsync()

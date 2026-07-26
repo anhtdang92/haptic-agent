@@ -4,7 +4,12 @@
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- On because the tree is already warning-free. Turning it on while
+         that is true costs nothing and keeps it true; turning it on later,
+         after warnings have accumulated, is a cleanup project nobody wants.
+         The native bridge and the UI render harness are outside the solution
+         and set their own policy. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <Deterministic>true</Deterministic>
   </PropertyGroup>

@@ -587,7 +587,7 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 // while our own interrupt is outstanding completes instead.
                 if (result.IsError && Interlocked.Exchange(ref _interruptOutstanding, 0) == 1)
                 {
-                    Publish(AgentStateKind.Completed, "Turn interrupted.");
+                    Publish(AgentInterrupt.State, AgentInterrupt.Message);
                     break;
                 }
 

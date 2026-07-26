@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
+using CtrlAgent.Presentation;
 
 namespace CtrlAgent.Gui;
 
@@ -82,6 +83,7 @@ public sealed class MainViewModel : ViewModelBase
     private DateTimeOffset _lastViewPress = DateTimeOffset.MinValue;
     private SessionSettings _settings = new(null, null, null);
     private ChatMessage? _streamingBubble;
+    private readonly TranscriptFolder _folder = new();
     private bool _isChatView = true;
     private bool _isTranscriptEmpty = true;
     private int _queuedPromptCount;
@@ -195,6 +197,7 @@ public sealed class MainViewModel : ViewModelBase
         Transcript.Clear();
         IsTranscriptEmpty = true;
         _streamingBubble = null;
+        _folder.Reset();
         Log.Clear();
         _logHistory.Clear();
         IsLogEmpty = true;
@@ -256,7 +259,7 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(EffortLabel));
 
         Buddy.SetProfile(engine.Profile);
-        _approvalControls = ComputeApprovalControls(engine.Profile);
+        _approvalControls = ApprovalControls.From(engine.Profile);
 
         engine.LogEmitted += message => Post(() => AppendLog(message));
         engine.ControllerStatusChanged += status => Post(() =>
@@ -359,7 +362,7 @@ public sealed class MainViewModel : ViewModelBase
             RefreshBindingRows();
 
             Buddy.SetProfile(applied);
-            _approvalControls = ComputeApprovalControls(applied);
+            _approvalControls = ApprovalControls.From(applied);
             if (HasPendingApproval)
             {
                 ControllerVisual.SetApprovalHighlight(_approvalControls);
@@ -684,56 +687,36 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Folds an agent event into the conversation. Streaming Working prose
-    /// updates the current bubble in place; tool/plan/result lines land as
-    /// activity rows and close the streaming bubble so the next prose chunk
-    /// starts a fresh one — the Claude-app rhythm.
+    /// Folds an agent event into the conversation. The rules live in
+    /// <see cref="TranscriptFolder"/> so they can be tested; what stays here is
+    /// the handle on the bubble being streamed into.
     /// </summary>
     private void AppendToTranscript(AgentEvent agentEvent)
     {
-        var message = agentEvent.Message;
-        if (string.IsNullOrWhiteSpace(message))
+        switch (_folder.Fold(agentEvent))
         {
-            return;
-        }
-
-        switch (agentEvent.State)
-        {
-            case AgentStateKind.Working when ChatMessage.IsActivityText(message):
-                _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, message);
+            case TranscriptAction.StartBubble start:
+                _streamingBubble = AddChat(isUser: false, isActivity: false, start.Text);
                 break;
 
-            case AgentStateKind.Working:
+            case TranscriptAction.UpdateBubble update:
                 if (_streamingBubble is { } bubble)
                 {
-                    bubble.Text = message;
+                    bubble.Text = update.Text;
                 }
                 else
                 {
-                    _streamingBubble = AddChat(isUser: false, isActivity: false, message);
+                    // The folder believes a bubble is open and this view model
+                    // does not — only reachable if the two are reset out of
+                    // step. Start one rather than dropping the text.
+                    _streamingBubble = AddChat(isUser: false, isActivity: false, update.Text);
                 }
 
                 break;
 
-            case AgentStateKind.Completed:
+            case TranscriptAction.AddActivity activity:
                 _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, $"✓ {message}");
-                break;
-
-            case AgentStateKind.Error:
-                _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, $"✕ {message}");
-                break;
-
-            case AgentStateKind.ApprovalRequired:
-            case AgentStateKind.WaitingForInput:
-                AddChat(isUser: false, isActivity: true, $"🔒 {message}");
-                break;
-
-            case AgentStateKind.Idle:
-                _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, message);
+                AddChat(isUser: false, isActivity: true, activity.Text);
                 break;
         }
     }
@@ -781,27 +764,5 @@ public sealed class MainViewModel : ViewModelBase
 
     private static void Post(Action action) => Dispatcher.UIThread.Post(action);
 
-    private static IReadOnlyCollection<ControllerControl> ComputeApprovalControls(ControllerProfile profile)
-    {
-        var controls = new HashSet<ControllerControl>();
-        foreach (var binding in profile.Bindings)
-        {
-            if (!binding.RequiresPendingApproval)
-            {
-                continue;
-            }
-
-            controls.Add(binding.Control);
-            if (binding.Modifiers is { Count: > 0 })
-            {
-                foreach (var modifier in binding.Modifiers)
-                {
-                    controls.Add(modifier);
-                }
-            }
-        }
-
-        return controls;
-    }
 
 }

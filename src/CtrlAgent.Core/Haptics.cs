@@ -46,8 +46,29 @@ public sealed record HapticPattern(
 }
 
 /// <summary>
-/// Built-in cues are intentionally short and distinct. Real-device validation
-/// will tune these values before they become stable defaults.
+/// The built-in cues.
+/// <para>
+/// <b>Every number in this file is an estimate.</b> Not one of these patterns
+/// has been felt on a real controller — the amplitudes, the frame lengths, and
+/// the gaps between pulses were all chosen by reading, not by holding a pad.
+/// They are plausible, they are deliberately short and structurally distinct
+/// from one another, and that is the entire basis for them.
+/// </para>
+/// <para>
+/// This matters more than it looks. The cues <em>are</em> the product: the
+/// premise of this tool is that you can keep your eyes off the screen because
+/// your hands are told what happened. A cue that is too weak to notice, too
+/// similar to its neighbour, or unpleasant to receive fifty times an hour
+/// defeats that premise while every test still passes — none of these
+/// qualities is visible from code, and none is covered by the harness.
+/// </para>
+/// <para>
+/// Treat these as placeholders until the tuning pass runs against real
+/// hardware (roadmap #7, gated on the validation runs in #1). Motors also
+/// differ per device: Xbox low/high-frequency pairs, DualSense voice-coil
+/// actuators, and the Elite trigger motors will not feel alike at the same
+/// numbers, so "tuned" ultimately means tuned per transport.
+/// </para>
 /// </summary>
 public static class HapticPatternCatalog
 {

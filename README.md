@@ -125,7 +125,12 @@ Profiles are validated before they load. Ambiguous combinations (for example `pr
 
 No .NET or dev tools required — releases are fully self-contained:
 
-1. **Installer (recommended):** download `CtrlAgent-Setup-<version>.exe` from the [releases page](https://github.com/anhtdang92/haptic-agent/releases) and run it. It installs per-user (no admin prompt), adds Start Menu entries (CtrlAgent, the console host, and the hardware validation wizard), an optional desktop shortcut, and an optional start-with-Windows toggle for the tray app, plus a normal uninstaller.
+> **The installer has never been run.** It is built by the release workflow but
+> no release has been cut yet, so the very first person to download it is also
+> the first person to test it. If it misbehaves, the portable zip below is the
+> fallback — it is the same binaries without the install step.
+
+1. **Installer:** download `CtrlAgent-Setup-<version>.exe` from the [releases page](https://github.com/anhtdang92/haptic-agent/releases) and run it. It installs per-user (no admin prompt), adds Start Menu entries (CtrlAgent, the console host, and the hardware validation wizard), an optional desktop shortcut, and an optional start-with-Windows toggle for the tray app, plus a normal uninstaller.
 2. **Portable zip:** download `CtrlAgent-<version>-win-x64.zip`, unzip anywhere, and double-click `CtrlAgent.Gui.exe`. Nothing is written outside the folder except settings in `%AppData%\CtrlAgent`.
 
 Building from source instead? `dotnet publish src/CtrlAgent.Gui/CtrlAgent.Gui.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true` produces the same single-file exe.
@@ -253,6 +258,22 @@ docs/
   roadmap.md                   Phase ledger, backlog, release targets
   controller-validation.md     Hardware validation plan and wizard
 ```
+
+## What has not touched real hardware
+
+CtrlAgent is pre-alpha, and the honest summary is that the software is further
+along than the evidence for it. These are complete in code, pass their tests,
+and have never been confirmed against the thing they model:
+
+| Area | State | Why the tests do not settle it |
+|---|---|---|
+| **Haptic patterns** (`HapticPatternCatalog`) | Every amplitude and duration is an estimate | The tests check that frames are clamped and scheduled, not that a cue is noticeable, distinct, or pleasant to receive fifty times an hour. The cues *are* the product. |
+| **DualSense support** | Byte layout taken from community documentation | Unit tests pin what the protocol file claims; they cannot tell you the claim is right. A wrong offset gives drifting sticks or silently discarded output reports with a green suite. |
+| **Windows installer** | Built by the release workflow, never executed | No release has been cut. |
+| **Codex adapter** | Wire handling extracted and unit-tested; no live run | Tests cover the shapes we believe Codex sends. |
+
+Claude Code is the exception: its approval loop has been verified end to end
+against a live CLI. See below and [the adapter reference](docs/adapters.md).
 
 ## Hardware validation status
 

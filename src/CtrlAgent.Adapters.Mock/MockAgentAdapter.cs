@@ -69,7 +69,7 @@ public sealed class MockAgentAdapter : IAgentAdapter
             case AgentCommandKind.Interrupt:
             case AgentCommandKind.Cancel:
                 CancelActiveTurn();
-                Publish(AgentStateKind.Idle, "Turn interrupted.");
+                Publish(AgentInterrupt.State, AgentInterrupt.Message);
                 break;
 
             case AgentCommandKind.ApproveOnce:

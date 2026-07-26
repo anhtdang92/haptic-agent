@@ -132,14 +132,18 @@ public static class CodexProtocolParser
         var status = TryGetString(root, "params", "turn", "status") ?? "completed";
         var error = TryGetString(root, "params", "turn", "error", "message");
 
-        // "interrupted" is Idle, not Error: the user stopped the turn on
-        // purpose, and routing it to Error would fire the error rumble for a
-        // deliberate act.
+        // A deliberate stop is never an Error — that would fire the error cue
+        // for something the user asked for. It reports as AgentInterrupt.State
+        // so every adapter answers this identically; see that type for why the
+        // answer is Completed rather than Idle.
+        if (status.Equals("interrupted", StringComparison.OrdinalIgnoreCase))
+        {
+            return new CodexMessage.TurnFinished(AgentInterrupt.State, error ?? AgentInterrupt.Message);
+        }
+
         var state = status.Equals("failed", StringComparison.OrdinalIgnoreCase)
             ? AgentStateKind.Error
-            : status.Equals("interrupted", StringComparison.OrdinalIgnoreCase)
-                ? AgentStateKind.Idle
-                : AgentStateKind.Completed;
+            : AgentStateKind.Completed;
 
         return new CodexMessage.TurnFinished(state, error ?? $"Codex turn {status}.");
     }

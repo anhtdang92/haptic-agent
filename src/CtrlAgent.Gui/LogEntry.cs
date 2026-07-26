@@ -1,11 +1,17 @@
 using Avalonia.Media;
+using CtrlAgent.Presentation;
 
 namespace CtrlAgent.Gui;
 
 /// <summary>
-/// One event-stream line: a capture timestamp plus a message tinted by what
-/// it reports (errors red, approvals amber, agent lifecycle cyan, successes
-/// green) so the stream can be scanned without reading every line.
+/// One event-stream line: a capture timestamp plus a message tinted by what it
+/// reports (errors red, approvals amber, agent lifecycle cyan, successes green)
+/// so the stream can be scanned without reading every line.
+/// <para>
+/// Only the colour lives here. Deciding <em>which</em> severity a line is
+/// belongs to <see cref="LogClassifier"/>, where a test can reach it — this
+/// project cannot be referenced from the test harness (see CtrlAgent.Presentation).
+/// </para>
 /// </summary>
 public sealed class LogEntry
 {
@@ -28,45 +34,16 @@ public sealed class LogEntry
     {
         Timestamp = DateTimeOffset.Now.ToString("HH:mm:ss"),
         Message = message,
-        Brush = Classify(message),
-        IsControllerEvent = message.StartsWith("[controller]", StringComparison.Ordinal),
+        Brush = BrushFor(LogClassifier.Classify(message)),
+        IsControllerEvent = LogClassifier.IsControllerEvent(message),
     };
 
-    private static IBrush Classify(string message)
+    private static IBrush BrushFor(LogSeverity severity) => severity switch
     {
-        if (ContainsAny(message, "error", "failed", "fail", "crash", "exception", "could not", "declined", "denied"))
-        {
-            return ErrorBrush;
-        }
-
-        if (ContainsAny(message, "approval", "approve", "permission"))
-        {
-            return ApprovalBrush;
-        }
-
-        if (ContainsAny(message, "completed", "connected", "ready", "applied", "validated"))
-        {
-            return SuccessBrush;
-        }
-
-        if (ContainsAny(message, "agent", "session", "turn", "prompt", "command"))
-        {
-            return AgentBrush;
-        }
-
-        return DefaultBrush;
-    }
-
-    private static bool ContainsAny(string message, params string[] needles)
-    {
-        foreach (var needle in needles)
-        {
-            if (message.Contains(needle, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+        LogSeverity.Error => ErrorBrush,
+        LogSeverity.Approval => ApprovalBrush,
+        LogSeverity.Success => SuccessBrush,
+        LogSeverity.Agent => AgentBrush,
+        _ => DefaultBrush,
+    };
 }

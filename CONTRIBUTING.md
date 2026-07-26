@@ -26,18 +26,34 @@ Run end-to-end without agent risk: `--agent mock` (console host or GUI). `--vali
 
 The harness is deliberately dependency-free: `tests/CtrlAgent.Tests/Program.cs` holds a `(Name, Func<Task>)` array, prints `PASS`/`FAIL`, and exits nonzero on failure. To add a test, append a tuple and a local static function. There is no filter mechanism — temporarily trim the array to isolate one test.
 
-What must be covered by tests: mapping/gesture semantics, profile validation rules, haptic scheduling behavior, protocol parsers (see `ClaudeStreamParser` tests for the pattern), and validation-report gates. Adapters keep protocol parsing in pure classes precisely so it stays testable without processes.
+What must be covered by tests: mapping/gesture semantics, profile validation rules, haptic scheduling behavior, protocol parsers (see `ClaudeStreamParser` and `CodexProtocolParser` for the pattern), presentation rules in `CtrlAgent.Presentation`, and validation-report gates. Adapters keep protocol parsing in pure classes precisely so it stays testable without processes.
+
+**Pure logic goes where a test can reach it.** Two projects exist for that reason alone: adapters put wire classification in a parser class so no process is needed, and `CtrlAgent.Presentation` holds the GUI's decision-making (transcript folding, log severity, approval highlighting) because `CtrlAgent.Gui` targets `net10.0-windows` and a `net10.0` test project cannot reference it. If you find yourself writing a non-trivial rule inside a view model or a process manager, it belongs one layer down.
+
+Warnings are errors (`Directory.Build.props`). The tree is warning-free; keep it that way rather than adding suppressions.
+
+## Invariants
+
+Beyond the mapping and approval-safety rules in `docs/profiles.md`:
+
+- **An interrupt means the same thing on every adapter.** Report it with `AgentInterrupt.State` / `AgentInterrupt.Message`, never with a state an adapter picked for itself. This was wrong once — Claude Code said `Completed`, Codex and the mock said `Idle`, and `Idle` routes to *no* haptic pattern, so the same button gave a confirming buzz on one agent and silence on another. The constant exists so the question cannot be answered twice. Interrupting is the moment you are least likely to be looking at the screen, so it must always be felt.
+- **`AgentStateKind.Idle` means "no cue".** `FeedbackRouter` deliberately returns null for it. Do not route an outcome the user needs to feel through `Idle`.
+- **Haptic values in `HapticPatternCatalog` are unverified estimates.** Change them only with a real device in hand, and say which device in the commit.
 
 ## Seeing the GUI without Windows
 
 `CtrlAgent.Gui` targets `net10.0-windows`, so it cannot run on a Linux dev box or a build agent. `tools/CtrlAgent.UiRender` compiles the *same* XAML and view models against a cross-platform TFM and renders the windows to PNG using Avalonia's headless Skia platform:
 
 ```bash
-dotnet run --project tools/CtrlAgent.UiRender --configuration Release
-# PNGs land in tools/CtrlAgent.UiRender/shots (override with UIRENDER_OUT)
+dotnet run --project tools/CtrlAgent.UiRender/CtrlAgent.UiRender.csproj --configuration Release
+# PNGs land in ./shots (override with UIRENDER_OUT)
 ```
 
-It renders the main window (idle and approval states), Mainframe, and a focus-walked tile rail, and prints layout diagnostics for animation-gated elements. Use it after layout changes — it catches clipped controls, empty panels, and off-screen focus that unit tests cannot. Two caveats: the animation clock does not advance, so elements mid-animation render at their starting opacity, and real Windows chrome (caption buttons) is absent, so title-bar overlap still needs a Windows check. The tool is deliberately outside `CtrlAgent.sln`.
+It renders the main window (idle, approval, conversation, first-run, startup-error, and a narrow window at the declared minimum size), Mainframe in five states, the profile editor, overlay, toast, and workspace picker. **Run it and look at the PNGs after any XAML change** — it catches clipped controls, empty panels, and cards drawn over each other, none of which the compiler or the unit tests can see.
+
+It also fails rather than just reporting: every visible `Border.card` must have non-zero bounds inside the window, a surface that renders no frame is a fault, and any fault exits nonzero. The `ui-render` CI job runs it on every push and uploads the screenshots as artifacts.
+
+Two caveats: the animation clock does not advance, so elements mid-animation render at their starting opacity, and real Windows chrome (caption buttons) is absent, so title-bar overlap still needs a Windows check. The tool is deliberately outside `CtrlAgent.sln`, which is exactly why the CI job matters — a normal build never compiles it.
 
 ## Invariants — do not break
 

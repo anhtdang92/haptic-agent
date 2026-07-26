@@ -60,6 +60,38 @@ public enum AgentCommandKind
 }
 
 /// <summary>
+/// How every adapter must report a turn the user stopped on purpose.
+/// <para>
+/// This exists as one shared constant rather than as a rule in a document
+/// because the three adapters had each answered the question differently:
+/// Claude Code said <see cref="AgentStateKind.Completed"/>, Codex and the mock
+/// said <see cref="AgentStateKind.Idle"/>. The same button therefore produced
+/// a completion cue on one agent and total silence on another, and haptics are
+/// the whole point of this tool.
+/// </para>
+/// <para>
+/// <see cref="AgentStateKind.Completed"/> is the right answer of the two.
+/// Interrupting is the one moment you are guaranteed <em>not</em> to be looking
+/// at the screen — you just acted blind and need to know the press landed.
+/// <see cref="AgentStateKind.Idle"/> routes to no pattern at all
+/// (<see cref="FeedbackRouter"/>), so the rumble would simply stop, which feels
+/// exactly like a turn ending on its own. Silence cannot confirm anything.
+/// </para>
+/// <para>
+/// The cue is shared with an ordinary completion, which is a compromise: the
+/// turn did end, and you know why because you just asked for it. A distinct
+/// "interrupted" cue would be better and belongs with the haptic tuning pass —
+/// it needs real hardware to be worth designing.
+/// </para>
+/// </summary>
+public static class AgentInterrupt
+{
+    public const AgentStateKind State = AgentStateKind.Completed;
+
+    public const string Message = "Turn interrupted.";
+}
+
+/// <summary>
 /// The values agents accept for the switchable session settings. Confirmed
 /// against Claude Code 2.1.220, which reports them itself when a bare
 /// <c>/model</c> or <c>/effort</c> is sent.

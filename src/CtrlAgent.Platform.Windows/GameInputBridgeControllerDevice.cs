@@ -17,6 +17,7 @@ public sealed class GameInputBridgeControllerDevice : IControllerDevice
     private readonly Task _stderrLoop;
     private bool _disposed;
     private volatile bool _isConnected;
+    private volatile string _displayName = GenericName;
 
     private GameInputBridgeControllerDevice(string executablePath)
     {
@@ -45,7 +46,12 @@ public sealed class GameInputBridgeControllerDevice : IControllerDevice
 
     public string Id => "gameinput:primary";
 
-    public string DisplayName => "Controller (GameInput v3)";
+    /// <summary>
+    /// The connected pad's name. GameInput reports a display name for some
+    /// devices and nothing at all for others, so this resolves in order:
+    /// the reported name, a known vendor/product pair, then a generic label.
+    /// </summary>
+    public string DisplayName => _displayName;
 
     public ControllerCapabilities Capabilities { get; private set; } = new(
         HasFourPaddles: true,
@@ -278,6 +284,11 @@ public sealed class GameInputBridgeControllerDevice : IControllerDevice
                 break;
 
             case "connected":
+                // Name before the connected flag: the provider hands the device
+                // to HostEngine as soon as IsConnected flips, and the engine
+                // snapshots DisplayName immediately. Assigning in the other
+                // order races and reports the generic fallback.
+                _displayName = ResolveDisplayName(root);
                 _isConnected = true;
                 Publish(ControllerControl.None, ControllerInputEventKind.Connected, 1f, timestamp);
                 break;
@@ -329,6 +340,86 @@ public sealed class GameInputBridgeControllerDevice : IControllerDevice
         _events.Writer.TryComplete(new InvalidOperationException(
             $"GameInput bridge exited with code {_process.ExitCode}."));
     }
+
+    private const string GenericName = "Controller (GameInput v3)";
+
+    /// <summary>
+    /// Known Microsoft pads, by USB product id. GameInput on the PC
+    /// redistributable usually leaves <c>displayName</c> empty, so without this
+    /// every Xbox controller reads as the generic label.
+    /// </summary>
+    private static readonly Dictionary<int, string> KnownXboxProducts = new()
+    {
+        [0x02D1] = "Xbox One Controller",
+        [0x02DD] = "Xbox One Controller",
+        [0x02E3] = "Xbox Elite Series 1",
+        [0x02EA] = "Xbox One S Controller",
+        [0x02FD] = "Xbox One S Controller",
+        [0x0B00] = "Xbox Elite Series 2",
+        [0x0B05] = "Xbox Elite Series 2",
+        [0x0B12] = "Xbox Wireless Controller",
+        [0x0B13] = "Xbox Wireless Controller",
+        [0x0B20] = "Xbox Wireless Controller",
+        [0x0B21] = "Xbox Adaptive Controller",
+        // Observed on this project's Elite Series 2 over Bluetooth LE
+        // (2026-07-25), where Windows reports only a generic HID name.
+        [0x0B22] = "Xbox Elite Series 2",
+    };
+
+    /// <summary>
+    /// Windows hands out placeholder names for Bluetooth and XINPUT-compatible
+    /// pads. They are worse than useless in a status strip, so a known
+    /// vendor/product pair wins over them.
+    /// </summary>
+    private static readonly string[] GenericNameMarkers =
+    [
+        "XINPUT compatible",
+        "HID-compliant",
+        "Bluetooth LE",
+        "USB Input Device",
+        "Game Controller",
+    ];
+
+    private static string ResolveDisplayName(JsonElement root)
+    {
+        var reported = root.TryGetProperty("name", out var nameElement)
+            ? nameElement.GetString()?.Trim()
+            : null;
+
+        var vendorId = 0;
+        var productId = 0;
+        var hasIds =
+            root.TryGetProperty("vendorId", out var vendorElement) &&
+            root.TryGetProperty("productId", out var productElement) &&
+            vendorElement.TryGetInt32(out vendorId) &&
+            productElement.TryGetInt32(out productId);
+
+        // 0x045E is Microsoft. The id table is checked first because it is
+        // more specific than anything Windows reports for these pads.
+        if (hasIds && vendorId == 0x045E && KnownXboxProducts.TryGetValue(productId, out var known))
+        {
+            return known;
+        }
+
+        if (!string.IsNullOrWhiteSpace(reported) && !IsGenericName(reported))
+        {
+            return reported;
+        }
+
+        if (hasIds && (vendorId != 0 || productId != 0))
+        {
+            // Unknown hardware: the ids are still more actionable than a
+            // placeholder, and they are what a bug report needs.
+            return string.IsNullOrWhiteSpace(reported)
+                ? $"Controller {vendorId:X4}:{productId:X4}"
+                : $"{reported} ({vendorId:X4}:{productId:X4})";
+        }
+
+        return string.IsNullOrWhiteSpace(reported) ? GenericName : reported;
+    }
+
+    private static bool IsGenericName(string name) =>
+        GenericNameMarkers.Any(marker => name.Contains(marker, StringComparison.OrdinalIgnoreCase));
 
     private static bool TryReadControl(JsonElement root, out ControllerControl control)
     {

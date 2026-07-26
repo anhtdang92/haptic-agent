@@ -225,6 +225,10 @@ internal static class Harness
         var setup = new MainViewModel(null, options) { IsSetupVisible = true };
         Render(new MainWindow { DataContext = setup }, "07-first-run.png");
 
+        // Guide-button confirmation before Mainframe takes the screen.
+        var mainframePrompt = new MainViewModel(null, options) { IsMainframePromptVisible = true };
+        Render(new MainWindow { DataContext = mainframePrompt }, "15-mainframe-prompt.png");
+
         // Startup failure. A dead host used to be indistinguishable from a
         // disconnected one, so this surface is worth a render check.
         var failed = new MainViewModel(null, options)

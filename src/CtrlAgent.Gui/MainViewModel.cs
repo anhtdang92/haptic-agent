@@ -94,6 +94,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _startupError = string.Empty;
     private ControllerProfile? _profile;
     private ControllerCapabilities? _capabilities;
+    private bool _isMainframePromptVisible;
     private GuiOptions _options;
     private string _workspacePath = string.Empty;
 
@@ -138,6 +139,8 @@ public sealed class MainViewModel : ViewModelBase
             StartupError = string.Empty;
             IsSetupVisible = true;
         });
+        ConfirmMainframeCommand = new RelayCommand(_ => ConfirmMainframe());
+        DismissMainframePromptCommand = new RelayCommand(_ => DismissMainframePrompt());
 
         if (engine is not null)
         {
@@ -286,13 +289,37 @@ public sealed class MainViewModel : ViewModelBase
         {
             ControllerVisual.Apply(inputEvent);
 
-            // Xbox/PS button = enter Mainframe, on the transports that report it
-            // at all (see MainframeRequested). A single press is enough: the
-            // button is unbound in the default profile and does nothing else.
+            // While the Mainframe prompt is up the pad answers it and nothing
+            // else. Input is captured at the engine, so mapped commands are
+            // already suppressed; this just routes the answer.
+            if (IsMainframePromptVisible)
+            {
+                if (inputEvent.Kind == ControllerInputEventKind.Pressed)
+                {
+                    switch (inputEvent.Control)
+                    {
+                        case ControllerControl.A:
+                            ConfirmMainframe();
+                            break;
+                        case ControllerControl.B:
+                        case ControllerControl.Guide:
+                            DismissMainframePrompt();
+                            break;
+                    }
+                }
+
+                return;
+            }
+
+            // Xbox/PS button = ask before entering Mainframe, on the transports
+            // that report it at all (see MainframeRequested). It confirms
+            // because the guide button is easy to catch with a palm and
+            // Mainframe takes over the whole screen; the deliberate paths
+            // (double-press View, the header button, F11) go straight in.
             if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
                 inputEvent.Control == ControllerControl.Guide)
             {
-                MainframeRequested?.Invoke();
+                ShowMainframePrompt();
             }
 
             // Double-press View = the same thing, on every transport.
@@ -426,6 +453,55 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand PickWorkspaceCommand { get; }
 
     public ICommand DismissStartupErrorCommand { get; }
+
+    public ICommand ConfirmMainframeCommand { get; }
+
+    public ICommand DismissMainframePromptCommand { get; }
+
+    /// <summary>The "enter Mainframe?" confirmation raised by the guide button.</summary>
+    public bool IsMainframePromptVisible
+    {
+        get => _isMainframePromptVisible;
+        set => Set(ref _isMainframePromptVisible, value);
+    }
+
+    private void ShowMainframePrompt()
+    {
+        if (IsMainframePromptVisible)
+        {
+            return;
+        }
+
+        IsMainframePromptVisible = true;
+
+        // Capture so a stray A press answers the prompt instead of firing a
+        // prompt submit behind it.
+        _engine?.SetInputCapture(true);
+    }
+
+    private void DismissMainframePrompt()
+    {
+        if (!IsMainframePromptVisible)
+        {
+            return;
+        }
+
+        IsMainframePromptVisible = false;
+        _engine?.SetInputCapture(false);
+    }
+
+    private void ConfirmMainframe()
+    {
+        if (!IsMainframePromptVisible)
+        {
+            return;
+        }
+
+        // Release capture before handing over: Mainframe takes its own.
+        IsMainframePromptVisible = false;
+        _engine?.SetInputCapture(false);
+        MainframeRequested?.Invoke();
+    }
 
     public static string[] SetupAgents { get; } = ["mock", "codex", "claude"];
 

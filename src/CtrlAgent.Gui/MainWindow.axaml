@@ -578,6 +578,44 @@
     </Border>
   </Border>
 
+  <!-- Guide-button confirmation. The Xbox button is easy to catch with a palm
+       and Mainframe takes the whole screen, so it asks first. -->
+  <Border IsVisible="{Binding IsMainframePromptVisible}" Background="#E0060B14">
+    <Border Classes="card"
+            MaxWidth="440"
+            Padding="26"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Center">
+      <StackPanel Spacing="14">
+        <TextBlock Text="ENTER MAINFRAME?"
+                   Classes="label"
+                   FontSize="12"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="Mainframe takes over the full screen and the controller drives it."
+                   FontSize="12.5"
+                   Foreground="#9FB7DF"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center" />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+          <Button Content="Enter"
+                  Classes="accent"
+                  MinWidth="120"
+                  HorizontalContentAlignment="Center"
+                  Command="{Binding ConfirmMainframeCommand}" />
+          <Button Content="Stay here"
+                  MinWidth="120"
+                  HorizontalContentAlignment="Center"
+                  Command="{Binding DismissMainframePromptCommand}" />
+        </StackPanel>
+        <TextBlock Text="A — enter     B — stay here"
+                   Classes="label"
+                   FontSize="10"
+                   Opacity="0.75"
+                   HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Border>
+
   <!-- First-run setup overlay -->
   <Border IsVisible="{Binding IsSetupVisible}" Background="#E0060B14">
     <Border Classes="card" MaxWidth="480" Padding="26" VerticalAlignment="Center" HorizontalAlignment="Center">

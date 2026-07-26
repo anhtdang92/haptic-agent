@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -87,12 +88,99 @@ namespace
             << std::endl;
     }
 
-    void EmitConnection(bool connected)
+    // Minimal JSON string escaping: device names are vendor-supplied, so they
+    // must not be trusted to be free of quotes or control characters.
+    std::string EscapeJson(const char* text, size_t length)
+    {
+        std::string escaped;
+        escaped.reserve(length + 8);
+        for (size_t index = 0; index < length && text[index] != '\0'; ++index)
+        {
+            const unsigned char character = static_cast<unsigned char>(text[index]);
+            switch (character)
+            {
+                case '"': escaped += "\\\""; break;
+                case '\\': escaped += "\\\\"; break;
+                case '\b': escaped += "\\b"; break;
+                case '\f': escaped += "\\f"; break;
+                case '\n': escaped += "\\n"; break;
+                case '\r': escaped += "\\r"; break;
+                case '\t': escaped += "\\t"; break;
+                default:
+                    if (character < 0x20)
+                    {
+                        char buffer[7];
+                        sprintf_s(buffer, "\\u%04x", character);
+                        escaped += buffer;
+                    }
+                    else
+                    {
+                        escaped += static_cast<char>(character);
+                    }
+                    break;
+            }
+        }
+
+        return escaped;
+    }
+
+    // GameInput's displayName is frequently null on the PC redistributable, so
+    // the vendor/product ids travel too and let the managed host name known
+    // hardware instead of falling back to a generic label.
+    struct DeviceIdentity
+    {
+        std::string displayName;
+        uint16_t vendorId = 0;
+        uint16_t productId = 0;
+        GameInputSystemButtons supportedSystemButtons = GameInputSystemButtonNone;
+    };
+
+    DeviceIdentity DescribeDevice(const ComPtr<IGameInputDevice>& device)
+    {
+        DeviceIdentity identity;
+        if (!device)
+        {
+            return identity;
+        }
+
+        const GameInputDeviceInfo* info = nullptr;
+        if (FAILED(device->GetDeviceInfo(&info)) || info == nullptr)
+        {
+            return identity;
+        }
+
+        identity.vendorId = info->vendorId;
+        identity.productId = info->productId;
+        identity.supportedSystemButtons = info->supportedSystemButtons;
+        if (info->displayName != nullptr)
+        {
+            constexpr size_t maxNameBytes = 256;
+            identity.displayName = EscapeJson(
+                info->displayName,
+                strnlen_s(info->displayName, maxNameBytes));
+        }
+
+        return identity;
+    }
+
+    void EmitConnection(bool connected, const DeviceIdentity& identity = {})
     {
         std::cout
             << "{\"type\":\"" << (connected ? "connected" : "disconnected")
-            << "\",\"deviceId\":\"gameinput:primary\"}"
-            << std::endl;
+            << "\",\"deviceId\":\"gameinput:primary\"";
+        if (connected)
+        {
+            std::cout
+                << ",\"name\":\"" << identity.displayName << "\""
+                << ",\"vendorId\":" << static_cast<unsigned>(identity.vendorId)
+                << ",\"productId\":" << static_cast<unsigned>(identity.productId)
+                << ",\"hasGuideButton\":"
+                << (((identity.supportedSystemButtons & GameInputSystemButtonGuide) != 0)
+                        ? "true"
+                        : "false");
+        }
+
+        std::cout << "}" << std::endl;
     }
 
     void EmitButton(const char* control, bool pressed)
@@ -112,6 +200,26 @@ namespace
             << "\"control\":\"" << control << "\","
             << "\"value\":" << value << "}"
             << std::endl;
+    }
+
+    // The guide/Xbox button is not part of GameInputGamepadButtons; it arrives
+    // only through the system-button callback, and only if the focus policy
+    // asks for it. Steam and the Xbox Game Bar also hook it globally, so a
+    // press may still never reach us.
+    void CALLBACK SystemButtonCallback(
+        GameInputCallbackToken,
+        void*,
+        IGameInputDevice*,
+        uint64_t,
+        GameInputSystemButtons currentButtons,
+        GameInputSystemButtons previousButtons)
+    {
+        const bool wasPressed = (previousButtons & GameInputSystemButtonGuide) != 0;
+        const bool isPressed = (currentButtons & GameInputSystemButtonGuide) != 0;
+        if (wasPressed != isPressed)
+        {
+            EmitButton("Guide", isPressed);
+        }
     }
 
     ComPtr<IGameInputDevice> GetDeviceSnapshot()
@@ -252,6 +360,27 @@ int main()
         return 1;
     }
 
+    // Ask for background input and the guide button. Without this the guide
+    // button is reserved by the shell, and readings stop whenever the host
+    // window loses focus.
+    gameInput->SetFocusPolicy(static_cast<GameInputFocusPolicy>(
+        GameInputEnableBackgroundInput | GameInputEnableBackgroundGuideButton));
+
+    GameInputCallbackToken systemButtonToken = 0;
+    const HRESULT systemButtonResult = gameInput->RegisterSystemButtonCallback(
+        nullptr,
+        GameInputSystemButtonGuide,
+        nullptr,
+        SystemButtonCallback,
+        &systemButtonToken);
+    if (FAILED(systemButtonResult))
+    {
+        // Not fatal: everything except the guide button still works.
+        std::cerr << "RegisterSystemButtonCallback failed with HRESULT 0x"
+                  << std::hex << static_cast<unsigned long>(systemButtonResult)
+                  << std::dec << std::endl;
+    }
+
     EmitReady();
     std::thread(ReadCommands).detach();
 
@@ -305,7 +434,7 @@ int main()
         if (!connected)
         {
             connected = true;
-            EmitConnection(true);
+            EmitConnection(true, DescribeDevice(GetDeviceSnapshot()));
         }
 
         GameInputGamepadState currentState{};
@@ -321,5 +450,10 @@ int main()
     }
 
     SetRumble(0.0f, 0.0f, 0.0f, 0.0f);
+    if (systemButtonToken != 0)
+    {
+        gameInput->StopCallback(systemButtonToken);
+    }
+
     return 0;
 }

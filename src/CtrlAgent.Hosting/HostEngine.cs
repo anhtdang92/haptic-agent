@@ -300,6 +300,26 @@ public sealed class HostEngine : IAsyncDisposable
                 {
                     ControllerInputReceived?.Invoke(inputEvent);
 
+                    // Some transports learn what they are attached to only
+                    // after the host has already taken the device: the
+                    // GameInput bridge is handed over on its "ready" message
+                    // but does not know the pad's name or capabilities until
+                    // "connected" arrives. Re-snapshot so listeners see the
+                    // real device rather than the placeholder.
+                    if (inputEvent.Kind == ControllerInputEventKind.Connected)
+                    {
+                        lock (_sync)
+                        {
+                            _lastCapabilities = controller.Capabilities;
+                            _mapping.SetDeviceCapabilities(controller.Capabilities);
+                        }
+
+                        ControllerConnected?.Invoke(new ControllerSnapshot(
+                            controller.Id,
+                            controller.DisplayName,
+                            controller.Capabilities));
+                    }
+
                     if (inputEvent.Kind != ControllerInputEventKind.ValueChanged)
                     {
                         Log($"[controller] {inputEvent.Kind} {inputEvent.Control}");

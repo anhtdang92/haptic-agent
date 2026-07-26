@@ -50,6 +50,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
     ("An interrupt feels the same on every adapter", TestInterruptIsUniformAsync),
     ("Transcript folds streaming prose into one bubble", TestTranscriptFoldingAsync),
+    ("Agent states read as English, not enum names", TestAgentStateTextAsync),
     ("Log lines classify most-severe first", TestLogClassificationAsync),
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
 };
@@ -1103,6 +1104,25 @@ static AgentEvent Event(AgentStateKind state, string message) =>
 // is not prose closes it so the next chunk starts a fresh one. Getting this
 // wrong either erases text the user was reading or shatters a reply into a
 // wall of fragments.
+static Task TestAgentStateTextAsync()
+{
+    AssertEqual("approval", AgentStateText.Describe(AgentStateKind.ApprovalRequired));
+    AssertEqual("waiting", AgentStateText.Describe(AgentStateKind.WaitingForInput));
+    AssertEqual("working", AgentStateText.Describe(AgentStateKind.Working));
+    AssertEqual("done", AgentStateText.Describe(AgentStateKind.Completed));
+
+    // Every state must have wording, and none may leak a C# identifier or run
+    // long enough to reflow the command bar.
+    foreach (var state in Enum.GetValues<AgentStateKind>())
+    {
+        var text = AgentStateText.Describe(state);
+        Assert(text.Length is > 0 and <= 10, $"{state} reads as '{text}', which is too long.");
+        Assert(text != state.ToString(), $"{state} still shows its enum name.");
+    }
+
+    return Task.CompletedTask;
+}
+
 static Task TestTranscriptFoldingAsync()
 {
     var folder = new TranscriptFolder();

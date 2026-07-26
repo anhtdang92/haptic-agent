@@ -355,7 +355,7 @@ public sealed class MainViewModel : ViewModelBase
         engine.AgentEventReceived += agentEvent => Post(() =>
         {
             AppendToTranscript(agentEvent);
-            AgentState = agentEvent.State.ToString();
+            AgentState = AgentStateText.Describe(agentEvent.State);
             SessionId = agentEvent.SessionId;
             AgentDotBrush = agentEvent.State switch
             {

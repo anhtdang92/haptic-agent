@@ -14,6 +14,28 @@
         MinHeight="660">
 
   <Window.Styles>
+    <!-- First-run card: rises and settles once, so the app opens rather than
+         blinks into existence. Base state is set in markup because Avalonia
+         renders an element's own value during Animation.Delay. -->
+    <Style Selector="Border.setupCard">
+      <Style.Animations>
+        <Animation Duration="0:0:0.65" Delay="0:0:0.1" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="22" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.97" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.97" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
     <!-- Conversation view: prose as chat bubbles, tool/status lines as
          small dim activity rows — the Claude-app layout -->
     <Style Selector="ListBox.chat ListBoxItem">
@@ -540,116 +562,137 @@
 
   </DockPanel>
 
-  <!-- Startup failure: a dead app must say so. This sits above everything
-       because the window otherwise looks merely disconnected, and the real
-       reason used to be reachable only by toggling to the event stream. -->
-  <Border IsVisible="{Binding HasStartupError}"
-          Background="#F0060B14"
-          Padding="28">
-    <Border Classes="card"
-            MaxWidth="560"
-            Padding="24"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Center"
-            Background="#241016"
-            BorderBrush="#80FF5A78">
-      <StackPanel Spacing="12">
-        <TextBlock Text="CTRLAGENT COULDN'T START"
-                   Classes="label"
-                   FontSize="12"
-                   Foreground="#FF9AA8"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="{Binding StartupError}"
-                   FontSize="13"
-                   Foreground="#FFD9DF"
-                   TextWrapping="Wrap"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center" />
-        <TextBlock Text="Nothing is connected and no bindings are active until this is resolved. If you passed command-line flags, check that any path containing spaces is quoted."
-                   FontSize="11.5"
-                   Foreground="#9FB7DF"
-                   TextWrapping="Wrap" />
-        <Button Content="Change settings…"
-                Classes="accent"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                Command="{Binding DismissStartupErrorCommand}" />
-      </StackPanel>
-    </Border>
-  </Border>
+  <!-- Startup failure. Same treatment as first-run: a dead app is a screen in
+       its own right, not a modal over a greyed-out UI that is not running.
+       Showing the disabled app behind it invited people to poke at controls
+       that do nothing. -->
+  <Border IsVisible="{Binding HasStartupError}" Background="#05080F">
+    <Panel>
+      <gui:AmbientBackdrop />
 
-  <!-- Guide-button confirmation. The Xbox button is easy to catch with a palm
-       and Mainframe takes the whole screen, so it asks first. -->
-  <Border IsVisible="{Binding IsMainframePromptVisible}" Background="#E0060B14">
-    <Border Classes="card"
-            MaxWidth="440"
-            Padding="26"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Center">
-      <StackPanel Spacing="14">
-        <TextBlock Text="ENTER MAINFRAME?"
-                   Classes="label"
-                   FontSize="12"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="Mainframe takes over the full screen and the controller drives it."
-                   FontSize="12.5"
-                   Foreground="#9FB7DF"
-                   TextWrapping="Wrap"
-                   TextAlignment="Center" />
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-          <Button Content="Enter"
-                  Classes="accent"
-                  MinWidth="120"
-                  HorizontalContentAlignment="Center"
-                  Command="{Binding ConfirmMainframeCommand}" />
-          <Button Content="Stay here"
-                  MinWidth="120"
-                  HorizontalContentAlignment="Center"
-                  Command="{Binding DismissMainframePromptCommand}" />
-        </StackPanel>
-        <TextBlock Text="A — enter     B — stay here"
-                   Classes="label"
-                   FontSize="10"
-                   Opacity="0.75"
-                   HorizontalAlignment="Center" />
-      </StackPanel>
-    </Border>
-  </Border>
-
-  <!-- First-run setup overlay -->
-  <Border IsVisible="{Binding IsSetupVisible}" Background="#E0060B14">
-    <Border Classes="card" MaxWidth="480" Padding="26" VerticalAlignment="Center" HorizontalAlignment="Center">
-      <StackPanel Spacing="12">
-        <TextBlock Text="WELCOME TO CTRLAGENT" Classes="label" FontSize="12" HorizontalAlignment="Center" />
-        <TextBlock Text="One-time setup: pick the agent to drive and the repository to work in. Saved for next launch — command-line flags always override."
-                   FontSize="12"
-                   Foreground="#9FB7DF"
-                   TextWrapping="Wrap" />
-        <TextBlock Text="Agent platform" FontSize="11" Opacity="0.6" />
-        <ComboBox ItemsSource="{x:Static gui:MainViewModel.SetupAgents}"
-                  SelectedItem="{Binding SetupAgent}"
-                  HorizontalAlignment="Stretch" />
-        <TextBlock Text="Working directory (your repository)" FontSize="11" Opacity="0.6" />
-        <DockPanel>
-          <Button DockPanel.Dock="Right" Content="Browse…" Margin="6,0,0,0" Click="OnBrowseWorkingDirectory" />
-          <TextBox Text="{Binding SetupWorkingDirectory}" />
-        </DockPanel>
-        <TextBlock Text="{Binding SetupError}"
-                   Foreground="#FF7A6E"
-                   FontSize="12"
-                   TextWrapping="Wrap"
-                   IsVisible="{Binding SetupError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        <Button Content="Start"
-                Classes="accent"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                Command="{Binding StartSetupCommand}" />
-        <TextBlock Text="mock is the safe demo agent (no real AI calls). codex and claude need their CLI installed and authenticated."
-                   FontSize="11"
+      <Border Classes="card setupCard"
+              Opacity="0"
+              MaxWidth="560"
+              Padding="40,34"
+              VerticalAlignment="Center"
+              HorizontalAlignment="Center"
+              Background="#26150E14"
+              BorderBrush="#66FF5A78"
+              RenderTransformOrigin="50%,50%">
+        <StackPanel Spacing="18">
+          <StackPanel Spacing="10">
+            <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                   Height="56"
                    Opacity="0.5"
-                   TextWrapping="Wrap" />
-      </StackPanel>
-    </Border>
+                   HorizontalAlignment="Center"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Text="COULDN'T START"
+                       Classes="label"
+                       FontSize="11"
+                       LetterSpacing="3"
+                       Foreground="#FF9AA8"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <Rectangle Height="1" Fill="#33FF5A78" />
+
+          <TextBlock Text="{Binding StartupError}"
+                     FontSize="14"
+                     Foreground="#FFD9DF"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+
+          <TextBlock Text="Nothing is connected and no bindings are active until this is resolved. If you passed command-line flags, check that any path containing spaces is quoted."
+                     FontSize="12"
+                     Foreground="#9FB7DF"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+
+          <Button Content="Change settings…"
+                  Classes="accent"
+                  FontSize="14"
+                  Padding="14,10"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Command="{Binding DismissStartupErrorCommand}" />
+        </StackPanel>
+      </Border>
+    </Panel>
+  </Border>
+
+  <!-- First-run setup: the very first thing anyone sees. It used to be a
+       plain card over a dimmed screenshot of an app you had not started yet,
+       with the wordmark greyed out behind the scrim — the one moment the
+       product introduces itself, spent showing a disabled UI. Now it is its
+       own screen: opaque, on the shared field, brand first. -->
+  <Border IsVisible="{Binding IsSetupVisible}" Background="#05080F">
+    <Panel>
+      <gui:AmbientBackdrop />
+
+      <Border Classes="card setupCard" Opacity="0" MaxWidth="520" Padding="40,34"
+              VerticalAlignment="Center" HorizontalAlignment="Center"
+              RenderTransformOrigin="50%,50%">
+        <StackPanel Spacing="18">
+
+          <StackPanel Spacing="10">
+            <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                   Height="72"
+                   HorizontalAlignment="Center"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
+                       Classes="label"
+                       FontSize="9"
+                       LetterSpacing="2.6"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <Rectangle Height="1" Fill="#14FFFFFF" />
+
+          <TextBlock Text="Pick the agent to drive and the repository to work in. Saved for next launch — command-line flags always override."
+                     FontSize="12.5"
+                     Foreground="#9FB7DF"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="AGENT PLATFORM" Classes="label" FontSize="9" />
+            <ComboBox ItemsSource="{x:Static gui:MainViewModel.SetupAgents}"
+                      SelectedItem="{Binding SetupAgent}"
+                      HorizontalAlignment="Stretch" />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="WORKING DIRECTORY" Classes="label" FontSize="9" />
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Content="Browse…" Margin="8,0,0,0" Click="OnBrowseWorkingDirectory" />
+              <TextBox Text="{Binding SetupWorkingDirectory}" />
+            </DockPanel>
+          </StackPanel>
+
+          <TextBlock Text="{Binding SetupError}"
+                     Foreground="#FF7A6E"
+                     FontSize="12"
+                     TextWrapping="Wrap"
+                     IsVisible="{Binding SetupError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+          <Button Content="Start"
+                  Classes="accent"
+                  FontSize="14"
+                  Padding="14,10"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Command="{Binding StartSetupCommand}" />
+
+          <TextBlock Text="mock is the safe demo agent — no real AI calls. codex and claude need their CLI installed and authenticated."
+                     FontSize="11"
+                     Foreground="#5A7099"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Panel>
   </Border>
   </Panel>
 </Window>

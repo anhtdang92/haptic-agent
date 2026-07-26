@@ -69,12 +69,21 @@ public sealed record ControllerProfile(
     /// </summary>
     public static bool IsControlAvailable(
         ControllerControl control,
-        ControllerCapabilities? capabilities) =>
-        control is not (ControllerControl.PaddleLeft1
+        ControllerCapabilities? capabilities) => control switch
+    {
+        ControllerControl.PaddleLeft1
             or ControllerControl.PaddleLeft2
             or ControllerControl.PaddleRight1
-            or ControllerControl.PaddleRight2)
-        || (capabilities?.HasFourPaddles ?? true);
+            or ControllerControl.PaddleRight2 => capabilities?.HasFourPaddles ?? true,
+
+        // The guide button is per-transport, so a profile that binds it is
+        // only honest on hardware that delivers it. Coaching "press Xbox" on
+        // a transport that never reports the press is the same dead end the
+        // paddle rule exists to prevent.
+        ControllerControl.Guide => capabilities?.HasGuideButton ?? true,
+
+        _ => true,
+    };
 
     /// <summary>
     /// True when this binding could actually fire on a device with these

@@ -28,6 +28,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
+    ("Guide bindings hide on transports that cannot send it", TestGuideReachabilityAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
@@ -554,6 +555,41 @@ static Task TestReachableBindingsAsync()
         [new ProfileLayer("paddles", LayerActivation.RequiresPaddles)]);
     AssertEqual(0, layered.ReachableBindings(noPaddles).Count());
     AssertEqual(1, layered.ReachableBindings(paddles).Count());
+    return Task.CompletedTask;
+}
+
+static Task TestGuideReachabilityAsync()
+{
+    var profile = new ControllerProfile(
+        "guide",
+        [
+            new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt),
+            new(ControllerControl.Guide, InputGesture.Press, AgentCommandKind.ReviewChanges),
+        ]);
+
+    var withGuide = new ControllerCapabilities(false, true, true, false, false, HasGuideButton: true);
+    var withoutGuide = new ControllerCapabilities(false, true, true, false, false, HasGuideButton: false);
+
+    AssertEqual(2, profile.ReachableBindings(withGuide).Count());
+    AssertEqual(1, profile.ReachableBindings(withoutGuide).Count());
+    Assert(
+        profile.ReachableBindings(withoutGuide).All(b => b.Control != ControllerControl.Guide),
+        "A transport without the Guide button must not advertise Guide bindings.");
+
+    // Unknown hardware keeps everything visible: hiding a binding on a guess
+    // is worse than listing one that might not fire.
+    AssertEqual(2, profile.ReachableBindings(null).Count());
+    Assert(
+        new ControllerCapabilities(false, true, true, false, false).HasGuideButton,
+        "The capability must default to available.");
+
+    // A chord whose modifier is Guide is unreachable for the same reason.
+    var chord = new ControllerProfile(
+        "chord",
+        [new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt,
+             Modifiers: new HashSet<ControllerControl> { ControllerControl.Guide })]);
+    AssertEqual(0, chord.ReachableBindings(withoutGuide).Count());
+    AssertEqual(1, chord.ReachableBindings(withGuide).Count());
     return Task.CompletedTask;
 }
 

@@ -52,7 +52,11 @@ public sealed class XInputControllerDevice : IControllerDevice
         HasLowFrequencyRumble: true,
         HasHighFrequencyRumble: true,
         HasLeftTriggerRumble: false,
-        HasRightTriggerRumble: false);
+        HasRightTriggerRumble: false,
+        // Only the undocumented ordinal-100 entry point carries the Guide bit;
+        // on a runtime without it the button is genuinely unreachable, so the
+        // binding should not be advertised.
+        HasGuideButton: XInputNative.SupportsGuideButton());
 
     public bool IsConnected => _isConnected;
 

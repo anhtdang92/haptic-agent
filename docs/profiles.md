@@ -61,7 +61,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 | `doublePressMilliseconds` | int | 300 | `doublePress` window |
 | `layer` | string | none | Membership in a declared layer; the binding is only active while that layer is (see Layers) |
 
-> **`guide`** is the Xbox/PS button. It is reported by raw-HID DualSense and by XInput (through the undocumented ordinal-100 entry point), but never by the GameInput bridge — GameInput reserves that button for the system. Steam and the Xbox Game Bar hook it globally too, so treat any binding on it as best-effort rather than guaranteed.
+> **`guide`** is the Xbox/PS button. Raw-HID DualSense reports it, XInput reports it through the undocumented ordinal-100 entry point, and the GameInput bridge reports it when the device advertises it and background guide access was requested. Whichever transport is in use publishes `hasGuideButton`, and bindings on `guide` are hidden from the UI on transports that cannot deliver it. Steam and the Xbox Game Bar hook the button globally, so treat any binding on it as best-effort rather than guaranteed.
 
 > **Session controls.** `compactContext`, `setModel`/`cycleModel` and `setEffort`/`cycleEffort` are Claude Code's `/compact`, `/model` and `/effort`, sent on the same stream the prompts use. The `cycle*` forms step through `AgentModes.ModelCycle` / `EffortCycle`; the host resolves them to the concrete `set*` before an adapter sees them, so cycle position lives in one place. Codex reports these as unsupported rather than failing.
 

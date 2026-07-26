@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
+using CtrlAgent.Presentation;
 
 namespace CtrlAgent.Gui;
 
@@ -80,9 +81,9 @@ public sealed class MainViewModel : ViewModelBase
     private bool _showControllerEvents = true;
     private readonly List<LogEntry> _logHistory = [];
     private DateTimeOffset _lastViewPress = DateTimeOffset.MinValue;
-    private static readonly string[] PermissionModes = ["default", "plan", "acceptEdits"];
-    private int _permissionModeIndex;
+    private SessionSettings _settings = new(null, null, null);
     private ChatMessage? _streamingBubble;
+    private readonly TranscriptFolder _folder = new();
     private bool _isChatView = true;
     private bool _isTranscriptEmpty = true;
     private int _queuedPromptCount;
@@ -94,6 +95,7 @@ public sealed class MainViewModel : ViewModelBase
     private ControllerProfile? _profile;
     private ControllerCapabilities? _capabilities;
     private GuiOptions _options;
+    private string _workspacePath = string.Empty;
 
     public MainViewModel(HostEngine? engine, GuiOptions options)
     {
@@ -101,15 +103,26 @@ public sealed class MainViewModel : ViewModelBase
         _agentStatus = options.Agent;
         _setupAgent = options.Agent;
         _setupWorkingDirectory = options.WorkingDirectory;
+        _workspacePath = options.WorkingDirectory;
 
-        SubmitPromptCommand = new RelayCommand(_ => SubmitPromptText(PromptText));
-        CyclePermissionModeCommand = new RelayCommand(_ =>
+        SubmitPromptCommand = new RelayCommand(_ =>
         {
-            _permissionModeIndex = (_permissionModeIndex + 1) % PermissionModes.Length;
-            Raise(nameof(PermissionModeLabel));
-            var mode = PermissionModes[_permissionModeIndex];
-            Fire(e => e.SetPermissionModeAsync(mode));
+            // Clear on send. The text stayed put before, which read as "that
+            // didn't go through" and made the next prompt a select-all away.
+            var text = PromptText;
+            PromptText = string.Empty;
+            SubmitPromptText(text);
         });
+
+        // Step from what the engine says the session is on, not from a local
+        // counter: a controller binding or a Mainframe tile can move the mode
+        // too, and a private index desyncs the moment one of them does.
+        CyclePermissionModeCommand = new RelayCommand(_ =>
+            Fire(e => e.SetPermissionModeAsync(
+                AgentModes.Next(AgentModes.PermissionModes, e.Settings.PermissionMode))));
+        CycleModelCommand = new RelayCommand(_ => Fire(e => e.CycleModelAsync()));
+        CycleEffortCommand = new RelayCommand(_ => Fire(e => e.CycleEffortAsync()));
+        CompactCommand = new RelayCommand(_ => Fire(e => e.CompactContextAsync()));
         InterruptCommand = new RelayCommand(_ => Fire(e => e.InterruptAsync()));
         NewSessionCommand = new RelayCommand(_ => Fire(e => e.NewSessionAsync()));
         ReviewCommand = new RelayCommand(_ => Fire(e => e.ReviewChangesAsync()));
@@ -119,6 +132,7 @@ public sealed class MainViewModel : ViewModelBase
         CancelCommand = new RelayCommand(_ => Fire(e => e.CancelAsync()));
         PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
         StartSetupCommand = new RelayCommand(_ => CompleteSetup());
+        PickWorkspaceCommand = new RelayCommand(_ => WorkspacePickerRequested?.Invoke());
         DismissStartupErrorCommand = new RelayCommand(_ =>
         {
             StartupError = string.Empty;
@@ -134,12 +148,90 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>Raised when the first-run setup is submitted with valid values.</summary>
     public event Action<GuiOptions>? SetupCompleted;
 
+    /// <summary>The options this view model was built with.</summary>
+    public GuiOptions Options => _options;
+
+    /// <summary>Raised when the user picks a different workspace to work in.</summary>
+    public event Action? WorkspacePickerRequested;
+
+    /// <summary>Absolute path of the directory the agent is working in.</summary>
+    public string WorkspacePath
+    {
+        get => _workspacePath;
+        private set
+        {
+            if (Set(ref _workspacePath, value))
+            {
+                Raise(nameof(WorkspaceName));
+            }
+        }
+    }
+
+    /// <summary>Just the folder name — the full path is a tooltip, not a label.</summary>
+    public string WorkspaceName
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_workspacePath))
+            {
+                return "—";
+            }
+
+            var trimmed = _workspacePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var name = Path.GetFileName(trimmed);
+            return string.IsNullOrEmpty(name) ? trimmed : name;
+        }
+    }
+
     /// <summary>
-    /// Raised by the controller fullscreen shortcut: double-press View.
-    /// Deliberately not the Xbox/Guide button — Steam owns that for its own
-    /// Big Picture, and neither XInput nor the bridge reports it anyway.
+    /// Releases the current engine reference so a new one can be attached
+    /// against a different workspace, and clears everything that belonged to
+    /// the old session — a transcript from the previous repository is worse
+    /// than no transcript.
     /// </summary>
-    public event Action? BigPictureRequested;
+    public void PrepareForEngineSwap(string workspacePath)
+    {
+        _engine = null;
+        WorkspacePath = workspacePath;
+
+        Transcript.Clear();
+        IsTranscriptEmpty = true;
+        _streamingBubble = null;
+        _folder.Reset();
+        Log.Clear();
+        _logHistory.Clear();
+        IsLogEmpty = true;
+        HasPendingApproval = false;
+        PendingApprovalMessage = string.Empty;
+        SessionId = string.Empty;
+        AgentState = "Starting…";
+        IsAgentActive = false;
+        AgentDotBrush = DotOff;
+        QueuedPromptCount = 0;
+
+        // A new engine means a new session, which starts on the agent's own
+        // defaults — carrying the old workspace's model/effort/mode labels
+        // over would claim settings the new session never received.
+        _settings = new SessionSettings(null, null, null);
+        Raise(nameof(PermissionModeLabel));
+        Raise(nameof(ModelLabel));
+        Raise(nameof(EffortLabel));
+    }
+
+    /// <summary>
+    /// Raised by the controller fullscreen shortcuts: the Xbox/PS button, or
+    /// a double-press of View.
+    /// <para>
+    /// The Guide press is best-effort by transport. Raw-HID DualSense reports
+    /// the PS button reliably. XInput only reports the Xbox button through the
+    /// undocumented ordinal-100 entry point, and the GameInput bridge cannot
+    /// report it at all — the SDK reserves that button for the system. Steam
+    /// and the Xbox Game Bar also hook it globally, so a press may be consumed
+    /// before it reaches us. View double-press stays as the shortcut that
+    /// works on every transport.
+    /// </para>
+    /// </summary>
+    public event Action? MainframeRequested;
 
     /// <summary>
     /// Wires the running engine into this view model. Called at startup when
@@ -155,13 +247,19 @@ public sealed class MainViewModel : ViewModelBase
 
         _engine = engine;
         IsSetupVisible = false;
+        WorkspacePath = _options.WorkingDirectory;
         ProfileName = engine.Profile.Name;
         ProfileDotBrush = DotGood;
         _profile = engine.Profile;
         RefreshBindingRows();
 
+        _settings = engine.Settings;
+        Raise(nameof(PermissionModeLabel));
+        Raise(nameof(ModelLabel));
+        Raise(nameof(EffortLabel));
+
         Buddy.SetProfile(engine.Profile);
-        _approvalControls = ComputeApprovalControls(engine.Profile);
+        _approvalControls = ApprovalControls.From(engine.Profile);
 
         engine.LogEmitted += message => Post(() => AppendLog(message));
         engine.ControllerStatusChanged += status => Post(() =>
@@ -188,15 +286,24 @@ public sealed class MainViewModel : ViewModelBase
         {
             ControllerVisual.Apply(inputEvent);
 
-            // Double-press View = enter Big Picture (View is unbound in the
-            // default profile). Interval math uses event timestamps.
+            // Xbox/PS button = enter Mainframe, on the transports that report it
+            // at all (see MainframeRequested). A single press is enough: the
+            // button is unbound in the default profile and does nothing else.
+            if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
+                inputEvent.Control == ControllerControl.Guide)
+            {
+                MainframeRequested?.Invoke();
+            }
+
+            // Double-press View = the same thing, on every transport.
+            // Interval math uses event timestamps.
             if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
                 inputEvent.Control == ControllerControl.View)
             {
                 if (inputEvent.Timestamp - _lastViewPress <= TimeSpan.FromMilliseconds(400))
                 {
                     _lastViewPress = DateTimeOffset.MinValue;
-                    BigPictureRequested?.Invoke();
+                    MainframeRequested?.Invoke();
                 }
                 else
                 {
@@ -225,17 +332,18 @@ public sealed class MainViewModel : ViewModelBase
         });
         engine.PendingApprovalChanged += message => Post(() =>
         {
-            if (message is null && HasPendingApproval)
-            {
-                // Answered from anywhere — controller, GUI, overlay, or toast.
-                Buddy.CountApprovalResolved();
-            }
-
             HasPendingApproval = message is not null;
             PendingApprovalMessage = message ?? string.Empty;
 
             // Light up the physical controls that can answer this approval.
             ControllerVisual.SetApprovalHighlight(message is null ? null : _approvalControls);
+        });
+        engine.SessionSettingsChanged += settings => Post(() =>
+        {
+            _settings = settings;
+            Raise(nameof(PermissionModeLabel));
+            Raise(nameof(ModelLabel));
+            Raise(nameof(EffortLabel));
         });
         engine.PromptQueueChanged += count => Post(() =>
         {
@@ -254,7 +362,7 @@ public sealed class MainViewModel : ViewModelBase
             RefreshBindingRows();
 
             Buddy.SetProfile(applied);
-            _approvalControls = ComputeApprovalControls(applied);
+            _approvalControls = ApprovalControls.From(applied);
             if (HasPendingApproval)
             {
                 ControllerVisual.SetApprovalHighlight(_approvalControls);
@@ -313,6 +421,9 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand CyclePermissionModeCommand { get; }
 
     public ICommand StartSetupCommand { get; }
+
+    /// <summary>Opens the workspace picker.</summary>
+    public ICommand PickWorkspaceCommand { get; }
 
     public ICommand DismissStartupErrorCommand { get; }
 
@@ -468,7 +579,21 @@ public sealed class MainViewModel : ViewModelBase
         private set => Set(ref _isTranscriptEmpty, value);
     }
 
-    public string PermissionModeLabel => $"mode: {PermissionModes[_permissionModeIndex]}";
+    /// <summary>
+    /// The session knobs, mirrored from the engine so every route that can
+    /// change them — chip, tile, or controller binding — moves the same label.
+    /// </summary>
+    public string PermissionModeLabel => $"mode: {_settings.PermissionMode ?? "default"}";
+
+    public string ModelLabel => $"model: {_settings.Model ?? "default"}";
+
+    public string EffortLabel => $"effort: {_settings.Effort ?? "default"}";
+
+    public ICommand CycleModelCommand { get; }
+
+    public ICommand CycleEffortCommand { get; }
+
+    public ICommand CompactCommand { get; }
 
     public int QueuedPromptCount
     {
@@ -489,12 +614,11 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>
     /// Sends a prompt (typed, voice, or a slash-command tile): user bubble in
-    /// the transcript, bot stats, then the engine — which queues it if the
-    /// agent is mid-turn.
+    /// the transcript, then the engine — which queues it if the agent is
+    /// mid-turn.
     /// </summary>
     public void SubmitPromptText(string? text)
     {
-        Buddy.CountPromptSent();
         AddChat(isUser: true, isActivity: false,
             string.IsNullOrWhiteSpace(text) ? "(default prompt)" : text);
         Fire(e => e.SubmitPromptAsync(text));
@@ -563,56 +687,36 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Folds an agent event into the conversation. Streaming Working prose
-    /// updates the current bubble in place; tool/plan/result lines land as
-    /// activity rows and close the streaming bubble so the next prose chunk
-    /// starts a fresh one — the Claude-app rhythm.
+    /// Folds an agent event into the conversation. The rules live in
+    /// <see cref="TranscriptFolder"/> so they can be tested; what stays here is
+    /// the handle on the bubble being streamed into.
     /// </summary>
     private void AppendToTranscript(AgentEvent agentEvent)
     {
-        var message = agentEvent.Message;
-        if (string.IsNullOrWhiteSpace(message))
+        switch (_folder.Fold(agentEvent))
         {
-            return;
-        }
-
-        switch (agentEvent.State)
-        {
-            case AgentStateKind.Working when ChatMessage.IsActivityText(message):
-                _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, message);
+            case TranscriptAction.StartBubble start:
+                _streamingBubble = AddChat(isUser: false, isActivity: false, start.Text);
                 break;
 
-            case AgentStateKind.Working:
+            case TranscriptAction.UpdateBubble update:
                 if (_streamingBubble is { } bubble)
                 {
-                    bubble.Text = message;
+                    bubble.Text = update.Text;
                 }
                 else
                 {
-                    _streamingBubble = AddChat(isUser: false, isActivity: false, message);
+                    // The folder believes a bubble is open and this view model
+                    // does not — only reachable if the two are reset out of
+                    // step. Start one rather than dropping the text.
+                    _streamingBubble = AddChat(isUser: false, isActivity: false, update.Text);
                 }
 
                 break;
 
-            case AgentStateKind.Completed:
+            case TranscriptAction.AddActivity activity:
                 _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, $"✓ {message}");
-                break;
-
-            case AgentStateKind.Error:
-                _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, $"✕ {message}");
-                break;
-
-            case AgentStateKind.ApprovalRequired:
-            case AgentStateKind.WaitingForInput:
-                AddChat(isUser: false, isActivity: true, $"🔒 {message}");
-                break;
-
-            case AgentStateKind.Idle:
-                _streamingBubble = null;
-                AddChat(isUser: false, isActivity: true, message);
+                AddChat(isUser: false, isActivity: true, activity.Text);
                 break;
         }
     }
@@ -660,27 +764,5 @@ public sealed class MainViewModel : ViewModelBase
 
     private static void Post(Action action) => Dispatcher.UIThread.Post(action);
 
-    private static IReadOnlyCollection<ControllerControl> ComputeApprovalControls(ControllerProfile profile)
-    {
-        var controls = new HashSet<ControllerControl>();
-        foreach (var binding in profile.Bindings)
-        {
-            if (!binding.RequiresPendingApproval)
-            {
-                continue;
-            }
-
-            controls.Add(binding.Control);
-            if (binding.Modifiers is { Count: > 0 })
-            {
-                foreach (var modifier in binding.Modifiers)
-                {
-                    controls.Add(modifier);
-                }
-            }
-        }
-
-        return controls;
-    }
 
 }

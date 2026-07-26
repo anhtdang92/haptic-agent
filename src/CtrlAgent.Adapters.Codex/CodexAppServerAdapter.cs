@@ -217,6 +217,12 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
                 Publish(AgentStateKind.Idle, "Codex permission modes are not wired yet; approval policy stays unlessTrusted.");
                 break;
 
+            case AgentCommandKind.CompactContext:
+            case AgentCommandKind.SetModel:
+            case AgentCommandKind.SetEffort:
+                Publish(AgentStateKind.Idle, $"Codex does not expose {command.Kind} yet.");
+                break;
+
             case AgentCommandKind.NextSession:
                 await SwitchThreadAsync(+1, cancellationToken).ConfigureAwait(false);
                 break;
@@ -521,70 +527,18 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         }
     }
 
+    /// <summary>
+    /// Applies one parsed message. Classification lives in
+    /// <see cref="CodexProtocolParser"/>; what stays here is the part that
+    /// genuinely needs adapter state — which thread and turn are current, and
+    /// which requests are outstanding.
+    /// </summary>
     private void HandleIncoming(JsonElement root)
     {
-        if (root.TryGetProperty("method", out var methodElement))
+        switch (CodexProtocolParser.Parse(root))
         {
-            var method = methodElement.GetString() ?? string.Empty;
-            if (root.TryGetProperty("id", out var serverRequestId))
-            {
-                HandleServerRequest(method, serverRequestId, root);
-            }
-            else
-            {
-                HandleNotification(method, root);
-            }
-
-            return;
-        }
-
-        if (!root.TryGetProperty("id", out var responseId) || !responseId.TryGetInt64(out var id))
-        {
-            return;
-        }
-
-        if (!_pendingResponses.TryGetValue(id, out var completion))
-        {
-            return;
-        }
-
-        if (root.TryGetProperty("error", out var error))
-        {
-            completion.TrySetException(new CodexProtocolException(error.GetRawText()));
-            return;
-        }
-
-        var result = root.TryGetProperty("result", out var resultElement)
-            ? resultElement.Clone()
-            : JsonDocument.Parse("{}").RootElement.Clone();
-        completion.TrySetResult(result);
-    }
-
-    private void HandleServerRequest(string method, JsonElement idElement, JsonElement root)
-    {
-        var requestId = idElement.GetRawText();
-        var threadId = TryGetString(root, "params", "threadId") ?? _threadId ?? "unknown";
-        var turnId = TryGetString(root, "params", "turnId") ?? _turnId;
-        var message =
-            TryGetString(root, "params", "reason") ??
-            TryGetString(root, "params", "command") ??
-            method;
-
-        _pendingServerRequests[requestId] = new PendingServerRequest(method, threadId, turnId);
-
-        var state = method.Equals("item/tool/requestUserInput", StringComparison.Ordinal)
-            ? AgentStateKind.WaitingForInput
-            : AgentStateKind.ApprovalRequired;
-
-        Publish(state, message, requestId, turnId, threadId);
-    }
-
-    private void HandleNotification(string method, JsonElement root)
-    {
-        switch (method)
-        {
-            case "thread/started":
-                if (TryGetString(root, "params", "thread", "id") is { Length: > 0 } startedThreadId)
+            case CodexMessage.ThreadStarted started:
+                if (started.ThreadId is { Length: > 0 } startedThreadId)
                 {
                     RememberThread(startedThreadId);
                     _threadId = startedThreadId;
@@ -593,29 +547,44 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
                 Publish(AgentStateKind.Idle, "Codex thread started.");
                 break;
 
-            case "turn/started":
-                _threadId = TryGetString(root, "params", "threadId") ?? _threadId;
-                _turnId = TryGetString(root, "params", "turn", "id") ?? _turnId;
+            case CodexMessage.TurnStarted turn:
+                // The wire may omit either id on a continuation; keep what we
+                // already knew rather than dropping to null mid-turn.
+                _threadId = turn.ThreadId ?? _threadId;
+                _turnId = turn.TurnId ?? _turnId;
                 Publish(AgentStateKind.Working, "Codex is working.", turnId: _turnId);
                 break;
 
-            case "turn/completed":
-                var status = TryGetString(root, "params", "turn", "status") ?? "completed";
-                var error = TryGetString(root, "params", "turn", "error", "message");
-                var state = status.Equals("failed", StringComparison.OrdinalIgnoreCase)
-                    ? AgentStateKind.Error
-                    : status.Equals("interrupted", StringComparison.OrdinalIgnoreCase)
-                        ? AgentStateKind.Idle
-                        : AgentStateKind.Completed;
-                Publish(state, error ?? $"Codex turn {status}.", turnId: _turnId);
+            case CodexMessage.TurnFinished finished:
+                Publish(finished.State, finished.Summary, turnId: _turnId);
                 _turnId = null;
                 break;
 
-            case "serverRequest/resolved":
-                var requestId = TryGetRawText(root, "params", "requestId");
-                if (requestId is not null)
+            case CodexMessage.UserActionRequired request:
+                var threadId = request.ThreadId ?? _threadId ?? "unknown";
+                var requestTurnId = request.TurnId ?? _turnId;
+                _pendingServerRequests[request.RequestId] =
+                    new PendingServerRequest(request.Method, threadId, requestTurnId);
+                Publish(request.State, request.Message, request.RequestId, requestTurnId, threadId);
+                break;
+
+            case CodexMessage.ServerRequestResolved resolved:
+                _pendingServerRequests.TryRemove(resolved.RequestId, out _);
+                break;
+
+            case CodexMessage.ResponseReceived response:
+                if (!_pendingResponses.TryGetValue(response.Id, out var completion))
                 {
-                    _pendingServerRequests.TryRemove(requestId, out _);
+                    break;
+                }
+
+                if (response.Error is { } error)
+                {
+                    completion.TrySetException(new CodexProtocolException(error));
+                }
+                else
+                {
+                    completion.TrySetResult(response.Result);
                 }
 
                 break;
@@ -813,20 +782,6 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
     }
 
-    private static string? TryGetRawText(JsonElement element, params string[] path)
-    {
-        var current = element;
-        foreach (var segment in path)
-        {
-            if (current.ValueKind != JsonValueKind.Object ||
-                !current.TryGetProperty(segment, out current))
-            {
-                return null;
-            }
-        }
-
-        return current.GetRawText();
-    }
 
     private static async Task AwaitLoopAsync(Task? task)
     {

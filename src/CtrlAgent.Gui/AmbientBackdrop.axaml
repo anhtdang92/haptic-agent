@@ -1,0 +1,231 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CtrlAgent.Gui.AmbientBackdrop"
+             ClipToBounds="True"
+             IsHitTestVisible="False">
+
+  <!-- The depth layer every surface sits on: three slow aurora blooms drifting
+       out of phase, a faint engineering grid, a light sweep, and a vignette.
+
+       Rules this obeys, because a background that competes with the content is
+       worse than a flat one:
+        - Nothing here moves fast. The shortest loop is 17s; the longest is 41s.
+          At that speed the eye reads "alive", never "something is happening".
+        - Deliberately prime-ish, mutually non-dividing durations, so the three
+          blooms never sync up into a visible pulse.
+        - Everything is IsHitTestVisible=False and ClipToBounds, so it can never
+          eat a click or bleed past its panel. -->
+
+  <UserControl.Styles>
+    <!-- Blooms travel on long ellipses. Scale and opacity ride along so they
+         read as drifting depth rather than as sliding shapes. -->
+    <Style Selector="Ellipse.bloomA">
+      <Style.Animations>
+        <Animation Duration="0:0:29" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.X" Value="-90" />
+            <Setter Property="TranslateTransform.Y" Value="-40" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+            <Setter Property="Opacity" Value="0.55" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="TranslateTransform.X" Value="110" />
+            <Setter Property="TranslateTransform.Y" Value="60" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.28" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.18" />
+            <Setter Property="Opacity" Value="0.85" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.X" Value="-90" />
+            <Setter Property="TranslateTransform.Y" Value="-40" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+            <Setter Property="Opacity" Value="0.55" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="Ellipse.bloomB">
+      <Style.Animations>
+        <Animation Duration="0:0:41" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.X" Value="70" />
+            <Setter Property="TranslateTransform.Y" Value="50" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.2" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.1" />
+            <Setter Property="Opacity" Value="0.75" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="TranslateTransform.X" Value="-120" />
+            <Setter Property="TranslateTransform.Y" Value="-70" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.9" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+            <Setter Property="Opacity" Value="0.45" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.X" Value="70" />
+            <Setter Property="TranslateTransform.Y" Value="50" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.2" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.1" />
+            <Setter Property="Opacity" Value="0.75" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="Ellipse.bloomC">
+      <Style.Animations>
+        <Animation Duration="0:0:17" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="ScaleTransform.ScaleX" Value="0.85" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.85" />
+            <Setter Property="Opacity" Value="0.3" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="ScaleTransform.ScaleX" Value="1.15" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.15" />
+            <Setter Property="Opacity" Value="0.62" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="ScaleTransform.ScaleX" Value="0.85" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.85" />
+            <Setter Property="Opacity" Value="0.3" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- A single band of light crossing the whole surface. Long, rare, and
+         barely there: it should be noticed once and then forgotten. -->
+    <Style Selector="Border.sweep">
+      <Style.Animations>
+        <Animation Duration="0:0:23" IterationCount="Infinite">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.X" Value="-700" />
+          </KeyFrame>
+          <KeyFrame Cue="12%">
+            <Setter Property="Opacity" Value="0.5" />
+          </KeyFrame>
+          <KeyFrame Cue="30%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.X" Value="2200" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.X" Value="2200" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The grid breathes very slightly, which keeps it from looking printed. -->
+    <Style Selector="Border.grid">
+      <Style.Animations>
+        <Animation Duration="0:0:19" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0.5" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.5" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+    <!-- Aurora blooms. RenderTransformOrigin is centred so scale grows from
+         the middle rather than dragging the shape toward a corner. -->
+    <Ellipse Classes="bloomA"
+             Width="1500" Height="1000"
+             HorizontalAlignment="Left" VerticalAlignment="Top"
+             Margin="-460,-330,0,0"
+             RenderTransformOrigin="50%,50%">
+      <Ellipse.Fill>
+        <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%" RadiusX="50%" RadiusY="50%">
+          <GradientStop Color="#6B1E7FB8" Offset="0" />
+          <GradientStop Color="#2E1E5C8C" Offset="0.55" />
+          <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+      </Ellipse.Fill>
+    </Ellipse>
+
+    <Ellipse Classes="bloomB"
+             Width="1400" Height="1100"
+             HorizontalAlignment="Right" VerticalAlignment="Bottom"
+             Margin="0,0,-380,-380"
+             RenderTransformOrigin="50%,50%">
+      <Ellipse.Fill>
+        <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%" RadiusX="50%" RadiusY="50%">
+          <GradientStop Color="#5E6B3AC4" Offset="0" />
+          <GradientStop Color="#2A4A2E9E" Offset="0.55" />
+          <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+      </Ellipse.Fill>
+    </Ellipse>
+
+    <Ellipse Classes="bloomC"
+             Width="1100" Height="820"
+             HorizontalAlignment="Center" VerticalAlignment="Center"
+             RenderTransformOrigin="50%,50%">
+      <Ellipse.Fill>
+        <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%" RadiusX="50%" RadiusY="50%">
+          <GradientStop Color="#4A17B0A8" Offset="0" />
+          <GradientStop Color="#1F0E7C86" Offset="0.6" />
+          <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+      </Ellipse.Fill>
+    </Ellipse>
+
+    <!-- Engineering grid. A tiled DrawingBrush rather than a stack of
+         Rectangles: one brush, any window size, no layout cost. -->
+    <Border Classes="grid">
+      <Border.Background>
+        <DrawingBrush TileMode="Tile"
+                      SourceRect="0,0,64,64"
+                      DestinationRect="0,0,64,64"
+                      Stretch="None">
+          <DrawingBrush.Drawing>
+            <GeometryDrawing Brush="Transparent" Geometry="M0,0 L64,0 L64,64 L0,64 Z">
+              <GeometryDrawing.Pen>
+                <Pen Brush="#16A8D8FF" Thickness="1" />
+              </GeometryDrawing.Pen>
+            </GeometryDrawing>
+          </DrawingBrush.Drawing>
+        </DrawingBrush>
+      </Border.Background>
+    </Border>
+
+    <Border Height="220" VerticalAlignment="Top">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+          <GradientStop Color="#2200D4FF" Offset="0" />
+          <GradientStop Color="#0A1E7FB8" Offset="0.45" />
+          <GradientStop Color="#00000000" Offset="1" />
+        </LinearGradientBrush>
+      </Border.Background>
+    </Border>
+
+    <Border Classes="sweep" Width="420" HorizontalAlignment="Left">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+          <GradientStop Color="#00FFFFFF" Offset="0" />
+          <GradientStop Color="#0E9BE4FF" Offset="0.5" />
+          <GradientStop Color="#00FFFFFF" Offset="1" />
+        </LinearGradientBrush>
+      </Border.Background>
+    </Border>
+
+    <!-- Vignette last: pulls the eye to the middle and stops the blooms from
+         glowing into the window edges, which is what makes them look pasted on. -->
+    <Border>
+      <Border.Background>
+        <RadialGradientBrush Center="50%,45%" GradientOrigin="50%,45%" RadiusX="75%" RadiusY="80%">
+          <GradientStop Color="#00000000" Offset="0" />
+          <GradientStop Color="#00000000" Offset="0.5" />
+          <GradientStop Color="#66000308" Offset="1" />
+        </RadialGradientBrush>
+      </Border.Background>
+    </Border>
+  </Panel>
+</UserControl>

@@ -1,3 +1,7 @@
+; UNTESTED. This script has never produced an installer anyone has run — no
+; release has been cut, so the first real execution will be a user's. Treat the
+; first tagged release as a test of this file as much as of the app, and check
+; the portable zip still works as a fallback path.
 ; CtrlAgent Windows installer (Inno Setup 6).
 ; Built by .github/workflows/release.yml, which passes:
 ;   /DAppVersion=<tag>        e.g. v0.1.0

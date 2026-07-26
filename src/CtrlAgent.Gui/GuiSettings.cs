@@ -31,7 +31,8 @@ public sealed record GuiSettings(
     double? WindowWidth = null,
     double? WindowHeight = null,
     int? WindowX = null,
-    int? WindowY = null)
+    int? WindowY = null,
+    string[]? RecentWorkspaces = null)
 {
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -68,8 +69,9 @@ public sealed record GuiSettings(
     {
         try
         {
-            // Re-saving options alone must not wipe stored UI state.
-            var previous = uiState is null ? TryLoad() : null;
+            // Re-saving options alone must not wipe stored UI state, and the
+            // workspace history has to survive every save path.
+            var previous = TryLoad();
             var settings = new GuiSettings(
                 options.Agent,
                 options.WorkingDirectory,
@@ -83,7 +85,8 @@ public sealed record GuiSettings(
                 uiState?.WindowWidth ?? previous?.WindowWidth,
                 uiState?.WindowHeight ?? previous?.WindowHeight,
                 uiState?.WindowX ?? previous?.WindowX,
-                uiState?.WindowY ?? previous?.WindowY);
+                uiState?.WindowY ?? previous?.WindowY,
+                Remember(previous?.RecentWorkspaces, options.WorkingDirectory));
 
             var path = SettingsPath;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -93,6 +96,40 @@ public sealed record GuiSettings(
         {
         }
     }
+
+    private const int MaxRecentWorkspaces = 8;
+
+    /// <summary>
+    /// Puts the directory at the front of the history, de-duplicated
+    /// case-insensitively and capped. Directories that have since been deleted
+    /// are dropped on the way past.
+    /// </summary>
+    private static string[] Remember(string[]? existing, string? directory)
+    {
+        var history = new List<string>();
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            history.Add(directory);
+        }
+
+        foreach (var entry in existing ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(entry) ||
+                history.Any(known => string.Equals(known, entry, StringComparison.OrdinalIgnoreCase)) ||
+                !Directory.Exists(entry))
+            {
+                continue;
+            }
+
+            history.Add(entry);
+        }
+
+        return [.. history.Take(MaxRecentWorkspaces)];
+    }
+
+    /// <summary>Stored workspaces that still exist, most recent first.</summary>
+    public IReadOnlyList<string> UsableWorkspaces =>
+        [.. (RecentWorkspaces ?? []).Where(Directory.Exists)];
 
     /// <summary>Merges saved values over the given defaults, dropping stale paths.</summary>
     public GuiOptions ApplyTo(GuiOptions defaults) => new(

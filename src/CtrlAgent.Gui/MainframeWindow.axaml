@@ -1,0 +1,852 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:gui="using:CtrlAgent.Gui"
+        x:Class="CtrlAgent.Gui.MainframeWindow"
+        x:DataType="gui:MainframeViewModel"
+        Title="CtrlAgent Mainframe"
+        Icon="avares://CtrlAgent.Gui/Assets/icon.png"
+        SystemDecorations="None"
+        WindowState="FullScreen">
+
+  <!-- Same deep-space field as the main window, with the bloom pulled left
+       so CTRL·BOT stands in the light and the rail sits in shadow. -->
+  <Window.Background>
+    <RadialGradientBrush Center="24%,34%" GradientOrigin="24%,34%" RadiusX="82%" RadiusY="90%">
+      <GradientStop Color="#101D33" Offset="0" />
+      <GradientStop Color="#070D18" Offset="0.5" />
+      <GradientStop Color="#03050A" Offset="1" />
+    </RadialGradientBrush>
+  </Window.Background>
+
+  <Window.Styles>
+    <!-- Rail tiles: frosted glass at rest, neon ring + lift when focused -->
+    <Style Selector="Border.tile">
+      <Setter Property="Width" Value="164" />
+      <Setter Property="Height" Value="128" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="Margin" Value="8,0" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#CC17233C" Offset="0" />
+            <GradientStop Color="#CC0E1728" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.tile.focused">
+      <Setter Property="BorderBrush" Value="#00D4FF" />
+      <Setter Property="BoxShadow" Value="0 0 28 0 #6600D4FF" />
+      <Setter Property="RenderTransform" Value="scale(1.08)" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#E01A2C50" Offset="0" />
+            <GradientStop Color="#E0122040" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- HUD chips: sized to be read at a glance from a couch. A vertical
+         gradient plus an inset top highlight gives each one a lit face rather
+         than a flat fill — at this size a solid colour reads as a grey slab. -->
+    <Style Selector="Border.hudChip">
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#A61C2C4A" Offset="0" />
+            <GradientStop Color="#A6101A2E" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#26FFFFFF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="16,11" />
+      <Setter Property="BoxShadow" Value="inset 0 1 0 0 #26FFFFFF, 0 6 18 0 #59000000" />
+    </Style>
+    <!-- Armed: an approval is pending and this shortcut answers it. Amber
+         fill, amber glow, and a pulse — it should be impossible to miss. -->
+    <Style Selector="Border.hudChip.armed">
+      <Setter Property="Background" Value="#3DFFA020" />
+      <Setter Property="BorderBrush" Value="#B3FFB020" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="BoxShadow" Value="0 0 30 0 #4DFFA020" />
+    </Style>
+    <Style Selector="Border.hudChip.armed">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.78" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- Key caps: these stand for physical buttons, so they are lit like
+         keycaps — darker than the chip they sit on, a cyan rim, and a glow.
+         The eye should find the button first and the words second. -->
+    <Style Selector="Border.hudKey">
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#B3122236" Offset="0" />
+            <GradientStop Color="#B3070E1A" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#4D7DD3FC" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="13,5" />
+      <Setter Property="MinWidth" Value="74" />
+      <Setter Property="TextElement.Foreground" Value="#8FD6FF" />
+      <Setter Property="BoxShadow" Value="inset 0 1 0 0 #2EFFFFFF, 0 0 14 0 #2600D4FF" />
+    </Style>
+    <Style Selector="Border.hudKey.armed">
+      <Setter Property="Background" Value="#59180E00" />
+      <Setter Property="BorderBrush" Value="#80FFB020" />
+      <Setter Property="TextElement.Foreground" Value="#FFD9A0" />
+    </Style>
+
+    <!-- Bottom-legend button glyphs -->
+    <Style Selector="Border.glyph">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Background" Value="#0B1322" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <!-- The live UI rises into place under the dissolving intro, so the two
+         stages read as one continuous hand-off rather than a cut. -->
+    <Style Selector="Grid.mainframeContent">
+      <Style.Animations>
+        <Animation Duration="0:0:0.9" Delay="0:0:0.15" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="26" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- ====================== BOOT SEQUENCE ======================
+         A staged power-on rather than a logo that fades in. The old version
+         was a badge and one faint ring on black, which read as a loading
+         screen apologising for itself. This is a machine coming up.
+
+         Timeline (total 3.2s, everything one-shot with FillMode=Forward so it
+         holds its end state instead of snapping back):
+
+           0.00  a hairline splits the black and opens vertically  (CRT strike)
+           0.25  the grid and bloom wash in behind
+           0.45  corner brackets drive in from off-screen
+           0.55  the badge lands — overshoot, then settle
+           0.65  three rings bloom outward, staggered
+           1.05  the tagline lifts in under it
+           1.35  the status line types its way to ONLINE
+           1.45  the progress rail fills
+           2.55  the whole overlay dissolves into the live UI
+
+         Delay is what makes this readable: each element has its own Animation
+         with its own Delay, so the stages land in sequence instead of all
+         starting at zero and racing. -->
+
+    <!-- The strike: a 2px line that widens to fill the screen. -->
+    <Style Selector="Border.introStrike">
+      <Style.Animations>
+        <Animation Duration="0:0:0.55" IterationCount="1" FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.004" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.2" />
+          </KeyFrame>
+          <KeyFrame Cue="18%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.004" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The field behind everything: grid + bloom washing in. -->
+    <Style Selector="Panel.introField">
+      <Style.Animations>
+        <Animation Duration="0:0:1.1" Delay="0:0:0.25" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.25" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.25" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- Targeting brackets drive in from their own corners. -->
+    <Style Selector="Border.introBracket">
+      <Style.Animations>
+        <Animation Duration="0:0:0.7" Delay="0:0:0.45" IterationCount="1"
+                   FillMode="Forward" Easing="QuadraticEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.85" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.introBracket.tl">
+      <Style.Animations>
+        <Animation Duration="0:0:0.7" Delay="0:0:0.45" IterationCount="1"
+                   FillMode="Forward" Easing="QuadraticEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.X" Value="-70" />
+            <Setter Property="TranslateTransform.Y" Value="-70" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.X" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.introBracket.br">
+      <Style.Animations>
+        <Animation Duration="0:0:0.7" Delay="0:0:0.45" IterationCount="1"
+                   FillMode="Forward" Easing="QuadraticEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.X" Value="70" />
+            <Setter Property="TranslateTransform.Y" Value="70" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.X" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The badge lands hard and overshoots, which is what sells "arrived"
+         rather than "appeared". -->
+    <Style Selector="StackPanel.introBadge">
+      <Style.Animations>
+        <Animation Duration="0:0:0.95" Delay="0:0:0.55" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.5" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.5" />
+          </KeyFrame>
+          <KeyFrame Cue="62%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.95" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.95" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- Three rings on the same path, staggered, so the bloom has depth
+         instead of being one lonely circle. -->
+    <Style Selector="Ellipse.introRing">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" Delay="0:0:0.65" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.95" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="3" />
+            <Setter Property="ScaleTransform.ScaleY" Value="3" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.introRing.r2">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" Delay="0:0:0.9" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="3.4" />
+            <Setter Property="ScaleTransform.ScaleY" Value="3.4" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.introRing.r3">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" Delay="0:0:1.15" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.4" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="3.8" />
+            <Setter Property="ScaleTransform.ScaleY" Value="3.8" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="TextBlock.introTag">
+      <Style.Animations>
+        <Animation Duration="0:0:0.8" Delay="0:0:1.05" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="18" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="StackPanel.introStatus">
+      <Style.Animations>
+        <Animation Duration="0:0:0.6" Delay="0:0:1.35" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The rail fills left-to-right by scaling its own X, so no width
+         animation and no layout pass per frame. -->
+    <Style Selector="Border.introRail">
+      <Style.Animations>
+        <Animation Duration="0:0:0.95" Delay="0:0:1.45" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="ScaleTransform.ScaleX" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="ScaleTransform.ScaleX" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The dissolve. Scaling up slightly as it goes makes the UI feel like it
+         is arriving from underneath rather than the overlay simply vanishing. -->
+    <Style Selector="Border.introFade">
+      <Style.Animations>
+        <Animation Duration="0:0:3.2" IterationCount="1" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="80%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.06" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.06" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+  </Window.Styles>
+
+  <Panel>
+    <!-- Depth first, content on top. Everything below is drawn over this. -->
+    <gui:AmbientBackdrop />
+
+    <Grid Classes="mainframeContent" Opacity="0"
+          RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="48,28,48,24">
+
+      <!-- Top status strip -->
+      <DockPanel Grid.Row="0">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="24" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                     Fill="{Binding Main.ControllerDotBrush}"
+                     Classes.pulse="{Binding Main.IsControllerSearching}" />
+            <TextBlock Text="{Binding Main.ControllerStatus}" FontSize="15" Foreground="#B9CCEF" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                     Fill="{Binding Main.AgentDotBrush}"
+                     Classes.pulse="{Binding Main.IsAgentActive}" />
+            <TextBlock Text="{Binding Main.AgentStatus}" FontSize="15" Foreground="#EAF3FF" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Main.AgentState}" FontSize="15" Foreground="#7DD3FC" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                      ToolTip.Tip="{Binding Main.WorkspacePath}">
+            <TextBlock Text="🗂" FontSize="13" Foreground="#5A7099" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Main.WorkspaceName}" FontSize="15" Foreground="#B9CCEF" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Text="{Binding Main.ProfileName}" FontSize="15" Foreground="#5A7099" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Main.PermissionModeLabel}" FontSize="15" Foreground="#7DD3FC" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Main.ModelLabel}" FontSize="15" Foreground="#5A7099" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Main.EffortLabel}" FontSize="15" Foreground="#5A7099" VerticalAlignment="Center" />
+          <!-- Clickable settings entry: the pad presses View, the mouse
+               clicks here. Same toggle either way. -->
+          <Button Classes="ghost"
+                  Click="OnToggleSettings"
+                  Cursor="Hand"
+                  FontSize="14"
+                  ToolTip.Tip="Settings — permission mode, profile, shortcuts (View on the pad)">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="⚙" FontSize="15" VerticalAlignment="Center" />
+              <TextBlock Text="Settings" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+        <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+               Height="44"
+               HorizontalAlignment="Left"
+               RenderOptions.BitmapInterpolationMode="HighQuality" />
+      </DockPanel>
+
+      <!-- Center stage: CTRL·BOT | agent feed -->
+      <Grid Grid.Row="1" ColumnDefinitions="2*,3*" Margin="0,28">
+
+        <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+          <Viewbox Height="235" Stretch="Uniform"
+                   DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
+            <gui:BotView />
+          </Viewbox>
+          <Border Background="#8A17243E" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                  CornerRadius="16" Padding="22,13" MaxWidth="420"
+                  DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="16" Foreground="#CFE1FF" />
+          </Border>
+          <!-- Live input, fullscreen: the pad mirrors while you drive -->
+          <gui:ControllerMirrorView MaxHeight="190"
+                                    DataContext="{Binding Main.ControllerVisual}" />
+        </StackPanel>
+
+        <!-- Agent response feed -->
+        <Border Grid.Column="1" Classes="card" Padding="24" Margin="24,0,0,0">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="AGENT FEED" Classes="label" FontSize="13" Margin="0,0,0,14" />
+            <Border DockPanel.Dock="Bottom"
+                    Background="#33122544"
+                    BorderBrush="#5500D4FF"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="16,12"
+                    Margin="0,14,0,0">
+              <TextBlock Text="{Binding LatestResponse}"
+                         TextWrapping="Wrap"
+                         FontSize="19"
+                         Foreground="#EAF3FF"
+                         MaxLines="5"
+                         TextTrimming="CharacterEllipsis" />
+            </Border>
+            <!-- Empty state: a quiet mark and two short lines, not a
+                 paragraph adrift in a large panel -->
+            <StackPanel Spacing="10"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding IsFeedEmpty}">
+              <Ellipse Width="46" Height="46" HorizontalAlignment="Center"
+                       Fill="#12FFFFFF" Stroke="#1FFFFFFF" StrokeThickness="1" />
+              <TextBlock Text="Nothing from the agent yet"
+                         FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
+              <TextBlock Text="Use a shortcut below, or press Y to speak a prompt"
+                         FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
+            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          IsVisible="{Binding !IsFeedEmpty}">
+              <ItemsControl ItemsSource="{Binding Responses}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding}"
+                               TextWrapping="Wrap"
+                               FontSize="14"
+                               Foreground="#8FA8CF"
+                               Margin="0,3" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Grid>
+
+      <!-- Pending approval context above the rail -->
+      <Border Grid.Row="2"
+              Classes="alert"
+              Padding="18,10"
+              Margin="0,0,0,16"
+              HorizontalAlignment="Center"
+              IsVisible="{Binding Main.HasPendingApproval}">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <TextBlock Text="APPROVAL REQUIRED" Classes="label" FontSize="12" Foreground="#FFD9A0" Opacity="1" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Main.PendingApprovalMessage}"
+                     FontSize="15" Foreground="#FFEFD6" TextWrapping="Wrap" MaxWidth="720" VerticalAlignment="Center" />
+        </StackPanel>
+      </Border>
+
+      <!-- Action HUD: the shortcuts that can fire right now, big enough to
+           read across a room. Read-only by design — these are not buttons,
+           they are the map of the pad in your hands. -->
+      <StackPanel Grid.Row="3" Spacing="12" IsVisible="{Binding IsHudVisible}">
+        <TextBlock Text="{Binding HintHeading}"
+                   Classes="label"
+                   FontSize="13"
+                   HorizontalAlignment="Center"
+                   Foreground="#8FA9D6" />
+        <ItemsControl ItemsSource="{Binding Hints}" HorizontalAlignment="Center">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="12" MaxWidth="1460" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="gui:ActionHint">
+              <Border Classes="hudChip" Classes.armed="{Binding IsApproval}">
+                <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                  <Border Classes="hudKey" Classes.armed="{Binding IsApproval}">
+                    <TextBlock Text="{Binding Chord}"
+                               FontFamily="Cascadia Mono,Consolas,monospace"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Center" />
+                  </Border>
+                  <TextBlock Text="{Binding Label}"
+                             FontSize="19"
+                             FontWeight="Medium"
+                             Foreground="#EAF3FF"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+      <!-- Settings panel: the one place focus navigation exists. Tiles respond
+           to hover and click as well as the d-pad, so a mouse works here. -->
+      <ScrollViewer Grid.Row="3"
+                    x:Name="TileScroller"
+                    HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollBarVisibility="Disabled"
+                    IsVisible="{Binding IsSettingsVisible}">
+      <ItemsControl x:Name="TileRail" ItemsSource="{Binding Tiles}" HorizontalAlignment="Center">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="gui:MainframeTile">
+            <Border Classes="tile" Classes.focused="{Binding IsFocused}"
+                    PointerEntered="OnTilePointerEntered"
+                    PointerPressed="OnTilePointerPressed"
+                    Cursor="Hand">
+              <StackPanel VerticalAlignment="Center" Spacing="10">
+                <TextBlock Text="{Binding Glyph}"
+                           FontSize="36"
+                           HorizontalAlignment="Center"
+                           Foreground="{Binding AccentBrush}" />
+                <TextBlock Text="{Binding Label}"
+                           FontSize="14"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           Foreground="#DDE9FF" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      </ScrollViewer>
+
+      <!-- Button legend -->
+      <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="26" HorizontalAlignment="Center" Margin="0,26,0,0">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Border Classes="glyph" BorderBrush="#6EBE45"><TextBlock Text="A" FontSize="14" FontWeight="Bold" Foreground="#6EBE45" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <TextBlock Text="Select (in settings)" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Border Classes="glyph" BorderBrush="#E85555"><TextBlock Text="B" FontSize="14" FontWeight="Bold" Foreground="#E85555" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <TextBlock Text="Back / Exit" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Border Classes="glyph" BorderBrush="#8FA9D6"><TextBlock Text="⧉" FontSize="14" FontWeight="Bold" Foreground="#8FA9D6" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <TextBlock Text="View — Settings" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Border Classes="glyph" BorderBrush="#E8C531"><TextBlock Text="Y" FontSize="14" FontWeight="Bold" Foreground="#E8C531" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <TextBlock Text="Voice prompt" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Text="{Binding LegendHint}" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Shortcuts screen -->
+    <Border IsVisible="{Binding IsShortcutsVisible}">
+      <!-- Opaque, but blooming like the field underneath so the fullscreen
+           screens feel like the same room with the lights moved. -->
+      <Border.Background>
+        <RadialGradientBrush Center="50%,12%" GradientOrigin="50%,12%" RadiusX="85%" RadiusY="95%">
+          <GradientStop Color="#0D1729" Offset="0" />
+          <GradientStop Color="#070C16" Offset="0.55" />
+          <GradientStop Color="#03050A" Offset="1" />
+        </RadialGradientBrush>
+      </Border.Background>
+      <DockPanel Margin="72,48">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="CONTROLLER SHORTCUTS"
+                   Classes="label"
+                   FontSize="18"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,10" />
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Everything the active profile binds. Approval-tagged inputs only fire while the agent is asking for permission. Press B to go back."
+                   FontSize="15"
+                   Foreground="#8FA8CF"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,26" />
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <!-- Centered both ways: a short binding list should sit in the middle
+               of the screen, not cling to the top edge -->
+          <ItemsControl ItemsSource="{Binding Main.Bindings}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="14" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="gui:BindingRow">
+                <Border Background="#8A16233C" BorderBrush="#14FFFFFF" BorderThickness="1"
+                        CornerRadius="16" Padding="18,14" Width="330">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Left"
+                            Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                            CornerRadius="9" Padding="12,5" MinWidth="112" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Chord}"
+                                 FontFamily="Cascadia Mono,Consolas,monospace"
+                                 FontSize="16" Foreground="#7DD3FC" HorizontalAlignment="Center" />
+                    </Border>
+                    <Border DockPanel.Dock="Right"
+                            Background="#33FFB020" CornerRadius="6" Padding="8,3"
+                            VerticalAlignment="Center" IsVisible="{Binding IsApproval}">
+                      <TextBlock Text="approval" FontSize="11" Foreground="#FFD9A0" />
+                    </Border>
+                    <TextBlock Text="{Binding Action}" FontSize="16" Foreground="#DDE9FF"
+                               Margin="14,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- Boot intro overlay: plays once on open, then dissolves to the UI.
+         The timeline and the reasoning are in Window.Styles above. -->
+    <Border Name="IntroOverlay" Classes="introFade" Background="#04060B"
+            IsHitTestVisible="False" ClipToBounds="True"
+            RenderTransformOrigin="50%,50%">
+      <Panel>
+
+        <!-- Field: grid, bloom and brackets, all behind the badge -->
+        <Panel Classes="introField" Opacity="0" RenderTransformOrigin="50%,50%">
+          <Border>
+            <Border.Background>
+              <DrawingBrush TileMode="Tile" SourceRect="0,0,58,58" DestinationRect="0,0,58,58" Stretch="None">
+                <DrawingBrush.Drawing>
+                  <GeometryDrawing Brush="Transparent" Geometry="M0,0 L58,0 L58,58 L0,58 Z">
+                    <GeometryDrawing.Pen>
+                      <Pen Brush="#143FA9D6" Thickness="1" />
+                    </GeometryDrawing.Pen>
+                  </GeometryDrawing>
+                </DrawingBrush.Drawing>
+              </DrawingBrush>
+            </Border.Background>
+          </Border>
+          <Border>
+            <Border.Background>
+              <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%" RadiusX="55%" RadiusY="60%">
+                <GradientStop Color="#4D1E6F9E" Offset="0" />
+                <GradientStop Color="#1A0E2E52" Offset="0.5" />
+                <GradientStop Color="#00000000" Offset="1" />
+              </RadialGradientBrush>
+            </Border.Background>
+          </Border>
+
+          <!-- Corner brackets: the frame snapping around the badge -->
+          <Border Classes="introBracket tl" Opacity="0" Width="96" Height="96"
+                  Margin="72,64,0,0"
+                  HorizontalAlignment="Left" VerticalAlignment="Top"
+                  BorderBrush="#5A00D4FF" BorderThickness="2,2,0,0" />
+          <Border Classes="introBracket br" Opacity="0" Width="96" Height="96"
+                  Margin="0,0,72,64"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                  BorderBrush="#5A00D4FF" BorderThickness="0,0,2,2" />
+        </Panel>
+
+        <!-- Centre stack: rings behind, badge and copy in front -->
+        <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Ellipse Classes="introRing" Width="230" Height="230" Opacity="0"
+                   Stroke="#00D4FF" StrokeThickness="2"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="50%,50%" />
+          <Ellipse Classes="introRing r2" Width="230" Height="230" Opacity="0"
+                   Stroke="#34F5A4" StrokeThickness="1.5"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="50%,50%" />
+          <Ellipse Classes="introRing r3" Width="230" Height="230" Opacity="0"
+                   Stroke="#7C6BFF" StrokeThickness="1"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="50%,50%" />
+
+          <StackPanel Spacing="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Classes="introBadge" Spacing="14" HorizontalAlignment="Center"
+                        Opacity="0" RenderTransformOrigin="50%,50%">
+              <Panel>
+                <Ellipse Width="520" Height="260" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%" RadiusX="50%" RadiusY="50%">
+                      <GradientStop Color="#5900A0E0" Offset="0" />
+                      <GradientStop Color="#1F0060A0" Offset="0.55" />
+                      <GradientStop Color="#00000000" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
+                <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                     Height="132"
+                     HorizontalAlignment="Center"
+                     RenderOptions.BitmapInterpolationMode="HighQuality" />
+              </Panel>
+            </StackPanel>
+
+            <TextBlock Classes="introTag"
+                       Opacity="0"
+                       Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
+                       FontSize="13"
+                       LetterSpacing="4"
+                       Foreground="#8FB4DC"
+                       HorizontalAlignment="Center" />
+
+            <!-- Status line + fill rail -->
+            <StackPanel Classes="introStatus" Opacity="0" Spacing="10" HorizontalAlignment="Center" Margin="0,14,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                <Ellipse Width="7" Height="7" Fill="#34F5A4" VerticalAlignment="Center" />
+                <TextBlock Text="MAINFRAME ONLINE"
+                           FontSize="11"
+                           LetterSpacing="3"
+                           Foreground="#34F5A4"
+                           FontFamily="Cascadia Mono,Consolas,monospace" />
+              </StackPanel>
+              <Border Width="360" Height="4" CornerRadius="2" Background="#16233C"
+                      HorizontalAlignment="Center"
+                      BoxShadow="0 0 16 0 #4D00D4FF">
+                <Border Classes="introRail" CornerRadius="2"
+                        HorizontalAlignment="Stretch"
+                        RenderTransform="scaleX(0)"
+                        RenderTransformOrigin="0%,50%">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                      <GradientStop Color="#00D4FF" Offset="0" />
+                      <GradientStop Color="#34F5A4" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Panel>
+
+        <!-- The strike, on top of everything: the screen switching on -->
+        <Border Classes="introStrike" Opacity="0"
+                VerticalAlignment="Center" Height="260"
+                RenderTransformOrigin="50%,50%">
+          <Border.Background>
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+              <GradientStop Color="#00CFF3FF" Offset="0" />
+              <GradientStop Color="#CCE8FBFF" Offset="0.5" />
+              <GradientStop Color="#00CFF3FF" Offset="1" />
+            </LinearGradientBrush>
+          </Border.Background>
+        </Border>
+      </Panel>
+    </Border>
+
+    <!-- Voice prompt overlay -->
+    <Border IsVisible="{Binding IsVoiceVisible}">
+      <Border.Background>
+        <RadialGradientBrush Center="50%,45%" GradientOrigin="50%,45%" RadiusX="80%" RadiusY="90%">
+          <GradientStop Color="#0F1B30" Offset="0" />
+          <GradientStop Color="#070C16" Offset="0.55" />
+          <GradientStop Color="#03050A" Offset="1" />
+        </RadialGradientBrush>
+      </Border.Background>
+      <Border Classes="card" MaxWidth="760" Padding="42,36"
+              VerticalAlignment="Center" HorizontalAlignment="Center">
+        <StackPanel Spacing="20" HorizontalAlignment="Center">
+          <TextBlock Text="🎤"
+                     FontSize="56"
+                     HorizontalAlignment="Center"
+                     Classes.pulse="{Binding IsListening}" />
+          <TextBlock Text="{Binding VoiceStatus}"
+                     FontSize="17"
+                     Foreground="#9FB7DF"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <Border Background="#33122544" BorderBrush="#5500D4FF" BorderThickness="1"
+                  CornerRadius="10" Padding="20,14" MinWidth="480" MinHeight="72"
+                  IsVisible="{Binding Transcript, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding Transcript}"
+                       FontSize="21"
+                       Foreground="#EAF3FF"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center" />
+          </Border>
+        </StackPanel>
+      </Border>
+    </Border>
+  </Panel>
+</Window>

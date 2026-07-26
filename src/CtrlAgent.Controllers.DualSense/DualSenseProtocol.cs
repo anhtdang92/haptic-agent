@@ -66,8 +66,21 @@ public readonly record struct DualSenseInputState(
 /// DualSense wire protocol per the community-documented format (DS4Windows,
 /// pydualsense lineage): input report 0x01 over USB, 0x31 over Bluetooth
 /// (payload shifted by one), output report 0x02 (USB) / 0x31 + CRC32
-/// (Bluetooth). Values are untested against real hardware until the first
-/// validation pass — keep this class pure so tests pin the byte layout.
+/// (Bluetooth).
+/// <para>
+/// <b>No DualSense has ever been plugged into this code.</b> The byte offsets,
+/// report ids, and CRC seed come from reading community documentation, and the
+/// unit tests pin what this file <em>claims</em> — they cannot tell you the
+/// claim is right. A wrong offset produces confidently wrong results: sticks
+/// drifting, buttons mapped to their neighbours, or an output report the pad
+/// silently discards, all with a green test suite.
+/// </para>
+/// <para>
+/// Until someone runs `--validate` with a real pad (roadmap #11), treat
+/// DualSense support as unproven rather than working. Keep this class pure so
+/// that when the layout is corrected, the fix is one file and the tests move
+/// with it.
+/// </para>
 /// </summary>
 public static class DualSenseProtocol
 {

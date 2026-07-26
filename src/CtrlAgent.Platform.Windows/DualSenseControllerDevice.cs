@@ -31,6 +31,7 @@ public sealed class DualSenseControllerDevice : IControllerDevice
         (DualSenseButtons.R1, ControllerControl.RightShoulder),
         (DualSenseButtons.Create, ControllerControl.View),
         (DualSenseButtons.Options, ControllerControl.Menu),
+        (DualSenseButtons.PlayStation, ControllerControl.Guide),
         (DualSenseButtons.L3, ControllerControl.LeftThumbstickButton),
         (DualSenseButtons.R3, ControllerControl.RightThumbstickButton),
         (DualSenseButtons.LeftPaddle, ControllerControl.PaddleLeft1),

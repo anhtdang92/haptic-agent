@@ -14,10 +14,15 @@ public sealed class BindingRow
 
     public required bool IsApproval { get; init; }
 
+    /// <summary>What this binding does. Needed to decide whether it is
+    /// actionable right now — a chord's label alone cannot say that.</summary>
+    public required AgentCommandKind Command { get; init; }
+
     public static BindingRow From(InputBinding binding) => new()
     {
         Chord = ControlLabels.Chord(binding),
-        Action = ControlLabels.Humanize(binding.Command),
+        Action = ControlLabels.Describe(binding),
         IsApproval = binding.RequiresPendingApproval,
+        Command = binding.Command,
     };
 }

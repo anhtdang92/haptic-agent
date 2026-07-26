@@ -40,9 +40,10 @@ Simulates the full lifecycle (working → approval-required → completed/interr
 
 Spawns `codex app-server --stdio` and speaks its JSON-RPC-style JSONL protocol.
 
+- Inbound traffic is classified by the pure, unit-tested `CodexProtocolParser` (`CodexMessage` cases: `ThreadStarted`, `TurnStarted`, `TurnFinished`, `UserActionRequired`, `ServerRequestResolved`, `ResponseReceived`, `Ignored`). The parser reports what the wire said and leaves ids null when they are absent; the adapter owns the current thread/turn and fills the gaps, because only it knows what "current" means.
 - Client requests used: `initialize`/`initialized` handshake, `thread/start` (with `approvalPolicy: "unlessTrusted"`), `thread/resume`, `turn/start`, `turn/interrupt`.
 - Server requests (carry an `id`) are approval/input prompts → `ApprovalRequired` or `WaitingForInput` (for `item/tool/requestUserInput`); the raw JSON id is the `RequestId`, echoed back in the response with a decision of `accept`, `acceptForSession`, `decline`, or `cancel`.
-- Notifications normalized: `thread/started` → Idle, `turn/started` → Working, `turn/completed` → Completed/Error/Idle by status, `serverRequest/resolved` → drops the pending entry.
+- Notifications normalized: `thread/started` → Idle, `turn/started` → Working, `turn/completed` → Completed/Error/Idle by status (`failed` → Error, `interrupted` → **Idle** so a deliberate stop never fires the error cue, anything else → Completed), `serverRequest/resolved` → drops the pending entry.
 - `SubmitPrompt` auto-creates a thread if none exists. `NewSession` starts an additional thread; `NextSession`/`PreviousSession` cycle the known thread list. Switching always issues `thread/resume` for the target (harmless for live threads, and it reloads threads that only exist in Codex's on-disk rollout after a crash).
 - After a crash restart, the adapter resumes the thread that was active when the server died (`thread/resume` from the on-disk rollout); if resume fails it reports why and the next prompt starts a fresh thread. The remembered thread list survives restarts.
 

@@ -10,6 +10,13 @@ namespace CtrlAgent.Gui;
 /// rotating tips while idle, and the exact approve/decline inputs while an
 /// approval is pending. Hints are rebuilt from the profile, so remapping in
 /// the editor updates what the bot says. Must be used from the UI thread.
+/// <para>
+/// The bot is a coach, not a game: it keeps no score. An XP bar and level
+/// badge used to sit under it, but they rewarded activity rather than
+/// progress — the number went up whether the turn helped or not — and they
+/// competed for attention with the one line here that actually tells you
+/// which button to press.
+/// </para>
 /// </summary>
 public sealed class AgentBuddyViewModel : ViewModelBase
 {
@@ -31,7 +38,6 @@ public sealed class AgentBuddyViewModel : ViewModelBase
 
     private readonly DispatcherTimer _tipTimer;
     private readonly List<string> _tips = [];
-    private BotStats _stats = BotStats.TryLoad() ?? new BotStats(0, 0, 0, 0);
     private ControllerProfile? _profile;
     private ControllerCapabilities? _capabilities;
     private int _pokeIndex;
@@ -76,36 +82,11 @@ public sealed class AgentBuddyViewModel : ViewModelBase
 
     public bool IsError { get => _isError; private set => Set(ref _isError, value); }
 
-    /// <summary>"LV 3" badge under the bot.</summary>
-    public string LevelText => $"LV {_stats.Level}";
-
-    /// <summary>Filled pixels of the 58px XP bar toward the next level.</summary>
-    public double XpBarWidth => 58 * _stats.LevelProgress;
-
-    public string StatsSummary =>
-        $"Level {_stats.Level} · {_stats.Xp} XP — " +
-        $"Prompts {_stats.Prompts} · Turns {_stats.Turns} · Approvals {_stats.Approvals} · Hiccups {_stats.Errors}";
-
     /// <summary>Clicking/tapping the bot: a happy reaction and a fresh line.</summary>
     public void Poke()
     {
         SetMood(happy: true, accent: HappyAccent);
         Message = PokePhrases[_pokeIndex++ % PokePhrases.Length];
-    }
-
-    /// <summary>A prompt went out (typed, voice, or button).</summary>
-    public void CountPromptSent() => UpdateStats(_stats with { Prompts = _stats.Prompts + 1 });
-
-    /// <summary>A pending approval was answered from anywhere.</summary>
-    public void CountApprovalResolved() => UpdateStats(_stats with { Approvals = _stats.Approvals + 1 });
-
-    private void UpdateStats(BotStats stats)
-    {
-        _stats = stats;
-        stats.TrySave();
-        Raise(nameof(LevelText));
-        Raise(nameof(XpBarWidth));
-        Raise(nameof(StatsSummary));
     }
 
     /// <summary>Rebuilds every hint from the profile's actual bindings.</summary>
@@ -189,13 +170,11 @@ public sealed class AgentBuddyViewModel : ViewModelBase
             case AgentStateKind.Completed:
                 SetMood(happy: true, accent: HappyAccent);
                 Message = _happyHint;
-                UpdateStats(_stats with { Turns = _stats.Turns + 1 });
                 break;
 
             case AgentStateKind.Error:
                 SetMood(error: true, accent: ErrorAccent);
                 Message = $"Uh-oh: {Truncate(agentEvent.Message)}";
-                UpdateStats(_stats with { Errors = _stats.Errors + 1 });
                 break;
 
             case AgentStateKind.Idle:

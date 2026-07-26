@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Presentation rules with no UI framework in them.
+
+       This project exists because of a target-framework wall: CtrlAgent.Gui
+       must target net10.0-windows (Avalonia's desktop bits, System.Speech), and
+       a net10.0 test project cannot reference it. The GUI's genuinely tricky
+       logic — how a stream of AgentEvents folds into a transcript, how a log
+       line is classified — therefore fell between the two harnesses: the render
+       harness checks pixels, the test harness checks Core and Hosting, and
+       nothing at all checked this.
+
+       Anything here must stay free of Avalonia so the tests can reach it. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\CtrlAgent.Core\CtrlAgent.Core.csproj" />
+  </ItemGroup>
+
+</Project>

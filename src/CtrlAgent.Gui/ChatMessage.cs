@@ -20,38 +20,4 @@ public sealed class ChatMessage : ViewModelBase
         get => _text;
         set => Set(ref _text, value);
     }
-
-    private static readonly string[] ActivityPrefixes =
-    [
-        "Thinking…",
-        "Plan ",
-        "→ ",
-        "Commands: ",
-        "Using tool:",
-        "Prompt sent",
-        "Bash: ",
-        "Edit: ",
-        "Write: ",
-        "Read: ",
-        "NotebookEdit: ",
-        "Grep: ",
-        "Glob: ",
-        "WebFetch: ",
-        "WebSearch: ",
-        "Task: ",
-    ];
-
-    /// <summary>Tool chatter and progress lines are activity; the rest is prose.</summary>
-    public static bool IsActivityText(string message)
-    {
-        foreach (var prefix in ActivityPrefixes)
-        {
-            if (message.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

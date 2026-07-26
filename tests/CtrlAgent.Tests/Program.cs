@@ -2,10 +2,12 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
 using CtrlAgent.Adapters.ClaudeCode;
+using CtrlAgent.Adapters.Codex;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Controllers.DualSense;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
+using CtrlAgent.Presentation;
 
 var tests = new (string Name, Func<Task> Run)[]
 {
@@ -20,6 +22,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Double press fires inside its window", TestDoublePressAsync),
     ("Axis threshold latches until the axis drops", TestAxisThresholdLatchAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
+    ("Guide control binds and round-trips", TestGuideControlAsync),
+    ("Session-setting cycles wrap and resolve", TestSessionSettingCyclesAsync),
+    ("Permission modes exclude the unusable one", TestPermissionModesAsync),
     ("Unsafe or ambiguous profiles are rejected", TestProfileValidationAsync),
     ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
@@ -29,13 +34,20 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Claude stream parser classifies protocol messages", TestClaudeStreamParserAsync),
     ("Executable resolver probes PATH and PATHEXT", TestExecutableResolverAsync),
     ("Claude permission responses carry session rules", TestClaudePermissionResponseAsync),
+    ("Codex protocol parser classifies app-server traffic", TestCodexProtocolParserAsync),
+    ("Codex turn status maps to the right agent state", TestCodexTurnStatusAsync),
     ("DualSense protocol parses input and builds output", TestDualSenseProtocolAsync),
     ("Host engine runs press-to-approval loop end to end", TestHostEngineEndToEndAsync),
     ("Captured input passes only approval commands", TestInputCaptureFilterAsync),
     ("Host engine queues prompts while the agent is busy", TestPromptQueueAsync),
     ("Host engine swaps profiles at runtime with validation", TestHostEngineProfileSwapAsync),
+    ("Host engine tracks session settings from every route", TestSessionSettingsTrackingAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
+    ("An interrupt feels the same on every adapter", TestInterruptIsUniformAsync),
+    ("Transcript folds streaming prose into one bubble", TestTranscriptFoldingAsync),
+    ("Log lines classify most-severe first", TestLogClassificationAsync),
+    ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
 };
 
 var failures = 0;
@@ -287,6 +299,89 @@ static Task TestProfileJsonRoundTripAsync()
     Assert(
         approveChord.Modifiers!.Contains(ControllerControl.RightShoulder),
         "Chord modifier must survive the round-trip.");
+    return Task.CompletedTask;
+}
+
+// The Xbox/PS button is a normal control everywhere above the transport
+// layer: it must parse from JSON, survive a round-trip, and map like any
+// other button. Whether a given transport can actually report it is a
+// device concern, not a mapping one.
+static Task TestGuideControlAsync()
+{
+    var profile = new ControllerProfile(
+        "guide",
+        [
+            new(ControllerControl.Guide, InputGesture.Press, AgentCommandKind.ReviewChanges),
+        ]);
+
+    var json = ControllerProfileJson.Serialize(profile);
+    Assert(json.Contains("guide", StringComparison.OrdinalIgnoreCase), "Guide must serialize by name.");
+
+    var restored = ControllerProfileJson.Deserialize(json);
+    AssertEqual(ControllerControl.Guide, restored.Bindings.Single().Control);
+
+    var engine = new MappingEngine(restored);
+    var commands = engine.Process(new ControllerInputEvent(
+        "test", ControllerControl.Guide, ControllerInputEventKind.Pressed, 1f, DateTimeOffset.UnixEpoch));
+
+    AssertEqual(1, commands.Count);
+    AssertEqual(AgentCommandKind.ReviewChanges, commands[0].Kind);
+    return Task.CompletedTask;
+}
+
+// Cycle position lives in the host, not the adapters, so the wrap logic is
+// worth pinning down: an unknown current value must start the cycle rather
+// than throw or stall.
+static Task TestSessionSettingCyclesAsync()
+{
+    AssertEqual("plan", AgentModes.Next(AgentModes.PermissionModes, "default"));
+    AssertEqual("low", AgentModes.Next(AgentModes.EffortCycle, "max"));      // wraps
+    AssertEqual("default", AgentModes.Next(AgentModes.ModelCycle, null));     // unset
+    AssertEqual("default", AgentModes.Next(AgentModes.ModelCycle, "nonsense"));
+    AssertEqual("opus", AgentModes.Next(AgentModes.ModelCycle, "sonnet"));
+
+    // Case-insensitive, because mode names arrive from JSON profiles too.
+    AssertEqual("opus", AgentModes.Next(AgentModes.ModelCycle, "SONNET"));
+
+    // The idle inputs are now bound, and the profile still validates.
+    var profile = ControllerProfile.Default;
+    AssertEqual(0, ControllerProfileValidator.Validate(profile).Count);
+    foreach (var control in new[]
+             {
+                 ControllerControl.DPadUp,
+                 ControllerControl.DPadDown,
+                 ControllerControl.LeftThumbstickButton,
+                 ControllerControl.RightThumbstickButton,
+             })
+    {
+        Assert(
+            profile.Bindings.Any(binding => binding.Control == control),
+            $"{control} should now carry a session control.");
+    }
+
+    return Task.CompletedTask;
+}
+
+// bypassPermissions is listed by the CLI but rejected on a live session
+// unless it was launched with --dangerously-skip-permissions, so cycling
+// into it only ever produced an error. It is also the one mode that would
+// switch off the approval prompts this tool exists to surface.
+static Task TestPermissionModesAsync()
+{
+    Assert(
+        !AgentModes.PermissionModes.Contains("bypassPermissions", StringComparer.OrdinalIgnoreCase),
+        "bypassPermissions must not be reachable from the mode cycle.");
+    Assert(AgentModes.PermissionModes.Contains("default"), "default must be in the cycle.");
+    Assert(AgentModes.PermissionModes.Contains("plan"), "plan must be in the cycle.");
+
+    // The cycle must return to its start rather than dead-ending.
+    var mode = AgentModes.PermissionModes[0];
+    for (var step = 0; step < AgentModes.PermissionModes.Count; step++)
+    {
+        mode = AgentModes.Next(AgentModes.PermissionModes, mode);
+    }
+
+    AssertEqual(AgentModes.PermissionModes[0], mode);
     return Task.CompletedTask;
 }
 
@@ -638,6 +733,310 @@ static async Task TestHostEngineProfileSwapAsync()
     AssertEqual("custom", engine.Profile.Name);
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
     AssertEqual("custom", (await applied.Task.WaitAsync(timeout.Token).ConfigureAwait(false)).Name);
+}
+
+// The GUI labels model/effort/mode from engine.Settings. Before this, the
+// permission mode was the one knob the engine did not track: a GUI kept a
+// private cycle index, so a mode set from a controller binding moved the
+// session without moving the label, and the two disagreed from then on.
+static async Task TestSessionSettingsTrackingAsync()
+{
+    var controller = new ScriptedController();
+    await using var engine = new HostEngine(
+        new SingleControllerProvider(controller),
+        new MockAgentAdapter(),
+        ControllerProfile.Default,
+        new HostEngineOptions("prompt"));
+
+    var published = new List<SessionSettings>();
+    engine.SessionSettingsChanged += settings => published.Add(settings);
+
+    // Unset until asked: the agent starts on its own defaults.
+    Assert(engine.Settings.Model is null, "Model must start unset.");
+    Assert(engine.Settings.PermissionMode is null, "Permission mode must start unset.");
+
+    await engine.SetPermissionModeAsync("plan").ConfigureAwait(false);
+    AssertEqual("plan", engine.Settings.PermissionMode!);
+
+    await engine.CycleModelAsync().ConfigureAwait(false);
+    AssertEqual("default", engine.Settings.Model!);
+    await engine.CycleModelAsync().ConfigureAwait(false);
+    AssertEqual("sonnet", engine.Settings.Model!);
+
+    await engine.CycleEffortAsync().ConfigureAwait(false);
+    AssertEqual("low", engine.Settings.Effort!);
+
+    // One knob moving must not clear the others.
+    AssertEqual("plan", engine.Settings.PermissionMode!);
+    AssertEqual("sonnet", engine.Settings.Model!);
+    AssertEqual(4, published.Count);
+    AssertEqual("sonnet", published[^1].Model!);
+}
+
+// The Codex classification used to live inside the adapter, entangled with
+// the process and the event channel, so none of it could be exercised without
+// spawning a real app-server. These are the shapes the wire actually sends.
+static Task TestCodexProtocolParserAsync()
+{
+    // A server request expecting an answer: id present alongside method.
+    var approval = ParseCodex("""
+        {"method":"item/tool/requestApproval","id":42,
+         "params":{"threadId":"th-1","turnId":"tn-9","command":"rm -rf build"}}
+        """);
+    var request = AssertIs<CodexMessage.UserActionRequired>(approval);
+    AssertEqual("42", request.RequestId);           // raw text, so a numeric id stays numeric
+    AssertEqual("th-1", request.ThreadId!);
+    AssertEqual("tn-9", request.TurnId!);
+    AssertEqual("rm -rf build", request.Message);
+    AssertEqual(AgentStateKind.ApprovalRequired, request.State);
+
+    // Free-form input blocks the turn too, but it is not an approval — the
+    // controller's approve/decline bindings must not claim to answer it.
+    var input = ParseCodex("""
+        {"method":"item/tool/requestUserInput","id":"abc","params":{"reason":"Which branch?"}}
+        """);
+    var inputRequest = AssertIs<CodexMessage.UserActionRequired>(input);
+    AssertEqual(AgentStateKind.WaitingForInput, inputRequest.State);
+    AssertEqual("Which branch?", inputRequest.Message);
+    AssertEqual("\"abc\"", inputRequest.RequestId);   // string ids keep their quotes
+
+    // "reason" wins over "command", and the method name is the last resort.
+    var bare = AssertIs<CodexMessage.UserActionRequired>(
+        ParseCodex("""{"method":"item/tool/requestApproval","id":1,"params":{}}"""));
+    AssertEqual("item/tool/requestApproval", bare.Message);
+
+    // Notifications: no id.
+    var started = AssertIs<CodexMessage.ThreadStarted>(
+        ParseCodex("""{"method":"thread/started","params":{"thread":{"id":"th-7"}}}"""));
+    AssertEqual("th-7", started.ThreadId!);
+
+    // A malformed thread/started is still a thread/started; the adapter simply
+    // has no id to remember.
+    Assert(
+        AssertIs<CodexMessage.ThreadStarted>(ParseCodex("""{"method":"thread/started"}""")).ThreadId is null,
+        "A thread/started without an id must parse with a null id.");
+
+    var turn = AssertIs<CodexMessage.TurnStarted>(
+        ParseCodex("""{"method":"turn/started","params":{"threadId":"th-1","turn":{"id":"tn-2"}}}"""));
+    AssertEqual("tn-2", turn.TurnId!);
+
+    var resolved = AssertIs<CodexMessage.ServerRequestResolved>(
+        ParseCodex("""{"method":"serverRequest/resolved","params":{"requestId":42}}"""));
+    AssertEqual("42", resolved.RequestId);
+
+    // Responses to our own requests: no method, id correlates the reply.
+    var ok = AssertIs<CodexMessage.ResponseReceived>(
+        ParseCodex("""{"id":7,"result":{"thread":{"id":"th-3"}}}"""));
+    AssertEqual(7L, ok.Id);
+    Assert(ok.Error is null, "A result response must not carry an error.");
+    AssertEqual("th-3", ok.Result.GetProperty("thread").GetProperty("id").GetString()!);
+
+    var failed = AssertIs<CodexMessage.ResponseReceived>(
+        ParseCodex("""{"id":8,"error":{"code":-32000,"message":"nope"}}"""));
+    Assert(failed.Error is not null && failed.Error.Contains("nope", StringComparison.Ordinal),
+        "An error response must carry the raw error JSON.");
+
+    // A missing result is an empty object, not a crash: callers index into it.
+    AssertEqual(
+        JsonValueKind.Object,
+        AssertIs<CodexMessage.ResponseReceived>(ParseCodex("""{"id":9}""")).Result.ValueKind);
+
+    // Anything unrecognized is inert rather than an error event.
+    AssertIs<CodexMessage.Ignored>(ParseCodex("""{"method":"item/started","params":{}}"""));
+    AssertIs<CodexMessage.Ignored>(ParseCodex("""{"jsonrpc":"2.0"}"""));
+    return Task.CompletedTask;
+}
+
+// Turn status drives which rumble fires, so the mapping is worth pinning.
+static Task TestCodexTurnStatusAsync()
+{
+    AssertEqual(AgentStateKind.Completed, TurnState("""{"turn":{"status":"completed"}}"""));
+    AssertEqual(AgentStateKind.Error, TurnState("""{"turn":{"status":"failed"}}"""));
+
+    // A deliberate stop reports as AgentInterrupt.State, identically across
+    // every adapter, so the same button never means two different things.
+    AssertEqual(AgentInterrupt.State, TurnState("""{"turn":{"status":"interrupted"}}"""));
+    AssertEqual(AgentInterrupt.State, TurnState("""{"turn":{"status":"INTERRUPTED"}}"""));
+    Assert(AgentInterrupt.State != AgentStateKind.Error, "An interrupt must never read as an error.");
+    AssertEqual(
+        AgentInterrupt.Message,
+        AssertIs<CodexMessage.TurnFinished>(
+            ParseCodex("""{"method":"turn/completed","params":{"turn":{"status":"interrupted"}}}""")).Summary);
+
+    // An absent status is treated as a normal completion.
+    AssertEqual(AgentStateKind.Completed, TurnState("""{"turn":{}}"""));
+
+    // A failure message replaces the generic summary; without one the status
+    // still names itself.
+    var withError = AssertIs<CodexMessage.TurnFinished>(ParseCodex(
+        """{"method":"turn/completed","params":{"turn":{"status":"failed","error":{"message":"sandbox denied"}}}}"""));
+    AssertEqual("sandbox denied", withError.Summary);
+    AssertEqual(
+        "Codex turn completed.",
+        AssertIs<CodexMessage.TurnFinished>(
+            ParseCodex("""{"method":"turn/completed","params":{"turn":{"status":"completed"}}}""")).Summary);
+    return Task.CompletedTask;
+
+    static AgentStateKind TurnState(string turnParams) =>
+        AssertIs<CodexMessage.TurnFinished>(
+            ParseCodex($$"""{"method":"turn/completed","params":{{turnParams}}}""")).State;
+}
+
+static CodexMessage ParseCodex(string json)
+{
+    using var document = JsonDocument.Parse(json);
+    return CodexProtocolParser.Parse(document.RootElement);
+}
+
+static T AssertIs<T>(CodexMessage message)
+    where T : CodexMessage
+{
+    Assert(message is T, $"Expected {typeof(T).Name} but got {message.GetType().Name}.");
+    return (T)message;
+}
+
+// The same button must not mean two different things in the hand. Claude
+// reported an interrupt as Completed while Codex and the mock reported Idle,
+// which routes to no pattern at all — so interrupting produced a confirming
+// buzz on one agent and silence on another.
+static async Task TestInterruptIsUniformAsync()
+{
+    // The shared answer must produce a real cue. Idle deliberately routes to
+    // null, which is exactly the trap this invariant exists to avoid.
+    var router = new FeedbackRouter();
+    var pattern = router.Route(new AgentEvent(
+        "test", "session", AgentInterrupt.State, DateTimeOffset.UtcNow, AgentInterrupt.Message));
+    Assert(pattern is not null, "An interrupt must route to a haptic pattern, not silence.");
+
+    // The mock is the adapter a test can drive end to end; it must publish the
+    // shared state rather than its own idea of one.
+    await using var adapter = new MockAgentAdapter();
+    await adapter.StartAsync().ConfigureAwait(false);
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    var events = adapter.ReadEventsAsync(timeout.Token).GetAsyncEnumerator(timeout.Token);
+
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.SubmitPrompt, Text: "work"), timeout.Token)
+        .ConfigureAwait(false);
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.Interrupt), timeout.Token)
+        .ConfigureAwait(false);
+
+    var sawInterrupt = false;
+    while (await events.MoveNextAsync().ConfigureAwait(false))
+    {
+        if (events.Current.Message == AgentInterrupt.Message)
+        {
+            AssertEqual(AgentInterrupt.State, events.Current.State);
+            sawInterrupt = true;
+            break;
+        }
+    }
+
+    Assert(sawInterrupt, "The mock adapter must publish the shared interrupt event.");
+}
+
+static AgentEvent Event(AgentStateKind state, string message) =>
+    new("test", "session", state, DateTimeOffset.UtcNow, message);
+
+// The rule that matters: streamed prose updates ONE bubble, and anything that
+// is not prose closes it so the next chunk starts a fresh one. Getting this
+// wrong either erases text the user was reading or shatters a reply into a
+// wall of fragments.
+static Task TestTranscriptFoldingAsync()
+{
+    var folder = new TranscriptFolder();
+
+    AssertIsAction<TranscriptAction.StartBubble>(folder.Fold(Event(AgentStateKind.Working, "Let me")));
+    var update = AssertIsAction<TranscriptAction.UpdateBubble>(
+        folder.Fold(Event(AgentStateKind.Working, "Let me check")));
+    AssertEqual("Let me check", update.Text);
+    Assert(folder.IsStreaming, "Prose must leave the bubble open.");
+
+    // A tool call is activity: it closes the bubble...
+    var tool = AssertIsAction<TranscriptAction.AddActivity>(
+        folder.Fold(Event(AgentStateKind.Working, "Bash: dotnet test")));
+    AssertEqual("Bash: dotnet test", tool.Text);
+    Assert(!folder.IsStreaming, "Activity must close the open bubble.");
+
+    // ...so the prose after it starts a new one rather than overwriting.
+    AssertIsAction<TranscriptAction.StartBubble>(folder.Fold(Event(AgentStateKind.Working, "Tests pass")));
+
+    // An approval does NOT close the bubble: it interrupts a sentence the
+    // agent will finish once answered.
+    var locked = AssertIsAction<TranscriptAction.AddActivity>(
+        folder.Fold(Event(AgentStateKind.ApprovalRequired, "wants: Write: a.cs")));
+    Assert(locked.Text.StartsWith("🔒", StringComparison.Ordinal), "Approvals are marked.");
+    Assert(folder.IsStreaming, "An approval must not close the bubble.");
+    AssertIsAction<TranscriptAction.UpdateBubble>(folder.Fold(Event(AgentStateKind.Working, "Tests pass, done")));
+
+    // Results close it and are marked by outcome.
+    Assert(
+        AssertIsAction<TranscriptAction.AddActivity>(
+            folder.Fold(Event(AgentStateKind.Completed, "done"))).Text.StartsWith("✓", StringComparison.Ordinal),
+        "Completion is ticked.");
+    Assert(
+        AssertIsAction<TranscriptAction.AddActivity>(
+            folder.Fold(Event(AgentStateKind.Error, "boom"))).Text.StartsWith("✕", StringComparison.Ordinal),
+        "Errors are crossed.");
+
+    // Empty messages contribute nothing and must not open a bubble.
+    AssertIsAction<TranscriptAction.None>(folder.Fold(Event(AgentStateKind.Working, "   ")));
+
+    // Reset is what a workspace swap uses; the next prose must start fresh.
+    folder.Fold(Event(AgentStateKind.Working, "streaming"));
+    folder.Reset();
+    Assert(!folder.IsStreaming, "Reset must close the bubble.");
+    AssertIsAction<TranscriptAction.StartBubble>(folder.Fold(Event(AgentStateKind.Working, "new session")));
+    return Task.CompletedTask;
+}
+
+// Order is the rule: "Approval declined" contains both an approval word and an
+// error word, and it has to read as an error.
+static Task TestLogClassificationAsync()
+{
+    AssertEqual(LogSeverity.Error, LogClassifier.Classify("Approval declined by the user"));
+    AssertEqual(LogSeverity.Error, LogClassifier.Classify("Agent session failed to start"));
+    AssertEqual(LogSeverity.Approval, LogClassifier.Classify("Approval required: Write"));
+    AssertEqual(LogSeverity.Success, LogClassifier.Classify("Controller connected"));
+    AssertEqual(LogSeverity.Agent, LogClassifier.Classify("Turn started"));
+    AssertEqual(LogSeverity.Normal, LogClassifier.Classify("Rumble preview"));
+
+    Assert(LogClassifier.IsControllerEvent("[controller] A pressed"), "Controller lines are taggable.");
+    Assert(!LogClassifier.IsControllerEvent("[agent] working"), "Agent lines are not controller input.");
+    return Task.CompletedTask;
+}
+
+// Highlighting only the A of "RB+A" points the user at the one button that
+// will not work on its own.
+static Task TestApprovalControlsAsync()
+{
+    var controls = ApprovalControls.From(ControllerProfile.Default);
+    Assert(controls.Count > 0, "The default profile must expose approval controls.");
+
+    foreach (var binding in ControllerProfile.Default.Bindings.Where(b => b.RequiresPendingApproval))
+    {
+        Assert(controls.Contains(binding.Control), $"{binding.Control} must be highlighted.");
+        if (binding.Modifiers is { Count: > 0 } modifiers)
+        {
+            foreach (var modifier in modifiers)
+            {
+                Assert(controls.Contains(modifier), $"Modifier {modifier} must be highlighted too.");
+            }
+        }
+    }
+
+    // Bindings that are not approval-gated must not light up.
+    var plain = new ControllerProfile(
+        "plain", [new(ControllerControl.A, InputGesture.Press, AgentCommandKind.SubmitPrompt)]);
+    AssertEqual(0, ApprovalControls.From(plain).Count);
+    return Task.CompletedTask;
+}
+
+static T AssertIsAction<T>(TranscriptAction action)
+    where T : TranscriptAction
+{
+    Assert(action is T, $"Expected {typeof(T).Name} but got {action.GetType().Name}.");
+    return (T)action;
 }
 
 static Task TestValidationReportGatesAsync()

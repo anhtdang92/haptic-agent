@@ -3,14 +3,68 @@
              xmlns:gui="using:CtrlAgent.Gui"
              x:Class="CtrlAgent.Gui.BotView"
              x:DataType="gui:AgentBuddyViewModel"
-             ToolTip.Tip="{Binding StatsSummary}">
+             ToolTip.Tip="{Binding Message}">
 
-  <!-- CTRL·BOT, the tamagotchi companion. One shared drawing used by the
-       main window and Big Picture; consumers wrap it in a Viewbox to scale.
+  <!-- CTRL·BOT, the resident companion. One shared drawing used by the
+       main window and Mainframe; consumers wrap it in a Viewbox to scale.
        Click/tap pokes the bot. Whole-body mood animations live here:
        idle breathes, happy hops and waves, alert bounces urgently,
        error trembles. -->
   <UserControl.Styles>
+    <!-- ==== Projection layer ====
+         The bot reads as something being projected rather than drawn: a lit
+         pad under it, a cone of light, an orbit ring, and motes drifting up.
+         All of it lives OUTSIDE the rig canvas so it stays planted while the
+         bot hops — a base that bounces with its own hologram looks wrong. -->
+    <Style Selector="Ellipse.holoPad">
+      <Style.Animations>
+        <Animation Duration="0:0:3.2" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.5" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.9" />
+          </KeyFrame>
+          <KeyFrame Cue="50%">
+            <Setter Property="Opacity" Value="0.95" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.08" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0.5" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.9" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.mote">
+      <Style.Animations>
+        <Animation Duration="0:0:4.2" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+          <KeyFrame Cue="25%"><Setter Property="Opacity" Value="0.9" /></KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="-58" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.mote.late">
+      <Style.Animations>
+        <Animation Duration="0:0:5.6" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+          <KeyFrame Cue="40%"><Setter Property="Opacity" Value="0.75" /></KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="-70" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
     <!-- Gentle idle breathing whenever nothing dramatic is happening: it
          rises as it "inhales" and widens a touch as it settles. -->
     <Style Selector="Canvas.botRig:not(.moodHappy):not(.moodAlert):not(.moodError)">
@@ -202,6 +256,81 @@
   </UserControl.Styles>
 
   <StackPanel Spacing="4" HorizontalAlignment="Center">
+   <Panel Width="92" Height="122">
+
+    <!-- Projection layer: planted, never inherits the rig's hop. -->
+    <Canvas Width="92" Height="122" IsHitTestVisible="False" ClipToBounds="True">
+      <!-- Aura behind the whole figure -->
+      <Ellipse Canvas.Left="2" Canvas.Top="8" Width="88" Height="104" Opacity="0.75">
+        <Ellipse.Fill>
+          <RadialGradientBrush Center="50%,45%" GradientOrigin="50%,45%">
+            <GradientStop Color="#3300D4FF" Offset="0" />
+            <GradientStop Color="#0F00A6D6" Offset="0.6" />
+            <GradientStop Color="#0000D4FF" Offset="1" />
+          </RadialGradientBrush>
+        </Ellipse.Fill>
+      </Ellipse>
+
+      <!-- Cone of light rising off the pad -->
+      <Path Data="M 30,112 L 62,112 L 74,44 L 18,44 Z" Opacity="0.16">
+        <Path.Fill>
+          <LinearGradientBrush StartPoint="0%,100%" EndPoint="0%,0%">
+            <GradientStop Color="#8C7DD3FC" Offset="0" />
+            <GradientStop Color="#0000D4FF" Offset="1" />
+          </LinearGradientBrush>
+        </Path.Fill>
+      </Path>
+
+      <!-- Orbit ring: fixed, like a projection ring. The travelling dot is a
+           child of a canvas that rotates on a circle and is then flattened,
+           so the dot actually follows the ellipse instead of a circle. -->
+      <Ellipse Canvas.Left="6" Canvas.Top="86" Width="80" Height="26"
+               Stroke="#4400D4FF" StrokeThickness="1.4" />
+      <Canvas Canvas.Left="46" Canvas.Top="99">
+        <Canvas.RenderTransform>
+          <TransformGroup>
+            <RotateTransform Angle="0" />
+            <ScaleTransform ScaleX="1" ScaleY="0.325" />
+          </TransformGroup>
+        </Canvas.RenderTransform>
+        <Canvas.Styles>
+          <Style Selector="Canvas">
+            <Style.Animations>
+              <Animation Duration="0:0:9" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+              </Animation>
+            </Style.Animations>
+          </Style>
+        </Canvas.Styles>
+        <Ellipse Canvas.Left="-2.5" Canvas.Top="-42.5" Width="5" Height="5" Fill="#8FD6FF" />
+      </Canvas>
+
+      <!-- Projection pad -->
+      <Ellipse Classes="holoPad" Canvas.Left="18" Canvas.Top="106" Width="56" Height="14"
+               RenderTransformOrigin="50%,50%">
+        <Ellipse.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1" /></Ellipse.RenderTransform>
+        <Ellipse.Fill>
+          <RadialGradientBrush>
+            <GradientStop Color="#B37DD3FC" Offset="0" />
+            <GradientStop Color="#3300D4FF" Offset="0.6" />
+            <GradientStop Color="#0000D4FF" Offset="1" />
+          </RadialGradientBrush>
+        </Ellipse.Fill>
+      </Ellipse>
+
+      <!-- Motes drifting up out of the pad -->
+      <Ellipse Classes="mote" Canvas.Left="26" Canvas.Top="104" Width="2.5" Height="2.5" Fill="#8FD6FF">
+        <Ellipse.RenderTransform><TranslateTransform Y="0" /></Ellipse.RenderTransform>
+      </Ellipse>
+      <Ellipse Classes="mote late" Canvas.Left="64" Canvas.Top="102" Width="2" Height="2" Fill="#7DD3FC">
+        <Ellipse.RenderTransform><TranslateTransform Y="0" /></Ellipse.RenderTransform>
+      </Ellipse>
+      <Ellipse Classes="mote late" Canvas.Left="44" Canvas.Top="108" Width="2.5" Height="2.5" Fill="#34F5A4">
+        <Ellipse.RenderTransform><TranslateTransform Y="0" /></Ellipse.RenderTransform>
+      </Ellipse>
+    </Canvas>
+
     <!-- Squash-and-stretch pivots at the feet, so scaling reads as weight
          on the ground rather than a floating resize. -->
     <Canvas Width="92" Height="122" Background="Transparent"
@@ -226,46 +355,126 @@
         </Ellipse.RenderTransform>
       </Ellipse>
 
-      <!-- Antenna: stem + halo + mood-colored tip -->
-      <Border Canvas.Left="44" Canvas.Top="10" Width="4" Height="13" CornerRadius="2" Background="#2E4A78" />
-      <Ellipse Canvas.Left="37" Canvas.Top="-3" Width="18" Height="18" Fill="{Binding AccentBrush}" Opacity="0.22" />
+      <!-- Antenna: stem + halo + mood-colored tip. The halo breathes so the
+           bot always looks powered on, even when it is doing nothing. -->
+      <Canvas.Styles>
+        <Style Selector="Ellipse.antennaHalo">
+          <Style.Animations>
+            <Animation Duration="0:0:2.6" IterationCount="Infinite" Easing="SineEaseInOut">
+              <KeyFrame Cue="0%">
+                <Setter Property="Opacity" Value="0.16" />
+                <Setter Property="ScaleTransform.ScaleX" Value="0.85" />
+                <Setter Property="ScaleTransform.ScaleY" Value="0.85" />
+              </KeyFrame>
+              <KeyFrame Cue="50%">
+                <Setter Property="Opacity" Value="0.42" />
+                <Setter Property="ScaleTransform.ScaleX" Value="1.15" />
+                <Setter Property="ScaleTransform.ScaleY" Value="1.15" />
+              </KeyFrame>
+              <KeyFrame Cue="100%">
+                <Setter Property="Opacity" Value="0.16" />
+                <Setter Property="ScaleTransform.ScaleX" Value="0.85" />
+                <Setter Property="ScaleTransform.ScaleY" Value="0.85" />
+              </KeyFrame>
+            </Animation>
+          </Style.Animations>
+        </Style>
+      </Canvas.Styles>
+      <Border Canvas.Left="44" Canvas.Top="10" Width="4" Height="13" CornerRadius="2">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#4A6FA5" Offset="0" />
+            <GradientStop Color="#22375C" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+      <Ellipse Classes="antennaHalo" Canvas.Left="37" Canvas.Top="-3" Width="18" Height="18"
+               Fill="{Binding AccentBrush}" RenderTransformOrigin="50%,50%">
+        <Ellipse.RenderTransform>
+          <ScaleTransform ScaleX="1" ScaleY="1" />
+        </Ellipse.RenderTransform>
+      </Ellipse>
       <Ellipse Canvas.Left="41" Canvas.Top="1" Width="10" Height="10" Fill="{Binding AccentBrush}" />
+      <!-- Specular pip: turns the flat tip into a little glass bead -->
+      <Ellipse Canvas.Left="42.8" Canvas.Top="2.6" Width="2.6" Height="2.6" Fill="#B3FFFFFF" IsHitTestVisible="False" />
 
       <!-- Side ears -->
       <Border Canvas.Left="4" Canvas.Top="41" Width="7" Height="20" CornerRadius="3,0,0,3"
-              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
+              BorderBrush="#2E4A78" BorderThickness="1">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#2A4166" Offset="0" />
+            <GradientStop Color="#0E1728" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
       <Border Canvas.Left="81" Canvas.Top="41" Width="7" Height="20" CornerRadius="0,3,3,0"
-              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
+              BorderBrush="#2E4A78" BorderThickness="1">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#2A4166" Offset="0" />
+            <GradientStop Color="#0E1728" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
 
       <!-- Stubby arms (waved via RotateTransform when happy) -->
       <Border Classes="armL" Canvas.Left="2" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
-              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1.5"
+              BorderBrush="#2E4A78" BorderThickness="1.5"
               RenderTransformOrigin="50%,10%">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#2A4166" Offset="0" />
+            <GradientStop Color="#101A2C" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
         <Border.RenderTransform>
           <RotateTransform Angle="16" />
         </Border.RenderTransform>
       </Border>
       <Border Classes="armR" Canvas.Left="81" Canvas.Top="66" Width="9" Height="19" CornerRadius="4.5"
-              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1.5"
+              BorderBrush="#2E4A78" BorderThickness="1.5"
               RenderTransformOrigin="50%,10%">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#2A4166" Offset="0" />
+            <GradientStop Color="#101A2C" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
         <Border.RenderTransform>
           <RotateTransform Angle="-16" />
         </Border.RenderTransform>
       </Border>
 
-      <!-- Head: gradient shell with a soft mood aura -->
+      <!-- Head: a moulded shell, lit from up-left. A radial fill curves the
+           surface where a vertical gradient only ever made it look papery. -->
       <Border Canvas.Left="10" Canvas.Top="22" Width="72" Height="60"
               CornerRadius="20"
               BorderBrush="{Binding AccentBrush}"
               BorderThickness="2"
               BoxShadow="0 4 18 0 #3300D4FF">
         <Border.Background>
+          <RadialGradientBrush Center="32%,22%" GradientOrigin="32%,22%" RadiusX="95%" RadiusY="95%">
+            <GradientStop Color="#263A5F" Offset="0" />
+            <GradientStop Color="#16243D" Offset="0.55" />
+            <GradientStop Color="#080F1C" Offset="1" />
+          </RadialGradientBrush>
+        </Border.Background>
+      </Border>
+      <!-- Toy gloss: the fat highlight across the top of moulded plastic.
+           This one shape is most of what makes it read as an object you
+           could pick up. -->
+      <Border Canvas.Left="16" Canvas.Top="26" Width="60" Height="24"
+              CornerRadius="16,16,20,20" IsHitTestVisible="False" Opacity="0.5">
+        <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Color="#1A2A47" Offset="0" />
-            <GradientStop Color="#0B1322" Offset="1" />
+            <GradientStop Color="#4DFFFFFF" Offset="0" />
+            <GradientStop Color="#14FFFFFF" Offset="0.55" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
           </LinearGradientBrush>
         </Border.Background>
       </Border>
+
       <!-- Face screen with bezel -->
       <Border Canvas.Left="18" Canvas.Top="31" Width="56" Height="39"
               CornerRadius="10"
@@ -363,37 +572,92 @@
       <Path Canvas.Left="40" Canvas.Top="61" Data="M 0,0 Q 6,5 12,0"
             Stroke="{Binding AccentBrush}" StrokeThickness="2" Opacity="0.75" />
 
-      <!-- Neck + chassis with a mood LED strip -->
+      <!-- Screen glass: one diagonal sheen laid over the whole face, eyes
+           included, so the face reads as something behind glass rather than
+           printed on. Sits above everything in the head; never hit-tests. -->
+      <Border Canvas.Left="18" Canvas.Top="31" Width="56" Height="39"
+              CornerRadius="10" IsHitTestVisible="False" Opacity="0.11">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="85%,100%">
+            <GradientStop Color="#FFFFFF" Offset="0" />
+            <GradientStop Color="#66FFFFFF" Offset="0.26" />
+            <GradientStop Color="#00FFFFFF" Offset="0.52" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+
+      <!-- Neck -->
       <Border Canvas.Left="40" Canvas.Top="82" Width="12" Height="6" CornerRadius="2" Background="#16233C" />
-      <Border Canvas.Left="25" Canvas.Top="88" Width="42" Height="13" CornerRadius="7"
-              Background="#0B1322" BorderBrush="#2E4A78" BorderThickness="1.5" />
-      <Border Canvas.Left="35" Canvas.Top="93" Width="22" Height="3" CornerRadius="1.5"
-              Background="{Binding AccentBrush}" Opacity="0.8" />
 
-      <!-- Feet -->
-      <Border Canvas.Left="30" Canvas.Top="101" Width="13" Height="10" CornerRadius="5"
-              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
-      <Border Canvas.Left="49" Canvas.Top="101" Width="13" Height="10" CornerRadius="5"
-              Background="#16233C" BorderBrush="#2E4A78" BorderThickness="1" />
+      <!-- Chassis: a rounded body with a reactor core that beats. The core
+           pulses on the mood colour, so a glance at the torso tells you the
+           same thing the eyes do. -->
+      <Canvas.Styles>
+        <Style Selector="Ellipse.core">
+          <Style.Animations>
+            <Animation Duration="0:0:1.8" IterationCount="Infinite" Easing="SineEaseInOut">
+              <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0.55" /></KeyFrame>
+              <KeyFrame Cue="50%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+              <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.55" /></KeyFrame>
+            </Animation>
+          </Style.Animations>
+        </Style>
+      </Canvas.Styles>
+      <Border Canvas.Left="24" Canvas.Top="87" Width="44" Height="15" CornerRadius="8"
+              BorderBrush="#2E4A78" BorderThickness="1.5">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#1B2C49" Offset="0" />
+            <GradientStop Color="#080F1C" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+      <!-- Vents either side of the core -->
+      <Border Canvas.Left="29" Canvas.Top="92" Width="8" Height="2" CornerRadius="1" Background="#22375C" />
+      <Border Canvas.Left="29" Canvas.Top="96" Width="8" Height="2" CornerRadius="1" Background="#22375C" />
+      <Border Canvas.Left="55" Canvas.Top="92" Width="8" Height="2" CornerRadius="1" Background="#22375C" />
+      <Border Canvas.Left="55" Canvas.Top="96" Width="8" Height="2" CornerRadius="1" Background="#22375C" />
+      <!-- Reactor core -->
+      <Ellipse Classes="core" Canvas.Left="40" Canvas.Top="89" Width="12" Height="12"
+               Fill="{Binding AccentBrush}" Opacity="0.28" />
+      <Ellipse Canvas.Left="43" Canvas.Top="92" Width="6" Height="6" Fill="{Binding AccentBrush}" />
+      <Ellipse Canvas.Left="44" Canvas.Top="93" Width="2.5" Height="2.5" Fill="#CCFFFFFF" IsHitTestVisible="False" />
+      <!-- Chassis top highlight -->
+      <Border Canvas.Left="28" Canvas.Top="88.5" Width="36" Height="4" CornerRadius="2"
+              IsHitTestVisible="False" Opacity="0.4">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#59FFFFFF" Offset="0" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+
+      <!-- Feet: rounded pads with a top catch-light -->
+      <Border Canvas.Left="30" Canvas.Top="102" Width="13" Height="10" CornerRadius="5"
+              BorderBrush="#2E4A78" BorderThickness="1">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#22375C" Offset="0" />
+            <GradientStop Color="#0B1322" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+      <Border Canvas.Left="49" Canvas.Top="102" Width="13" Height="10" CornerRadius="5"
+              BorderBrush="#2E4A78" BorderThickness="1">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#22375C" Offset="0" />
+            <GradientStop Color="#0B1322" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
     </Canvas>
+   </Panel>
 
-    <!-- Name, level, and XP toward the next level -->
-    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-      <TextBlock Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5" VerticalAlignment="Center" />
-      <Border Background="#141F36" BorderBrush="#552E4A78" BorderThickness="1" CornerRadius="4" Padding="4,0">
-        <TextBlock Text="{Binding LevelText}" FontSize="8" FontWeight="Bold" Foreground="#7DD3FC" />
-      </Border>
-      <Border Width="58" Height="5" CornerRadius="2.5" Background="#141F36"
-              BorderBrush="#552E4A78" BorderThickness="1" VerticalAlignment="Center">
-        <Border Width="{Binding XpBarWidth}" Height="3" CornerRadius="1.5" HorizontalAlignment="Left">
-          <Border.Background>
-            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-              <GradientStop Color="#00D4FF" Offset="0" />
-              <GradientStop Color="#34F5A4" Offset="1" />
-            </LinearGradientBrush>
-          </Border.Background>
-        </Border>
-      </Border>
-    </StackPanel>
+    <!-- Nameplate. No level badge or XP bar: the bot keeps no score. -->
+    <TextBlock Text="CTRL·BOT" FontSize="8" LetterSpacing="1.5" Foreground="#4A6FA5"
+               HorizontalAlignment="Center" />
   </StackPanel>
 </UserControl>

@@ -9,6 +9,7 @@ public sealed class XInputControllerDevice : IControllerDevice
     [
         (XInputButtons.Menu, ControllerControl.Menu),
         (XInputButtons.View, ControllerControl.View),
+        (XInputButtons.Guide, ControllerControl.Guide),
         (XInputButtons.A, ControllerControl.A),
         (XInputButtons.B, ControllerControl.B),
         (XInputButtons.X, ControllerControl.X),
@@ -39,7 +40,7 @@ public sealed class XInputControllerDevice : IControllerDevice
         }
 
         _userIndex = userIndex;
-        _isConnected = XInputNative.GetState(_userIndex, out _) == XInputNative.ErrorSuccess;
+        _isConnected = XInputNative.GetStateWithGuide(_userIndex, out _) == XInputNative.ErrorSuccess;
     }
 
     public string Id => $"xinput:{_userIndex}";
@@ -65,7 +66,7 @@ public sealed class XInputControllerDevice : IControllerDevice
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var result = XInputNative.GetState(_userIndex, out var current);
+            var result = XInputNative.GetStateWithGuide(_userIndex, out var current);
             var now = DateTimeOffset.UtcNow;
 
             if (result != XInputNative.ErrorSuccess)

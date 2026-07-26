@@ -8,6 +8,18 @@ public sealed record ControllerSnapshot(string Id, string DisplayName, Controlle
 public sealed record HostEngineOptions(string DefaultPrompt, bool LogAnalogChanges = false);
 
 /// <summary>
+/// The per-session knobs the engine tracks so UIs can label them: the model
+/// and effort cycles, and the permission mode. Null means "whatever the agent
+/// started with" — the engine has not been asked to change it.
+/// <para>
+/// These live on the engine rather than in each UI because a binding, a
+/// button, and a voice command all reach the same session: a UI keeping its
+/// own cycle position starts lying the moment any other route moves it.
+/// </para>
+/// </summary>
+public sealed record SessionSettings(string? Model, string? Effort, string? PermissionMode);
+
+/// <summary>
 /// The shared host: runs the controller-session loop and the agent-event loop
 /// on top of any <see cref="IControllerProvider"/> and <see cref="IAgentAdapter"/>.
 /// Both the console host and the GUI build on this engine, so behavior changes
@@ -131,6 +143,34 @@ public sealed class HostEngine : IAsyncDisposable
     /// e.g. Claude Code's "default"/"plan"/"acceptEdits").</summary>
     public Task SetPermissionModeAsync(string mode) =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetPermissionMode, Text: mode));
+
+    /// <summary>Compacts the conversation, freeing context.</summary>
+    public Task CompactContextAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.CompactContext));
+
+    /// <summary>Switches the model (alias or full id).</summary>
+    public Task SetModelAsync(string model) =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetModel, Text: model));
+
+    /// <summary>Switches reasoning effort.</summary>
+    public Task SetEffortAsync(string effort) =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.SetEffort, Text: effort));
+
+    /// <summary>Steps to the next model in the cycle.</summary>
+    public Task CycleModelAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.CycleModel));
+
+    /// <summary>Steps to the next reasoning-effort level.</summary>
+    public Task CycleEffortAsync() =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.CycleEffort));
+
+    /// <summary>The model, effort, and permission mode last requested through
+    /// this engine, so UIs can label the current position of each cycle.</summary>
+    public SessionSettings Settings { get; private set; } = new(null, null, null);
+
+    /// <summary>Raised whenever <see cref="Settings"/> changes, from any
+    /// route — controller binding, GUI button, or console command.</summary>
+    public event Action<SessionSettings>? SessionSettingsChanged;
 
     public Task NextSessionAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.NextSession));
@@ -401,6 +441,55 @@ public sealed class HostEngine : IAsyncDisposable
         agentEvent.State is AgentStateKind.Completed or AgentStateKind.Error ||
         (agentEvent.State == AgentStateKind.Working && agentEvent.RequestId is not null);
 
+    /// <summary>
+    /// Turns a cycle command into the concrete set-command it means. Cycle
+    /// position lives here, once, rather than in every adapter — and an
+    /// adapter that never heard of cycling still handles the result.
+    /// </summary>
+    private AgentCommand ResolveCycle(AgentCommand command)
+    {
+        switch (command.Kind)
+        {
+            case AgentCommandKind.CycleModel:
+            {
+                var next = AgentModes.Next(AgentModes.ModelCycle, Settings.Model);
+                PublishSettings(Settings with { Model = next });
+                return command with { Kind = AgentCommandKind.SetModel, Text = next };
+            }
+
+            case AgentCommandKind.CycleEffort:
+            {
+                var next = AgentModes.Next(AgentModes.EffortCycle, Settings.Effort);
+                PublishSettings(Settings with { Effort = next });
+                return command with { Kind = AgentCommandKind.SetEffort, Text = next };
+            }
+
+            case AgentCommandKind.SetModel when command.Text is { Length: > 0 }:
+                PublishSettings(Settings with { Model = command.Text });
+                return command;
+
+            case AgentCommandKind.SetEffort when command.Text is { Length: > 0 }:
+                PublishSettings(Settings with { Effort = command.Text });
+                return command;
+
+            // Tracked for the same reason the cycles are: a mode set from a
+            // controller binding has to move the label a GUI shows, or the
+            // two disagree about what the session is doing.
+            case AgentCommandKind.SetPermissionMode when command.Text is { Length: > 0 }:
+                PublishSettings(Settings with { PermissionMode = command.Text });
+                return command;
+
+            default:
+                return command;
+        }
+    }
+
+    private void PublishSettings(SessionSettings settings)
+    {
+        Settings = settings;
+        SessionSettingsChanged?.Invoke(settings);
+    }
+
     private async Task ExecuteSafelyAsync(AgentCommand command)
     {
         // Prompts submitted while the agent is mid-turn wait their turn
@@ -474,6 +563,8 @@ public sealed class HostEngine : IAsyncDisposable
 
     private async Task DispatchAsync(AgentCommand command)
     {
+        command = ResolveCycle(command);
+
         try
         {
             await _adapter.ExecuteAsync(command, _shutdown.Token).ConfigureAwait(false);

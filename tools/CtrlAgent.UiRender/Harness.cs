@@ -1,11 +1,16 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Avalonia;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media.Imaging;
+using Avalonia.Input;
+using Avalonia.Media;
+using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
@@ -50,7 +55,7 @@ public partial class App : Application
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     // The window code-behind calls these; the harness renders windows directly.
-    public void ShowBigPicture() { }
+    public void ShowMainframe() { }
 
     public void ToggleOverlay() { }
 }
@@ -102,7 +107,7 @@ internal static class Harness
     private static string OutDir =>
         Environment.GetEnvironmentVariable("UIRENDER_OUT") ?? "shots";
 
-    public static void Main()
+    public static int Main()
     {
         Directory.CreateDirectory(OutDir);
 
@@ -131,6 +136,7 @@ internal static class Harness
         viewModel.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         viewModel.AgentStatus = "claude";
         viewModel.AgentState = "Working";
+        viewModel.IsAgentActive = true;
         viewModel.SessionId = "sess-8f21c0a4";
         viewModel.PromptText = "Refactor the mapping engine tests";
         viewModel.AppendLog("Agent adapter 'claude' started.");
@@ -139,7 +145,17 @@ internal static class Harness
         viewModel.AppendLog("[agent] Error: build failed in CtrlAgent.Core");
         viewModel.AppendLog("[agent] Completed: All tests pass (12.4s · 3 turns · $0.09)");
 
+        RenderButtonGallery();
+        CheckPressDarkens();
+
         Render(new MainWindow { DataContext = viewModel }, "01-main-window.png");
+
+        // The window at its declared MinWidth. Worth its own shot: the status
+        // card once packed the facts and the session knobs into one row, which
+        // fit the developer's window and drew the knobs straight over WORKSPACE
+        // and PROFILE at the default size — a class of bug that is invisible
+        // until something renders narrow.
+        Render(new MainWindow { DataContext = viewModel }, "16-main-narrow.png", 740, 660);
 
         // Approval state: banner + highlighted controls.
         var approving = new MainViewModel(engine, options);
@@ -152,20 +168,38 @@ internal static class Harness
         approving.AppendLog("[agent] ApprovalRequired: Claude Code wants: Write: src/Mapping.cs");
         Render(new MainWindow { DataContext = approving }, "02-main-approval.png");
 
-        var big = new BigPictureViewModel(viewModel);
-        Render(new BigPictureWindow { DataContext = big }, "03-big-picture.png", 1600, 900,
+        // The boot sequence, sampled across its timeline. The animation clock
+        // DOES advance here — Pump sleeps in real time between render ticks —
+        // so these are genuine frames of the running animation, not mock-ups.
+        // Without them the intro is the one part of the app nobody can review:
+        // it plays for three seconds on a machine none of us is sitting at.
+        foreach (var (at, name) in new[]
+                 {
+                     (250, "20-boot-strike.png"),
+                     (700, "21-boot-field.png"),
+                     (1250, "22-boot-badge.png"),
+                     (1900, "23-boot-online.png"),
+                     (3400, "24-boot-settled.png"),
+                 })
+        {
+            RenderAt(new MainframeWindow { DataContext = new MainframeViewModel(viewModel) },
+                name, 1600, 900, at);
+        }
+
+        var big = new MainframeViewModel(viewModel);
+        Render(new MainframeWindow { DataContext = big }, "03-mainframe.png", 1600, 900,
             afterShow: w =>
             {
-                // The boot intro is opaque until its animation finishes; the
-                // harness clock does not advance, so retire it manually.
+                // Retired immediately so this shot shows the settled UI rather
+                // than whatever frame of the intro the pump happens to land on.
                 if (w.FindControl<Border>("IntroOverlay") is { } intro)
                 {
                     intro.IsVisible = false;
                 }
             });
 
-        var bigApproval = new BigPictureViewModel(approving);
-        Render(new BigPictureWindow { DataContext = bigApproval }, "04-big-picture-approval.png", 1600, 900,
+        var bigApproval = new MainframeViewModel(approving);
+        Render(new MainframeWindow { DataContext = bigApproval }, "04-mainframe-approval.png", 1600, 900,
             afterShow: w =>
             {
                 if (w.FindControl<Border>("IntroOverlay") is { } intro)
@@ -181,7 +215,7 @@ internal static class Harness
         chat.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         chat.AgentStatus = "claude";
         engine.StartAsync().GetAwaiter().GetResult();
-        chat.SubmitPromptText("Add a session picker to Big Picture mode");
+        chat.SubmitPromptText("Add a session picker to Mainframe mode");
         Pump(3000);
         chat.SubmitPromptText("Now write tests for it");
         Pump(3000);
@@ -202,7 +236,7 @@ internal static class Harness
         Render(new MainWindow { DataContext = failed }, "13-startup-error.png");
 
         // Profile editor.
-        Render(new ProfileEditorWindow(engine), "08-profile-editor.png", 900, 620);
+        Render(new ProfileEditorWindow(engine), "08-profile-editor.png", 940, 660);
 
         // Overlay HUD, with an approval pending. Built fresh: the shared
         // engine's completed turns clear the approval on older view models.
@@ -211,7 +245,7 @@ internal static class Harness
         hud.AgentState = "ApprovalRequired";
         hud.HasPendingApproval = true;
         hud.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
-        Render(new OverlayWindow { DataContext = hud }, "09-overlay.png", 380, 200);
+        Render(new OverlayWindow { DataContext = hud }, "09-overlay.png", 380, 150);
 
         // Notification toast.
         var toast = new ToastWindow();
@@ -222,39 +256,60 @@ internal static class Harness
             showApprovalButtons: true);
         Render(toast, "10-toast.png", 340, 150);
 
-        // Big Picture: the fullscreen shortcuts screen.
-        var shortcuts = new BigPictureViewModel(chat);
-        Render(new BigPictureWindow { DataContext = shortcuts }, "11-shortcuts.png", 1600, 900,
+        // Mainframe: the fullscreen shortcuts screen.
+        var shortcuts = new MainframeViewModel(chat);
+        Render(new MainframeWindow { DataContext = shortcuts }, "11-shortcuts.png", 1600, 900,
             afterShow: HideIntro,
             afterSettle: _ => shortcuts.OnKey("F1"));
 
-        // Big Picture: the voice overlay, mid-review of a transcript.
+        // Mainframe: the voice overlay, mid-review of a transcript.
         SpeechToTextService.ScriptedResult = "Refactor the mapping engine and run the tests";
-        var voice = new BigPictureViewModel(chat);
-        Render(new BigPictureWindow { DataContext = voice }, "12-voice.png", 1600, 900,
+        var voice = new MainframeViewModel(chat);
+        Render(new MainframeWindow { DataContext = voice }, "12-voice.png", 1600, 900,
             afterShow: HideIntro,
             afterSettle: _ => voice.OnKey("F2"));
         SpeechToTextService.ScriptedResult = null;
 
-        // Verify the rail scrolls: walk focus to the far end with the d-pad.
-        var bigScrolled = new BigPictureViewModel(approving);
-        Render(new BigPictureWindow { DataContext = bigScrolled }, "05-rail-scrolled.png", 1600, 900,
-            afterShow: w =>
-            {
-                if (w.FindControl<Border>("IntroOverlay") is { } intro)
-                {
-                    intro.IsVisible = false;
-                }
-            },
+        // Settled: Interrupt drops out of the HUD once there is nothing to
+        // interrupt. 03 covers the mid-turn set, 04 the approval set.
+        var settled = new MainViewModel(null, options) { AgentStatus = "claude" };
+        settled.AttachEngine(engine);
+        settled.AgentState = "Completed";
+        settled.IsAgentActive = false;
+        var idle = new MainframeViewModel(settled);
+        Render(new MainframeWindow { DataContext = idle }, "14-mainframe-idle.png", 1600, 900,
+            afterShow: HideIntro);
+
+        // The settings panel — the only place focus navigation exists now.
+        var settings = new MainframeViewModel(viewModel);
+        Render(new MainframeWindow { DataContext = settings }, "05-mainframe-settings.png", 1600, 900,
+            afterShow: HideIntro,
             afterSettle: _ =>
             {
-                for (var i = 0; i < 12; i++)
-                {
-                    bigScrolled.OnKey("Right");
-                }
+                settings.ToggleSettings();
+                settings.OnKey("Right");
             });
 
-        Console.WriteLine("done");
+        // The workspace picker, with a couple of remembered directories.
+        Render(
+            new WorkspaceWindow(
+                "/home/user/haptic-agent",
+                ["/home/user/other-project", "/home/user/scratch/spike"]),
+            "15-workspace.png", 620, 440);
+
+        if (Faults.Count > 0)
+        {
+            Console.Error.WriteLine($"\n{Faults.Count} layout fault(s):");
+            foreach (var fault in Faults)
+            {
+                Console.Error.WriteLine($"  {fault}");
+            }
+
+            return 1;
+        }
+
+        Console.WriteLine("done — no layout faults");
+        return 0;
     }
 
     /// <summary>The boot intro is opaque until its animation finishes; the
@@ -272,13 +327,30 @@ internal static class Harness
     /// driving the headless render timer, so bindings settle, animations
     /// advance, and a fresh frame is actually produced.
     /// </summary>
+    /// <summary>
+    /// Drives layout, bindings and the render timer for a span of <em>wall
+    /// clock</em> time. Avalonia's headless animation clock follows real time,
+    /// so this genuinely advances animations — the harness once claimed it did
+    /// not, and every intro shot was taken on that false assumption.
+    /// <para>
+    /// Timed against a Stopwatch rather than by counting sleeps: each iteration
+    /// also does render work, so counting <c>n × 25ms</c> overshot badly and
+    /// the "t=250ms" frames were really landing past a second.
+    /// </para>
+    /// </summary>
     private static void Pump(int milliseconds)
     {
-        for (var elapsed = 0; elapsed < milliseconds; elapsed += 25)
+        var clock = Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < milliseconds)
         {
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-            Thread.Sleep(25);
+
+            var remaining = milliseconds - (int)clock.ElapsedMilliseconds;
+            if (remaining > 0)
+            {
+                Thread.Sleep(Math.Min(8, remaining));
+            }
         }
 
         Dispatcher.UIThread.RunJobs();
@@ -305,6 +377,251 @@ internal static class Harness
                 $"  [{label}] Border[{classes}] IsVisible={border.IsVisible} " +
                 $"Opacity={border.Opacity:0.###} Bounds={border.Bounds}");
         }
+    }
+
+    /// <summary>
+    /// Layout faults found across every rendered surface. Collected rather
+    /// than thrown so one bad window does not hide the rest, and reported as a
+    /// nonzero exit so CI fails instead of quietly uploading a broken picture.
+    /// </summary>
+    private static readonly List<string> Faults = [];
+
+    /// <summary>
+    /// Checks that every card actually got drawn somewhere useful. This is the
+    /// cheap version of looking at the screenshots, and it catches the failure
+    /// mode a type checker never will: a card squeezed to nothing by a
+    /// neighbour, or one laid out past the window edge. Both have happened —
+    /// ACTIVE BINDINGS once vanished entirely on a short window because the
+    /// mirror card above it was Top-docked and took its full desired height.
+    /// </summary>
+    private static void CheckCards(Window window, string label)
+    {
+        var frame = new Rect(window.Bounds.Size);
+        foreach (var visual in window.GetSelfAndVisualDescendants())
+        {
+            if (visual is not Border { IsVisible: true } border ||
+                !border.Classes.Contains("card") ||
+                border.GetTransformedBounds() is not { } transformed)
+            {
+                continue;
+            }
+
+            var bounds = transformed.Bounds.TransformToAABB(transformed.Transform);
+            if (bounds.Width < 8 || bounds.Height < 8)
+            {
+                Faults.Add($"{label}: a .card collapsed to {bounds.Width:0}x{bounds.Height:0}.");
+            }
+            else if (!frame.Intersects(bounds))
+            {
+                Faults.Add($"{label}: a .card sits outside the window at {bounds}.");
+            }
+            else if (EffectiveOpacity(border) < 0.05)
+            {
+                // Correct bounds, invisible anyway. An entry animation whose
+                // delay outlives the capture leaves every card laid out and
+                // fully transparent, which every geometric check happily
+                // passes while the screenshot shows only the wallpaper.
+                Faults.Add($"{label}: a .card is laid out but fully transparent.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Captures a surface at a chosen moment on its animation timeline.
+    /// Deliberately skips the card checks: a card caught mid-animation is
+    /// legitimately scaled or transparent, and asserting on it would fail the
+    /// build for a working intro.
+    /// </summary>
+    private static void RenderAt(Window window, string fileName, int width, int height, int atMilliseconds)
+    {
+        window.Width = width;
+        window.Height = height;
+        window.Show();
+        Pump(atMilliseconds);
+
+        var frame = window.GetLastRenderedFrame();
+        if (frame is null)
+        {
+            Faults.Add($"{fileName}: no frame was rendered.");
+        }
+        else
+        {
+            var path = Path.Combine(OutDir, fileName);
+            frame.Save(path);
+            Console.WriteLine($"wrote {path} (t={atMilliseconds}ms)");
+        }
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Every button variant in every state, side by side.
+    /// <para>
+    /// Buttons are the one part of the design system that cannot be judged from
+    /// the app screenshots: nothing in them is hovered, focused, pressed or
+    /// disabled, so most of what a button style says is invisible. Pseudo-classes
+    /// are forced here so all of it renders at once.
+    /// </para>
+    /// </summary>
+    private static void RenderButtonGallery()
+    {
+        string[] variants = ["accent", "", "approve", "deny", "ghost", "tool", "knob"];
+        string[] states = ["rest", ":pointerover", "disabled"];
+
+        var grid = new StackPanel { Spacing = 22, Margin = new Thickness(28) };
+        grid.Children.Add(new TextBlock
+        {
+            Text = "BUTTON MATRIX — rest / hover / disabled (press is measured, see CheckPressDarkens)",
+            FontSize = 12,
+            Foreground = Brushes.SlateGray,
+        });
+
+        foreach (var variant in variants)
+        {
+            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 14 };
+            row.Children.Add(new TextBlock
+            {
+                Text = string.IsNullOrEmpty(variant) ? "(default)" : variant,
+                Width = 90,
+                FontSize = 12,
+                Foreground = Brushes.Gray,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            });
+
+            foreach (var state in states)
+            {
+                var button = new Button { Content = state == "rest" ? "Submit" : state.TrimStart(':') };
+                if (!string.IsNullOrEmpty(variant))
+                {
+                    button.Classes.Add(variant);
+                }
+
+                if (state == "disabled")
+                {
+                    button.IsEnabled = false;
+                }
+                else if (state != "rest")
+                {
+                    ((IPseudoClasses)button.Classes).Set(state, true);
+                }
+
+                row.Children.Add(button);
+            }
+
+            grid.Children.Add(row);
+        }
+
+        var window = new Window
+        {
+            Width = 760,
+            Height = 460,
+            Content = new ScrollViewer { Content = grid },
+        };
+
+        Render(window, "17-buttons.png");
+    }
+
+    /// <summary>
+    /// Presses each button variant with real input and requires the surface to
+    /// get <em>darker</em>.
+    /// <para>
+    /// This is an assertion rather than a screenshot because <c>:pressed</c> is
+    /// driven by the read-only <c>Button.IsPressed</c> and cannot be forced, and
+    /// because real input can only press one button at a time — a matrix column
+    /// of pressed buttons is not renderable.
+    /// </para>
+    /// <para>
+    /// It exists because <c>approve</c> and <c>deny</c> had drifted to
+    /// rest #26 → hover #4D → pressed #66: the harder you pushed, the brighter
+    /// they got. Nothing catches that except looking, and nobody was.
+    /// </para>
+    /// </summary>
+    private static void CheckPressDarkens()
+    {
+        foreach (var variant in new[] { "accent", "", "approve", "deny", "ghost", "tool", "knob" })
+        {
+            var name = string.IsNullOrEmpty(variant) ? "(default)" : variant;
+            var button = new Button { Content = "Press me", Margin = new Thickness(40) };
+            if (!string.IsNullOrEmpty(variant))
+            {
+                button.Classes.Add(variant);
+            }
+
+            var window = new Window { Width = 320, Height = 140, Content = button };
+            window.Show();
+            Pump(320);
+
+            var presenter = button.GetVisualDescendants()
+                .OfType<ContentPresenter>()
+                .FirstOrDefault(candidate => candidate.Name == "PART_ContentPresenter");
+            if (presenter is null || button.GetTransformedBounds() is not { } placed)
+            {
+                Faults.Add($"buttons: could not measure the '{name}' variant.");
+                window.Close();
+                continue;
+            }
+
+            var atRest = Luminance(presenter.Background);
+
+            ((IPseudoClasses)button.Classes).Set(":pointerover", true);
+            Pump(220);
+            var whileHovered = Luminance(presenter.Background);
+            ((IPseudoClasses)button.Classes).Set(":pointerover", false);
+            Pump(120);
+
+            var box = placed.Bounds.TransformToAABB(placed.Transform);
+            window.MouseDown(box.Center, MouseButton.Left);
+            Pump(220);
+            var whilePressed = Luminance(presenter.Background);
+            window.MouseUp(box.Center, MouseButton.Left);
+            window.Close();
+
+            // Measured against hover, not rest: `tool` is fully transparent at
+            // rest inside its rail, so any visible press is "brighter" than
+            // nothing. Hover is the lit state a press actually recesses from.
+            if (whilePressed > whileHovered + 0.005)
+            {
+                Faults.Add(
+                    $"buttons: '{name}' gets brighter when pressed than when hovered " +
+                    $"(hover {whileHovered:0.000} -> press {whilePressed:0.000}). A press must recess.");
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"  press '{name}': rest {atRest:0.000} / hover {whileHovered:0.000} / press {whilePressed:0.000}");
+            }
+        }
+    }
+
+    /// <summary>Perceived lightness of a fill, gradients averaged, alpha applied.</summary>
+    private static double Luminance(IBrush? brush)
+    {
+        switch (brush)
+        {
+            case ISolidColorBrush solid:
+                return Weight(solid.Color);
+            case IGradientBrush gradient when gradient.GradientStops.Count > 0:
+                return gradient.GradientStops.Average(stop => Weight(stop.Color));
+            default:
+                return 0;
+        }
+
+        // Alpha matters: these fills sit on a dark field, so a translucent
+        // colour is darker in practice than its RGB suggests.
+        static double Weight(Color color) =>
+            ((0.2126 * color.R) + (0.7152 * color.G) + (0.0722 * color.B)) / 255.0 * (color.A / 255.0);
+    }
+
+    /// <summary>Opacity as actually seen: this element's, times every ancestor's.</summary>
+    private static double EffectiveOpacity(Visual visual)
+    {
+        var opacity = 1d;
+        for (Visual? node = visual; node is not null; node = node.GetVisualParent())
+        {
+            opacity *= node.Opacity;
+        }
+
+        return opacity;
     }
 
     private static void Render(
@@ -334,11 +651,15 @@ internal static class Harness
         }
 
         Diagnose(window, fileName);
+        CheckCards(window, fileName);
 
         var frame = window.GetLastRenderedFrame();
         if (frame is null)
         {
-            Console.WriteLine($"NO FRAME for {fileName}");
+            // Was a bare Console.WriteLine returning 0, so a surface that
+            // never rendered still passed CI.
+            Faults.Add($"{fileName}: no frame was rendered.");
+            window.Close();
             return;
         }
 

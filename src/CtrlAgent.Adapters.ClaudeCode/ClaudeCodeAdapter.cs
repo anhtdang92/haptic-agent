@@ -147,6 +147,22 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 await SetPermissionModeAsync(command.Text ?? "default", cancellationToken).ConfigureAwait(false);
                 break;
 
+            // Claude Code accepts its slash commands on the same stream-json
+            // stdin as prompts, so these need no separate control channel.
+            // Verified against CLI 2.1.220: /model and /effort report the value
+            // they set, /compact says so when there is too little to compact.
+            case AgentCommandKind.CompactContext:
+                await SendUserMessageAsync("/compact", cancellationToken).ConfigureAwait(false);
+                break;
+
+            case AgentCommandKind.SetModel:
+                await SendUserMessageAsync($"/model {command.Text ?? "default"}", cancellationToken).ConfigureAwait(false);
+                break;
+
+            case AgentCommandKind.SetEffort:
+                await SendUserMessageAsync($"/effort {command.Text ?? "medium"}", cancellationToken).ConfigureAwait(false);
+                break;
+
             case AgentCommandKind.NextSession:
                 await SwitchSessionAsync(+1, cancellationToken).ConfigureAwait(false);
                 break;
@@ -341,6 +357,7 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
 
     private async Task SendUserMessageAsync(string text, CancellationToken cancellationToken)
     {
+        Interlocked.Exchange(ref _interruptOutstanding, 0);
         var payload = new
         {
             type = "user",
@@ -358,8 +375,12 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         Publish(AgentStateKind.Working, "Prompt sent to Claude Code.");
     }
 
+    // 1 while an interrupt we sent has not yet been answered by a turn result.
+    private int _interruptOutstanding;
+
     private async Task SendInterruptAsync(CancellationToken cancellationToken)
     {
+        Interlocked.Exchange(ref _interruptOutstanding, 1);
         var payload = ClaudeControlRequest.Interrupt($"ctrl_{Interlocked.Increment(ref _nextControlId)}");
         await SendLineAsync(payload, cancellationToken).ConfigureAwait(false);
     }
@@ -558,6 +579,19 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
 
             case ClaudeStreamMessage.TurnResult result:
                 _streamedText.Clear();
+
+                // An interrupt we asked for comes back as a failed turn
+                // ("error_during_execution"). Reporting that as an Error would
+                // fire the error rumble and put CTRL·BOT in its error mood for
+                // something the user did on purpose — so a turn that ends
+                // while our own interrupt is outstanding completes instead.
+                if (result.IsError && Interlocked.Exchange(ref _interruptOutstanding, 0) == 1)
+                {
+                    Publish(AgentInterrupt.State, AgentInterrupt.Message);
+                    break;
+                }
+
+                _interruptOutstanding = 0;
                 Publish(result.IsError ? AgentStateKind.Error : AgentStateKind.Completed, result.Summary);
                 break;
 

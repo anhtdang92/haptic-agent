@@ -48,7 +48,7 @@
       <Setter Property="BorderBrush" Value="#14FFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="16" />
-      <Setter Property="BoxShadow" Value="0 10 34 0 #66000000" />
+      <Setter Property="BoxShadow" Value="inset 0 1 0 0 #1FFFFFFF, 0 10 34 0 #73000000" />
     </Style>
 
     <!-- Alert card variant: amber glow for approvals -->
@@ -70,7 +70,7 @@
       <Setter Property="Foreground" Value="#E8F1FF" />
       <Setter Property="BorderBrush" Value="#1FFFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="14,7" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="Medium" />
@@ -88,6 +88,81 @@
           <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.08" />
         </Transitions>
       </Setter>
+      <!-- Custom template so every button is lit like a piece of hardware:
+           a specular hairline catching light along the top edge, and a power
+           rail along the bottom that ignites on hover/focus. Together they
+           give the surface thickness — the thing flat fills never have.
+           PART_ContentPresenter keeps its name and template bindings, so all
+           the class variants below still restyle it exactly as before. -->
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Panel>
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Background="{TemplateBinding Background}"
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="{TemplateBinding CornerRadius}"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              RecognizesAccessKey="True" />
+            <!-- Specular: light falling on the top bevel -->
+            <Border Name="Specular"
+                    Height="1"
+                    Margin="7,1,7,0"
+                    VerticalAlignment="Top"
+                    IsHitTestVisible="False"
+                    Opacity="0.5">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                  <GradientStop Color="#00FFFFFF" Offset="0" />
+                  <GradientStop Color="#99FFFFFF" Offset="0.5" />
+                  <GradientStop Color="#00FFFFFF" Offset="1" />
+                </LinearGradientBrush>
+              </Border.Background>
+              <Border.Transitions>
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+                </Transitions>
+              </Border.Transitions>
+            </Border>
+            <!-- Power rail: dim at rest, full under pointer or focus -->
+            <Border Name="EdgeLight"
+                    Height="2"
+                    Margin="7,0"
+                    VerticalAlignment="Bottom"
+                    IsHitTestVisible="False"
+                    Opacity="0.55">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                  <GradientStop Color="#0000D4FF" Offset="0" />
+                  <GradientStop Color="#3300D4FF" Offset="0.18" />
+                  <GradientStop Color="#F27DD3FC" Offset="0.5" />
+                  <GradientStop Color="#3300D4FF" Offset="0.82" />
+                  <GradientStop Color="#0000D4FF" Offset="1" />
+                </LinearGradientBrush>
+              </Border.Background>
+              <Border.Transitions>
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+                </Transitions>
+              </Border.Transitions>
+            </Border>
+          </Panel>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <!-- The rail ignites under the pointer and for keyboard/controller focus -->
+    <Style Selector="Button:pointerover /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button:focus-visible /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button:pressed /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0.15" />
     </Style>
     <!-- Micro-interaction: buttons compress slightly on press -->
     <Style Selector="Button:pressed">
@@ -122,6 +197,18 @@
     </Style>
 
     <!-- Primary action: the one vivid element on the surface -->
+    <!-- The primary action breathes, so the eye lands on it without it ever
+         demanding attention. Targets the templated presenter because BoxShadow
+         is not a property of Button itself. -->
+    <Style Selector="Button.accent:not(:disabled) /template/ ContentPresenter#PART_ContentPresenter">
+      <Style.Animations>
+        <Animation Duration="0:0:3.4" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="BoxShadow" Value="0 0 12 0 #3300D4FF" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="BoxShadow" Value="0 0 26 0 #7A00D4FF" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="BoxShadow" Value="0 0 12 0 #3300D4FF" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
     <Style Selector="Button.accent">
       <Setter Property="Foreground" Value="#03101E" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -136,26 +223,40 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <!-- A cyan rail on a cyan button is invisible; the accent gets a bright
+         white filament instead, so it still reads as the same system. -->
+    <Style Selector="Button.accent /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0.5" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#00FFFFFF" Offset="0" />
+            <GradientStop Color="#E6FFFFFF" Offset="0.5" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background">
         <Setter.Value>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-            <GradientStop Color="#66EAFF" Offset="0" />
-            <GradientStop Color="#38DDFF" Offset="0.45" />
-            <GradientStop Color="#659EFF" Offset="1" />
+            <GradientStop Color="#3FE4FF" Offset="0" />
+            <GradientStop Color="#12D9FF" Offset="0.45" />
+            <GradientStop Color="#4489F7" Offset="1" />
           </LinearGradientBrush>
         </Setter.Value>
       </Setter>
       <Setter Property="BorderBrush" Value="#8CFFFFFF" />
     </Style>
 
-    <!-- Ghost: window-level tools (Big Picture, Overlay, Profile…). These
+    <!-- Ghost: window-level tools (Mainframe, Overlay, Profile…). These
          are always present, so they must never read as loud as the action
          row. No fill and no border at rest — the material only materializes
          under the pointer, the way a macOS toolbar item does. -->
     <Style Selector="Button.ghost">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Background" Value="#3D101A2E" />
+      <Setter Property="BorderBrush" Value="#14FFFFFF" />
       <Setter Property="Foreground" Value="#93A9CC" />
       <Setter Property="FontWeight" Value="Normal" />
       <Setter Property="FontSize" Value="12" />
@@ -168,6 +269,68 @@
           <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
         </Transitions>
       </Setter>
+    </Style>
+    <!-- Session knob: a pill in the status strip that both reports a value
+         and steps it. Sized down so four of them read as one instrument
+         cluster next to the facts rather than as four commands. -->
+    <Style Selector="Button.knob">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- Segmented toolbar item: lives inside a rail that already supplies the
+         chrome, so the item itself is bare until hovered. Squarer corners than
+         a standalone button because it is one cell of a strip. -->
+    <Style Selector="Button.tool">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="#A8BEDE" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="11,5" />
+      <Setter Property="CornerRadius" Value="9" />
+    </Style>
+    <Style Selector="Button.tool /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#6622334F" />
+      <Setter Property="TextElement.Foreground" Value="#EAF3FF" />
+    </Style>
+    <Style Selector="Button.tool:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#800C1424" />
+    </Style>
+    <!-- The rail is the chrome; per-item edge lighting would fight it. -->
+    <Style Selector="Button.tool /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.tool /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.tool:pointerover /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- Ghosts stay fully dark at rest — edge lighting with no surface under
+         it is just a line floating in space. Both the specular and the rail
+         arrive with the material, on hover. -->
+    <Style Selector="Button.ghost /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.ghost /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0.5" />
     </Style>
     <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="#5920304F" />
@@ -192,7 +355,8 @@
       <Setter Property="BorderBrush" Value="#CC34F5A4" />
     </Style>
     <Style Selector="Button.approve:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#6634F5A4" />
+      <Setter Property="Background" Value="#1A1F8C60" />
+      <Setter Property="BorderBrush" Value="#B334F5A4" />
     </Style>
     <Style Selector="Button.deny">
       <Setter Property="Foreground" Value="#FFB4C0" />
@@ -205,7 +369,83 @@
       <Setter Property="BorderBrush" Value="#CCFF5A78" />
     </Style>
     <Style Selector="Button.deny:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#66FF5A78" />
+      <Setter Property="Background" Value="#1A8C2F42" />
+      <Setter Property="BorderBrush" Value="#B3FF5A78" />
+    </Style>
+
+    <!-- ==== One state model for every button variant ====
+         Declared after the variants so it wins, and expressed once rather
+         than per-variant, which is how approve and deny drifted into getting
+         *brighter* the harder you pressed them.
+
+         rest     surface lit from above (specular on), rail idling
+         hover    fill lifts, border brightens, rail ignites
+         pressed  fill DARKENS below rest, an inset shadow puts the face below
+                  the rim, the specular dies because the top bevel has tilted
+                  out of the light, and the whole control compresses
+         disabled a flat neutral surface, not a faded coloured one -->
+
+    <!-- The press: recessed, not merely a different colour. -->
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BoxShadow" Value="inset 0 2 6 0 #8C000000" />
+    </Style>
+    <Style Selector="Button:pressed /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0.08" />
+    </Style>
+    <Style Selector="Button:pressed">
+      <Setter Property="RenderTransform" Value="scale(0.97)" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ Border#Specular">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- Disabled: a dead surface. Fading a coloured button leaves it looking
+         like a working button behind fog — the colour still reads as "primary"
+         or "destructive" when neither is true any more. -->
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Foreground" Value="#5A7099" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#420E1728" />
+      <Setter Property="BorderBrush" Value="#14FFFFFF" />
+      <Setter Property="BoxShadow" Value="none" />
+    </Style>
+    <Style Selector="Button:disabled /template/ Border#EdgeLight">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button:disabled /template/ Border#Specular">
+      <Setter Property="Opacity" Value="0.12" />
+    </Style>
+
+    <!-- Accent pressed: the same hue driven down into shadow, so it still
+         reads as the primary action while clearly being held down. -->
+    <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#0E7E9B" Offset="0" />
+            <GradientStop Color="#0A6F94" Offset="0.45" />
+            <GradientStop Color="#1B4694" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#40FFFFFF" />
+    </Style>
+    <Style Selector="Button.accent:pressed">
+      <Setter Property="Foreground" Value="#CFEAFF" />
+    </Style>
+
+    <!-- Quiet variants had no press state at all beyond the scale: on a still
+         frame, and on a slow display, the click simply did not land. -->
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#8C05080F" />
+      <Setter Property="BorderBrush" Value="#8C7DD3FC" />
+    </Style>
+    <Style Selector="Button.tool:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#8C05080F" />
+      <Setter Property="BorderBrush" Value="#8C7DD3FC" />
     </Style>
 
     <!-- Inputs: same glass material — hairline at rest, cyan when focused -->

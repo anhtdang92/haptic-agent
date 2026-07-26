@@ -142,6 +142,19 @@ public sealed record ControllerProfile(
                 AgentCommandKind.SubmitPrompt,
                 LeftShoulder,
                 Text: "Run the test suite and fix any failures."),
+
+            // Session controls on the inputs the pad was not using. None of
+            // these can destroy work, so a plain press is safe: compacting is
+            // reversible by continuing, and model/effort/plan only change how
+            // the next turn runs.
+            new(ControllerControl.DPadUp, InputGesture.Press, AgentCommandKind.CompactContext),
+            new(
+                ControllerControl.DPadDown,
+                InputGesture.Press,
+                AgentCommandKind.SetPermissionMode,
+                Text: "plan"),
+            new(ControllerControl.LeftThumbstickButton, InputGesture.Press, AgentCommandKind.CycleEffort),
+            new(ControllerControl.RightThumbstickButton, InputGesture.Press, AgentCommandKind.CycleModel),
         ]);
 }
 

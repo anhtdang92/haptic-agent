@@ -69,7 +69,7 @@ public sealed class MockAgentAdapter : IAgentAdapter
             case AgentCommandKind.Interrupt:
             case AgentCommandKind.Cancel:
                 CancelActiveTurn();
-                Publish(AgentStateKind.Idle, "Turn interrupted.");
+                Publish(AgentInterrupt.State, AgentInterrupt.Message);
                 break;
 
             case AgentCommandKind.ApproveOnce:
@@ -84,6 +84,18 @@ public sealed class MockAgentAdapter : IAgentAdapter
 
             case AgentCommandKind.SetPermissionMode:
                 Publish(AgentStateKind.Idle, $"Mock permission mode set to '{command.Text ?? "default"}'.");
+                break;
+
+            case AgentCommandKind.CompactContext:
+                Publish(AgentStateKind.Idle, "Mock context compacted.");
+                break;
+
+            case AgentCommandKind.SetModel:
+                Publish(AgentStateKind.Idle, $"Mock model set to '{command.Text ?? "default"}'.");
+                break;
+
+            case AgentCommandKind.SetEffort:
+                Publish(AgentStateKind.Idle, $"Mock effort set to '{command.Text ?? "medium"}'.");
                 break;
 
             case AgentCommandKind.ReviewChanges:

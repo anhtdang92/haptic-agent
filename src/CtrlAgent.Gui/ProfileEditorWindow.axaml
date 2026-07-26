@@ -5,126 +5,244 @@
         x:DataType="gui:ProfileEditorViewModel"
         Title="CtrlAgent profile editor"
         Icon="avares://CtrlAgent.Gui/Assets/icon.png"
-        Width="860"
-        Height="600"
-        MinWidth="700"
-        MinHeight="460"
+        Width="940"
+        Height="660"
+        MinWidth="780"
+        MinHeight="520"
         WindowStartupLocation="CenterOwner">
 
-  <DockPanel Margin="14">
+  <Window.Styles>
+    <!-- Field labels in the inspector: the same whisper the rest of the app
+         uses for section headings, so this window stops looking like a
+         different program. -->
+    <Style Selector="TextBlock.field">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="LetterSpacing" Value="1.4" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Foreground" Value="#6B84AD" />
+      <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#4C6A93" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </Window.Styles>
 
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8">
-      <TextBlock Text="Profile name:" VerticalAlignment="Center" />
-      <TextBox Text="{Binding Name}" Width="220" />
-      <Button Content="Add binding" Command="{Binding AddCommand}" />
-      <Button Content="Remove selected" Classes="deny" Command="{Binding RemoveCommand}" />
-    </StackPanel>
+  <DockPanel Margin="24,20">
+
+    <!-- Identity: what you are editing, and whether it is currently valid.
+         Validity belongs beside the name, not buried by the buttons. -->
+    <Border DockPanel.Dock="Top" Classes="card" Padding="18,14">
+      <DockPanel>
+        <Border DockPanel.Dock="Right"
+                VerticalAlignment="Center"
+                CornerRadius="9"
+                Padding="11,5"
+                Background="#2634F5A4"
+                BorderBrush="#5934F5A4"
+                BorderThickness="1"
+                IsVisible="{Binding IsValid}">
+          <TextBlock Text="VALID" Classes="label" FontSize="9" Foreground="#8CFFCF" />
+        </Border>
+        <Border DockPanel.Dock="Right"
+                VerticalAlignment="Center"
+                CornerRadius="9"
+                Padding="11,5"
+                Background="#26FF5A78"
+                BorderBrush="#59FF5A78"
+                BorderThickness="1"
+                IsVisible="{Binding !IsValid}">
+          <TextBlock Text="HAS ERRORS" Classes="label" FontSize="9" Foreground="#FFB4C0" />
+        </Border>
+
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <StackPanel Spacing="3">
+            <TextBlock Text="PROFILE NAME" Classes="label" FontSize="9" />
+            <TextBox Text="{Binding Name}" Width="260" FontSize="13" />
+          </StackPanel>
+        </StackPanel>
+      </DockPanel>
+    </Border>
 
     <!-- Layers: capability-activated binding groups. A binding names a layer
          to only exist while that layer is active on the connected pad. -->
-    <Border DockPanel.Dock="Top" Classes="card" Padding="8" Margin="0,10,0,0">
+    <Border DockPanel.Dock="Top" Classes="card" Padding="18,13" Margin="0,12,0,0">
       <DockPanel>
-        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="LAYERS" Classes="label" VerticalAlignment="Center" />
-          <Button Content="Add layer"
-                  Command="{Binding AddLayerCommand}"
-                  FontSize="11" Padding="9,3"
-                  ToolTip.Tip="Layers activate by device capability: always, requiresPaddles, or withoutPaddles" />
+        <StackPanel DockPanel.Dock="Left" Spacing="4" VerticalAlignment="Center" MinWidth="150">
+          <TextBlock Text="LAYERS" Classes="label" FontSize="9" />
+          <TextBlock Text="Activate by device capability" Classes="hint" FontSize="10" />
         </StackPanel>
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="10,0,0,0">
-          <ItemsControl ItemsSource="{Binding Layers}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="8" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="gui:LayerEditor">
-                <Border Background="#80141F36" BorderBrush="#1FFFFFFF" BorderThickness="1"
-                        CornerRadius="8" Padding="6,3">
-                  <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBox Text="{Binding Name}" Width="110" FontSize="12" />
-                    <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ActivationNames}"
-                              SelectedItem="{Binding Activation}"
-                              FontSize="12" />
-                    <Button Content="✕"
-                            FontSize="10" Padding="6,2"
-                            Classes="deny"
-                            Command="{Binding $parent[Window].((gui:ProfileEditorViewModel)DataContext).RemoveLayerCommand}"
-                            CommandParameter="{Binding}"
-                            ToolTip.Tip="Remove this layer" />
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
+        <Button DockPanel.Dock="Right"
+                Classes="ghost"
+                Content="+ Add layer"
+                VerticalAlignment="Center"
+                Command="{Binding AddLayerCommand}"
+                ToolTip.Tip="Layers activate by device capability: always, requiresPaddles, or withoutPaddles" />
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="14,0">
+          <Panel>
+            <TextBlock Text="None — every binding is always active."
+                       Classes="hint"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding !Layers.Count}" />
+            <ItemsControl ItemsSource="{Binding Layers}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="8" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="gui:LayerEditor">
+                  <Border Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                          CornerRadius="10" Padding="8,5">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                      <TextBox Text="{Binding Name}" Width="112" FontSize="12" />
+                      <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ActivationNames}"
+                                SelectedItem="{Binding Activation}"
+                                FontSize="12" />
+                      <Button Content="✕"
+                              Classes="ghost"
+                              Foreground="#E08496"
+                              FontSize="11" Padding="8,3"
+                              VerticalAlignment="Center"
+                              Command="{Binding $parent[Window].((gui:ProfileEditorViewModel)DataContext).RemoveLayerCommand}"
+                              CommandParameter="{Binding}"
+                              ToolTip.Tip="Remove this layer" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Panel>
         </ScrollViewer>
       </DockPanel>
     </Border>
 
-    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8" Classes="card">
-      <StackPanel Spacing="8">
-        <ItemsControl ItemsSource="{Binding Errors}" MaxHeight="90">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="x:String">
-              <TextBlock Text="{Binding}" Foreground="#FF7A6E" TextWrapping="Wrap" FontSize="12" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Apply to running host" Classes="accent" IsEnabled="{Binding IsValid}" Click="OnApply" />
-          <Button Content="Save as JSON…" IsEnabled="{Binding IsValid}" Click="OnSave" />
-          <Button Content="Load JSON…" Click="OnLoad" />
-          <Button Content="Close" Click="OnClose" />
-        </StackPanel>
+    <!-- Actions last in the flow and last on screen. Errors sit directly
+         above the button that they block. -->
+    <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="18,14" Classes="card">
+      <StackPanel Spacing="10">
+        <Border Background="#26FF5A78"
+                BorderBrush="#59FF5A78"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="12,9"
+                IsVisible="{Binding !IsValid}">
+          <ScrollViewer MaxHeight="92" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Errors}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding}" Foreground="#FFB4C0" TextWrapping="Wrap" FontSize="12" Margin="0,1" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Close" Classes="ghost" Click="OnClose" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Apply to running host" Classes="accent" IsEnabled="{Binding IsValid}" Click="OnApply" />
+            <Button Content="Save as JSON…" IsEnabled="{Binding IsValid}" Click="OnSave" />
+            <Button Content="Load JSON…" Click="OnLoad" />
+          </StackPanel>
+        </DockPanel>
       </StackPanel>
     </Border>
 
-    <Grid ColumnDefinitions="5*,4*" Margin="0,10,0,0">
-      <Border Padding="6" Classes="card" Margin="0,0,6,0">
-        <ListBox ItemsSource="{Binding Bindings}" SelectedItem="{Binding SelectedBinding}" FontSize="12">
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="gui:BindingEditor">
-              <TextBlock Text="{Binding Summary}" />
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+    <!-- List left, inspector right. Add/Remove live with the list they act
+         on rather than at the window header, where Remove sat next to the
+         profile name and read as "remove the profile". -->
+    <Grid ColumnDefinitions="5*,4*" Margin="0,12,0,0">
+      <Border Classes="card" Padding="14,12" Margin="0,0,7,0">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="2,0,0,9">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+              <Button Content="+ Add" Classes="ghost" Command="{Binding AddCommand}" />
+              <Button Content="Remove"
+                      Classes="ghost"
+                      Foreground="#E08496"
+                      Command="{Binding RemoveCommand}"
+                      ToolTip.Tip="Remove the selected binding" />
+            </StackPanel>
+            <TextBlock Text="BINDINGS" Classes="label" FontSize="9" VerticalAlignment="Center" />
+          </DockPanel>
+          <ListBox ItemsSource="{Binding Bindings}" SelectedItem="{Binding SelectedBinding}" FontSize="12.5">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="gui:BindingEditor">
+                <TextBlock Text="{Binding Summary}" Margin="2,2" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
       </Border>
 
       <Border Grid.Column="1"
-              Padding="10"
+              Padding="16,12"
               Classes="card"
-              Margin="6,0,0,0"
-              IsEnabled="{Binding SelectedBinding, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <ScrollViewer>
-          <StackPanel DataContext="{Binding SelectedBinding}" x:DataType="gui:BindingEditor" Spacing="6">
-            <TextBlock Text="Control" FontSize="11" Opacity="0.6" />
-            <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ControlNames}"
-                      SelectedItem="{Binding Control}"
-                      HorizontalAlignment="Stretch" />
-            <TextBlock Text="Gesture" FontSize="11" Opacity="0.6" />
-            <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.GestureNames}"
-                      SelectedItem="{Binding Gesture}"
-                      HorizontalAlignment="Stretch" />
-            <TextBlock Text="Command" FontSize="11" Opacity="0.6" />
-            <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.CommandNames}"
-                      SelectedItem="{Binding Command}"
-                      HorizontalAlignment="Stretch" />
-            <TextBlock Text="Modifiers (e.g. LeftShoulder+RightShoulder)" FontSize="11" Opacity="0.6" />
-            <TextBox Text="{Binding ModifiersText}" />
-            <TextBlock Text="Hold ms (Tap/Hold, default 400)" FontSize="11" Opacity="0.6" />
-            <TextBox Text="{Binding HoldMilliseconds}" />
-            <TextBlock Text="Double-press ms (default 300)" FontSize="11" Opacity="0.6" />
-            <TextBox Text="{Binding DoublePressMilliseconds}" />
-            <TextBlock Text="Axis minimum value (AxisThreshold)" FontSize="11" Opacity="0.6" />
-            <TextBox Text="{Binding MinimumValue}" />
-            <TextBlock Text="Prompt text (SubmitPrompt)" FontSize="11" Opacity="0.6" />
-            <TextBox Text="{Binding Text}" AcceptsReturn="False" />
-            <TextBlock Text="Layer (optional; must name a declared layer)" FontSize="11" Opacity="0.6" />
-            <TextBox Text="{Binding Layer}" />
-            <CheckBox Content="Requires pending approval" IsChecked="{Binding RequiresPendingApproval}" />
-          </StackPanel>
-        </ScrollViewer>
+              Margin="7,0,0,0">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="BINDING" Classes="label" FontSize="9" Margin="2,0,0,8" />
+
+          <!-- Overlaid, not stacked: exactly one of these is ever visible.
+               Nothing selected is a state worth naming; an empty greyed form
+               looks broken. -->
+          <Panel>
+          <TextBlock Classes="placeholder"
+                     Text="Select a binding on the left, or add one."
+                     IsVisible="{Binding SelectedBinding, Converter={x:Static ObjectConverters.IsNull}}" />
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        IsVisible="{Binding SelectedBinding, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel DataContext="{Binding SelectedBinding}" x:DataType="gui:BindingEditor" Spacing="5" Margin="0,0,6,0">
+              <TextBlock Text="CONTROL" Classes="field" />
+              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ControlNames}"
+                        SelectedItem="{Binding Control}"
+                        HorizontalAlignment="Stretch" />
+              <TextBlock Text="GESTURE" Classes="field" />
+              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.GestureNames}"
+                        SelectedItem="{Binding Gesture}"
+                        HorizontalAlignment="Stretch" />
+              <TextBlock Text="COMMAND" Classes="field" />
+              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.CommandNames}"
+                        SelectedItem="{Binding Command}"
+                        HorizontalAlignment="Stretch" />
+
+              <TextBlock Text="MODIFIERS" Classes="field" />
+              <TextBox Text="{Binding ModifiersText}" Watermark="LeftShoulder+RightShoulder" />
+
+              <CheckBox Content="Requires pending approval"
+                        IsChecked="{Binding RequiresPendingApproval}"
+                        Margin="0,8,0,0" />
+              <TextBlock Text="Approve, decline and cancel must set this, and must sit on a paddle, chord, or hold."
+                         Classes="hint" Margin="0,0,0,4" />
+
+              <TextBlock Text="PROMPT TEXT" Classes="field" />
+              <TextBox Text="{Binding Text}" AcceptsReturn="False" Watermark="SubmitPrompt only" />
+
+              <TextBlock Text="LAYER" Classes="field" />
+              <TextBox Text="{Binding Layer}" Watermark="Must name a declared layer" />
+
+              <!-- Timing lives together: three numbers that only matter for
+                   the gestures above. -->
+              <TextBlock Text="TIMING" Classes="field" Margin="0,8,0,0" />
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="7">
+                <StackPanel Spacing="3">
+                  <TextBlock Text="Hold ms" Classes="hint" FontSize="10" />
+                  <TextBox Text="{Binding HoldMilliseconds}" Watermark="400" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="3">
+                  <TextBlock Text="Double-press ms" Classes="hint" FontSize="10" />
+                  <TextBox Text="{Binding DoublePressMilliseconds}" Watermark="300" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="3">
+                  <TextBlock Text="Axis min" Classes="hint" FontSize="10" />
+                  <TextBox Text="{Binding MinimumValue}" Watermark="0.5" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </ScrollViewer>
+          </Panel>
+        </DockPanel>
       </Border>
     </Grid>
 

@@ -20,7 +20,7 @@ public sealed class App : Application
     private MainViewModel? _viewModel;
     private MainWindow? _mainWindow;
     private OverlayWindow? _overlay;
-    private BigPictureWindow? _bigPicture;
+    private MainframeWindow? _mainframe;
     private ToastWindow? _toast;
     private bool _toastIsApproval;
     private bool _exiting;
@@ -118,7 +118,8 @@ public sealed class App : Application
             mainWindow.Show();
 
             viewModel.SetupCompleted += StartWithOptions;
-            viewModel.BigPictureRequested += ShowBigPicture;
+            viewModel.MainframeRequested += ShowMainframe;
+            viewModel.WorkspacePickerRequested += () => _ = ShowWorkspacePickerAsync();
             if (startupError is null)
             {
                 if (firstRun)
@@ -212,8 +213,8 @@ public sealed class App : Application
         var overlayItem = new NativeMenuItem("Toggle overlay");
         overlayItem.Click += (_, _) => ToggleOverlay();
 
-        var bigPictureItem = new NativeMenuItem("Big Picture mode");
-        bigPictureItem.Click += (_, _) => ShowBigPicture();
+        var mainframeItem = new NativeMenuItem("Mainframe mode");
+        mainframeItem.Click += (_, _) => ShowMainframe();
 
         var exitItem = new NativeMenuItem("Exit");
         exitItem.Click += (_, _) => Exit(desktop);
@@ -221,7 +222,7 @@ public sealed class App : Application
         var menu = new NativeMenu();
         menu.Items.Add(showItem);
         menu.Items.Add(overlayItem);
-        menu.Items.Add(bigPictureItem);
+        menu.Items.Add(mainframeItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(exitItem);
 
@@ -256,7 +257,7 @@ public sealed class App : Application
 
         var mainVisible = _mainWindow is { IsVisible: true } && _mainWindow.WindowState != WindowState.Minimized;
         var overlayVisible = _overlay is { IsVisible: true };
-        var bigPictureVisible = _bigPicture is { IsVisible: true };
+        var bigPictureVisible = _mainframe is { IsVisible: true };
         if (mainVisible || overlayVisible || bigPictureVisible)
         {
             return;
@@ -312,11 +313,11 @@ public sealed class App : Application
     }
 
     /// <summary>
-    /// Opens (or focuses) the fullscreen controller-first Big Picture mode.
+    /// Opens (or focuses) the fullscreen controller-first Mainframe mode.
     /// While it is open the engine captures controller input for UI
     /// navigation; approval bindings keep working. Closing releases capture.
     /// </summary>
-    public void ShowBigPicture()
+    public void ShowMainframe()
     {
         if (_viewModel is null)
         {
@@ -325,32 +326,123 @@ public sealed class App : Application
 
         if (_viewModel.Engine is null)
         {
-            _viewModel.AppendLog("Finish the first-run setup before entering Big Picture mode.");
+            _viewModel.AppendLog("Finish the first-run setup before entering Mainframe mode.");
             return;
         }
 
-        if (_bigPicture is not null)
+        if (_mainframe is not null)
         {
-            _bigPicture.Activate();
+            _mainframe.Activate();
             return;
         }
 
-        var viewModel = new BigPictureViewModel(_viewModel);
-        var window = new BigPictureWindow { DataContext = viewModel };
+        var viewModel = new MainframeViewModel(_viewModel);
+        var window = new MainframeWindow { DataContext = viewModel };
         viewModel.CloseRequested += window.Close;
+        viewModel.WorkspacePickerRequested += () => _ = ShowWorkspacePickerAsync();
+        viewModel.ProfileEditorRequested += async () =>
+        {
+            if (_viewModel?.Engine is { } engine)
+            {
+                await new ProfileEditorWindow(engine).ShowDialog(window);
+            }
+        };
         window.Closed += (_, _) =>
         {
             viewModel.Detach();
-            if (ReferenceEquals(_bigPicture, window))
+            if (ReferenceEquals(_mainframe, window))
             {
-                _bigPicture = null;
+                _mainframe = null;
             }
         };
 
-        _bigPicture = window;
+        _mainframe = window;
         window.Show();
         window.Activate();
     }
+
+    /// <summary>
+    /// Restarts the agent against a different directory. The adapter reads its
+    /// working directory when it spawns the CLI, so there is no way to move an
+    /// existing session — the engine is torn down and rebuilt. Controller,
+    /// profile and settings survive; the conversation does not, and the view
+    /// model clears it rather than showing the previous repository's history
+    /// under a new one.
+    /// </summary>
+    public async Task SwitchWorkspaceAsync(string directory)
+    {
+        if (_viewModel is null || string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        var full = Path.GetFullPath(directory);
+        if (!Directory.Exists(full))
+        {
+            _viewModel.AppendLog($"[error] Workspace does not exist: {full}");
+            return;
+        }
+
+        if (_activeOptions is { } current &&
+            string.Equals(Path.GetFullPath(current.WorkingDirectory), full, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var previous = _engine;
+        _engine = null;
+        if (previous is not null)
+        {
+            try
+            {
+                await previous.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                _viewModel.AppendLog($"[error] Stopping the previous workspace failed: {exception.Message}");
+            }
+        }
+
+        _viewModel.PrepareForEngineSwap(full);
+        _viewModel.AppendLog($"Switching workspace to {full}");
+        StartWithOptions((_activeOptions ?? _viewModel.Options) with { WorkingDirectory = full });
+    }
+
+    /// <summary>
+    /// Opens the workspace picker over whichever window is in front, and
+    /// switches if the user chose one.
+    /// </summary>
+    public async Task ShowWorkspacePickerAsync()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var owner = _mainframe is { IsVisible: true } fullscreen
+            ? (Window)fullscreen
+            : _mainWindow;
+        if (owner is null)
+        {
+            return;
+        }
+
+        if (!owner.IsVisible)
+        {
+            owner.Show();
+        }
+
+        var picker = new WorkspaceWindow(_viewModel.WorkspacePath, RecentWorkspaces);
+        var chosen = await picker.ShowDialog<string?>(owner);
+        if (!string.IsNullOrWhiteSpace(chosen))
+        {
+            await SwitchWorkspaceAsync(chosen);
+        }
+    }
+
+    /// <summary>Workspaces used before, most recent first.</summary>
+    public IReadOnlyList<string> RecentWorkspaces =>
+        GuiSettings.TryLoad()?.UsableWorkspaces ?? [];
 
     /// <summary>Shows or hides the always-on-top HUD strip.</summary>
     public void ToggleOverlay()
@@ -433,8 +525,8 @@ public sealed class App : Application
         _toast?.Close();
         _toast = null;
 
-        _bigPicture?.Close();
-        _bigPicture = null;
+        _mainframe?.Close();
+        _mainframe = null;
 
         if (_overlay is not null)
         {

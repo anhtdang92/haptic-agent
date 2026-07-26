@@ -51,9 +51,13 @@ dotnet run --project tools/CtrlAgent.UiRender/CtrlAgent.UiRender.csproj --config
 
 It renders the main window (idle, approval, conversation, first-run, startup-error, and a narrow window at the declared minimum size), Mainframe in five states, the profile editor, overlay, toast, and workspace picker. **Run it and look at the PNGs after any XAML change** — it catches clipped controls, empty panels, and cards drawn over each other, none of which the compiler or the unit tests can see.
 
-It also fails rather than just reporting: every visible `Border.card` must have non-zero bounds inside the window, a surface that renders no frame is a fault, and any fault exits nonzero. The `ui-render` CI job runs it on every push and uploads the screenshots as artifacts.
+It also fails rather than just reporting: every visible `Border.card` must have non-zero bounds inside the window **and a non-zero effective opacity**, a surface that renders no frame is a fault, and any fault exits nonzero. The opacity check exists because an entry animation whose delay outlives the capture leaves every card correctly laid out and completely invisible — geometry alone passes that happily and the screenshot shows only the wallpaper.
 
-Two caveats: the animation clock does not advance, so elements mid-animation render at their starting opacity, and real Windows chrome (caption buttons) is absent, so title-bar overlap still needs a Windows check. The tool is deliberately outside `CtrlAgent.sln`, which is exactly why the CI job matters — a normal build never compiles it.
+**Anything with `Animation.Delay` must also set its pre-animation value in markup** (`Opacity="0"`, `RenderTransform="scaleX(0)"`). During the delay Avalonia renders the element's own value, so a delayed fade-in shows the element at full opacity until its turn — which is exactly backwards. The `ui-render` CI job runs it on every push and uploads the screenshots as artifacts.
+
+**The animation clock does advance** — `Pump` sleeps in real time between render ticks, and Avalonia's headless clock follows real time — so these are genuine frames of running animations. The harness used to claim otherwise and every intro shot was taken on that false assumption. `RenderAt` uses it to sample the Mainframe boot sequence at five points (`20-`…`24-boot-*.png`); without those, the intro is the one part of the app nobody can review, because it plays for three seconds on a machine none of us is sitting at.
+
+One real caveat remains: Windows chrome (caption buttons) is absent, so title-bar overlap still needs a Windows check. The tool is deliberately outside `CtrlAgent.sln`, which is exactly why the CI job matters — a normal build never compiles it.
 
 ## Invariants — do not break
 

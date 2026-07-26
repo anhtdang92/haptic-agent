@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Avalonia;
@@ -160,12 +161,30 @@ internal static class Harness
         approving.AppendLog("[agent] ApprovalRequired: Claude Code wants: Write: src/Mapping.cs");
         Render(new MainWindow { DataContext = approving }, "02-main-approval.png");
 
+        // The boot sequence, sampled across its timeline. The animation clock
+        // DOES advance here — Pump sleeps in real time between render ticks —
+        // so these are genuine frames of the running animation, not mock-ups.
+        // Without them the intro is the one part of the app nobody can review:
+        // it plays for three seconds on a machine none of us is sitting at.
+        foreach (var (at, name) in new[]
+                 {
+                     (250, "20-boot-strike.png"),
+                     (700, "21-boot-field.png"),
+                     (1250, "22-boot-badge.png"),
+                     (1900, "23-boot-online.png"),
+                     (3400, "24-boot-settled.png"),
+                 })
+        {
+            RenderAt(new MainframeWindow { DataContext = new MainframeViewModel(viewModel) },
+                name, 1600, 900, at);
+        }
+
         var big = new MainframeViewModel(viewModel);
         Render(new MainframeWindow { DataContext = big }, "03-mainframe.png", 1600, 900,
             afterShow: w =>
             {
-                // The boot intro is opaque until its animation finishes; the
-                // harness clock does not advance, so retire it manually.
+                // Retired immediately so this shot shows the settled UI rather
+                // than whatever frame of the intro the pump happens to land on.
                 if (w.FindControl<Border>("IntroOverlay") is { } intro)
                 {
                     intro.IsVisible = false;
@@ -301,13 +320,30 @@ internal static class Harness
     /// driving the headless render timer, so bindings settle, animations
     /// advance, and a fresh frame is actually produced.
     /// </summary>
+    /// <summary>
+    /// Drives layout, bindings and the render timer for a span of <em>wall
+    /// clock</em> time. Avalonia's headless animation clock follows real time,
+    /// so this genuinely advances animations — the harness once claimed it did
+    /// not, and every intro shot was taken on that false assumption.
+    /// <para>
+    /// Timed against a Stopwatch rather than by counting sleeps: each iteration
+    /// also does render work, so counting <c>n × 25ms</c> overshot badly and
+    /// the "t=250ms" frames were really landing past a second.
+    /// </para>
+    /// </summary>
     private static void Pump(int milliseconds)
     {
-        for (var elapsed = 0; elapsed < milliseconds; elapsed += 25)
+        var clock = Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < milliseconds)
         {
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-            Thread.Sleep(25);
+
+            var remaining = milliseconds - (int)clock.ElapsedMilliseconds;
+            if (remaining > 0)
+            {
+                Thread.Sleep(Math.Min(8, remaining));
+            }
         }
 
         Dispatcher.UIThread.RunJobs();
@@ -372,7 +408,55 @@ internal static class Harness
             {
                 Faults.Add($"{label}: a .card sits outside the window at {bounds}.");
             }
+            else if (EffectiveOpacity(border) < 0.05)
+            {
+                // Correct bounds, invisible anyway. An entry animation whose
+                // delay outlives the capture leaves every card laid out and
+                // fully transparent, which every geometric check happily
+                // passes while the screenshot shows only the wallpaper.
+                Faults.Add($"{label}: a .card is laid out but fully transparent.");
+            }
         }
+    }
+
+    /// <summary>
+    /// Captures a surface at a chosen moment on its animation timeline.
+    /// Deliberately skips the card checks: a card caught mid-animation is
+    /// legitimately scaled or transparent, and asserting on it would fail the
+    /// build for a working intro.
+    /// </summary>
+    private static void RenderAt(Window window, string fileName, int width, int height, int atMilliseconds)
+    {
+        window.Width = width;
+        window.Height = height;
+        window.Show();
+        Pump(atMilliseconds);
+
+        var frame = window.GetLastRenderedFrame();
+        if (frame is null)
+        {
+            Faults.Add($"{fileName}: no frame was rendered.");
+        }
+        else
+        {
+            var path = Path.Combine(OutDir, fileName);
+            frame.Save(path);
+            Console.WriteLine($"wrote {path} (t={atMilliseconds}ms)");
+        }
+
+        window.Close();
+    }
+
+    /// <summary>Opacity as actually seen: this element's, times every ancestor's.</summary>
+    private static double EffectiveOpacity(Visual visual)
+    {
+        var opacity = 1d;
+        for (Visual? node = visual; node is not null; node = node.GetVisualParent())
+        {
+            opacity *= node.Opacity;
+        }
+
+        return opacity;
     }
 
     private static void Render(

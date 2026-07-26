@@ -57,13 +57,23 @@
       </Setter>
     </Style>
 
-    <!-- HUD chips: sized to be read at a glance from a couch. -->
+    <!-- HUD chips: sized to be read at a glance from a couch. A vertical
+         gradient plus an inset top highlight gives each one a lit face rather
+         than a flat fill — at this size a solid colour reads as a grey slab. -->
     <Style Selector="Border.hudChip">
-      <Setter Property="Background" Value="#8A16233C" />
-      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#A61C2C4A" Offset="0" />
+            <GradientStop Color="#A6101A2E" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#26FFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="16" />
       <Setter Property="Padding" Value="16,11" />
+      <Setter Property="BoxShadow" Value="inset 0 1 0 0 #26FFFFFF, 0 6 18 0 #59000000" />
     </Style>
     <!-- Armed: an approval is pending and this shortcut answers it. Amber
          fill, amber glow, and a pulse — it should be impossible to miss. -->
@@ -82,14 +92,25 @@
         </Animation>
       </Style.Animations>
     </Style>
+    <!-- Key caps: these stand for physical buttons, so they are lit like
+         keycaps — darker than the chip they sit on, a cyan rim, and a glow.
+         The eye should find the button first and the words second. -->
     <Style Selector="Border.hudKey">
-      <Setter Property="Background" Value="#660A1220" />
-      <Setter Property="BorderBrush" Value="#33FFFFFF" />
+      <Setter Property="Background">
+        <Setter.Value>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#B3122236" Offset="0" />
+            <GradientStop Color="#B3070E1A" Offset="1" />
+          </LinearGradientBrush>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="BorderBrush" Value="#4D7DD3FC" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Padding" Value="13,5" />
       <Setter Property="MinWidth" Value="74" />
       <Setter Property="TextElement.Foreground" Value="#8FD6FF" />
+      <Setter Property="BoxShadow" Value="inset 0 1 0 0 #2EFFFFFF, 0 0 14 0 #2600D4FF" />
     </Style>
     <Style Selector="Border.hudKey.armed">
       <Setter Property="Background" Value="#59180E00" />
@@ -106,55 +127,278 @@
       <Setter Property="BorderThickness" Value="2" />
     </Style>
 
-    <!-- Boot intro (one-shot on open): the badge rises and settles while a
-         ring blooms outward, then the whole overlay fades to reveal the UI -->
-    <Style Selector="Border.introFade">
+    <!-- The live UI rises into place under the dissolving intro, so the two
+         stages read as one continuous hand-off rather than a cut. -->
+    <Style Selector="Grid.mainframeContent">
       <Style.Animations>
-        <Animation Duration="0:0:2.4" IterationCount="1" FillMode="Forward">
-          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
-          <KeyFrame Cue="72%"><Setter Property="Opacity" Value="1" /></KeyFrame>
-          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+        <Animation Duration="0:0:0.9" Delay="0:0:0.15" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="26" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
+
+    <!-- ====================== BOOT SEQUENCE ======================
+         A staged power-on rather than a logo that fades in. The old version
+         was a badge and one faint ring on black, which read as a loading
+         screen apologising for itself. This is a machine coming up.
+
+         Timeline (total 3.2s, everything one-shot with FillMode=Forward so it
+         holds its end state instead of snapping back):
+
+           0.00  a hairline splits the black and opens vertically  (CRT strike)
+           0.25  the grid and bloom wash in behind
+           0.45  corner brackets drive in from off-screen
+           0.55  the badge lands — overshoot, then settle
+           0.65  three rings bloom outward, staggered
+           1.05  the tagline lifts in under it
+           1.35  the status line types its way to ONLINE
+           1.45  the progress rail fills
+           2.55  the whole overlay dissolves into the live UI
+
+         Delay is what makes this readable: each element has its own Animation
+         with its own Delay, so the stages land in sequence instead of all
+         starting at zero and racing. -->
+
+    <!-- The strike: a 2px line that widens to fill the screen. -->
+    <Style Selector="Border.introStrike">
+      <Style.Animations>
+        <Animation Duration="0:0:0.55" IterationCount="1" FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.004" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.2" />
+          </KeyFrame>
+          <KeyFrame Cue="18%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.004" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The field behind everything: grid + bloom washing in. -->
+    <Style Selector="Panel.introField">
+      <Style.Animations>
+        <Animation Duration="0:0:1.1" Delay="0:0:0.25" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.25" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.25" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- Targeting brackets drive in from their own corners. -->
+    <Style Selector="Border.introBracket">
+      <Style.Animations>
+        <Animation Duration="0:0:0.7" Delay="0:0:0.45" IterationCount="1"
+                   FillMode="Forward" Easing="QuadraticEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.85" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.introBracket.tl">
+      <Style.Animations>
+        <Animation Duration="0:0:0.7" Delay="0:0:0.45" IterationCount="1"
+                   FillMode="Forward" Easing="QuadraticEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.X" Value="-70" />
+            <Setter Property="TranslateTransform.Y" Value="-70" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.X" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.introBracket.br">
+      <Style.Animations>
+        <Animation Duration="0:0:0.7" Delay="0:0:0.45" IterationCount="1"
+                   FillMode="Forward" Easing="QuadraticEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.X" Value="70" />
+            <Setter Property="TranslateTransform.Y" Value="70" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.X" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The badge lands hard and overshoots, which is what sells "arrived"
+         rather than "appeared". -->
     <Style Selector="StackPanel.introBadge">
       <Style.Animations>
-        <Animation Duration="0:0:1.3" IterationCount="1" FillMode="Forward" Easing="CubicEaseOut">
+        <Animation Duration="0:0:0.95" Delay="0:0:0.55" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
           <KeyFrame Cue="0%">
             <Setter Property="Opacity" Value="0" />
-            <Setter Property="TranslateTransform.Y" Value="34" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.5" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.5" />
           </KeyFrame>
-          <KeyFrame Cue="55%">
+          <KeyFrame Cue="62%">
             <Setter Property="Opacity" Value="1" />
-            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.95" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.95" />
           </KeyFrame>
           <KeyFrame Cue="100%">
             <Setter Property="Opacity" Value="1" />
-            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
           </KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
+
+    <!-- Three rings on the same path, staggered, so the bloom has depth
+         instead of being one lonely circle. -->
     <Style Selector="Ellipse.introRing">
       <Style.Animations>
-        <Animation Duration="0:0:1.9" IterationCount="1" FillMode="Forward" Easing="CubicEaseOut">
+        <Animation Duration="0:0:1.6" Delay="0:0:0.65" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
           <KeyFrame Cue="0%">
-            <Setter Property="Opacity" Value="0.9" />
-            <Setter Property="ScaleTransform.ScaleX" Value="0.15" />
-            <Setter Property="ScaleTransform.ScaleY" Value="0.15" />
+            <Setter Property="Opacity" Value="0.95" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.1" />
           </KeyFrame>
           <KeyFrame Cue="100%">
             <Setter Property="Opacity" Value="0" />
-            <Setter Property="ScaleTransform.ScaleX" Value="2.6" />
-            <Setter Property="ScaleTransform.ScaleY" Value="2.6" />
+            <Setter Property="ScaleTransform.ScaleX" Value="3" />
+            <Setter Property="ScaleTransform.ScaleY" Value="3" />
           </KeyFrame>
         </Animation>
       </Style.Animations>
     </Style>
+    <Style Selector="Ellipse.introRing.r2">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" Delay="0:0:0.9" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="3.4" />
+            <Setter Property="ScaleTransform.ScaleY" Value="3.4" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.introRing.r3">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" Delay="0:0:1.15" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0.4" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="3.8" />
+            <Setter Property="ScaleTransform.ScaleY" Value="3.8" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="TextBlock.introTag">
+      <Style.Animations>
+        <Animation Duration="0:0:0.8" Delay="0:0:1.05" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="18" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="StackPanel.introStatus">
+      <Style.Animations>
+        <Animation Duration="0:0:0.6" Delay="0:0:1.35" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The rail fills left-to-right by scaling its own X, so no width
+         animation and no layout pass per frame. -->
+    <Style Selector="Border.introRail">
+      <Style.Animations>
+        <Animation Duration="0:0:0.95" Delay="0:0:1.45" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="ScaleTransform.ScaleX" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="ScaleTransform.ScaleX" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <!-- The dissolve. Scaling up slightly as it goes makes the UI feel like it
+         is arriving from underneath rather than the overlay simply vanishing. -->
+    <Style Selector="Border.introFade">
+      <Style.Animations>
+        <Animation Duration="0:0:3.2" IterationCount="1" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="80%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1.06" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1.06" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
   </Window.Styles>
 
   <Panel>
-    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="48,28,48,24">
+    <!-- Depth first, content on top. Everything below is drawn over this. -->
+    <gui:AmbientBackdrop />
+
+    <Grid Classes="mainframeContent" Opacity="0"
+          RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="48,28,48,24">
 
       <!-- Top status strip -->
       <DockPanel Grid.Row="0">
@@ -441,22 +685,133 @@
       </DockPanel>
     </Border>
 
-    <!-- Boot intro overlay: plays once on open, then fades to the UI -->
-    <Border Name="IntroOverlay" Classes="introFade" Background="#05070D" IsHitTestVisible="False">
-      <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Ellipse Classes="introRing" Width="260" Height="260"
-                 Stroke="#00D4FF" StrokeThickness="2"
-                 HorizontalAlignment="Center" VerticalAlignment="Center" />
-        <StackPanel Classes="introBadge" Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
-                 Height="120"
-                 HorizontalAlignment="Center"
-                 RenderOptions.BitmapInterpolationMode="HighQuality" />
-          <TextBlock Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
-                     Classes="label"
-                     FontSize="13"
-                     HorizontalAlignment="Center" />
-        </StackPanel>
+    <!-- Boot intro overlay: plays once on open, then dissolves to the UI.
+         The timeline and the reasoning are in Window.Styles above. -->
+    <Border Name="IntroOverlay" Classes="introFade" Background="#04060B"
+            IsHitTestVisible="False" ClipToBounds="True"
+            RenderTransformOrigin="50%,50%">
+      <Panel>
+
+        <!-- Field: grid, bloom and brackets, all behind the badge -->
+        <Panel Classes="introField" Opacity="0" RenderTransformOrigin="50%,50%">
+          <Border>
+            <Border.Background>
+              <DrawingBrush TileMode="Tile" SourceRect="0,0,58,58" DestinationRect="0,0,58,58" Stretch="None">
+                <DrawingBrush.Drawing>
+                  <GeometryDrawing Brush="Transparent" Geometry="M0,0 L58,0 L58,58 L0,58 Z">
+                    <GeometryDrawing.Pen>
+                      <Pen Brush="#143FA9D6" Thickness="1" />
+                    </GeometryDrawing.Pen>
+                  </GeometryDrawing>
+                </DrawingBrush.Drawing>
+              </DrawingBrush>
+            </Border.Background>
+          </Border>
+          <Border>
+            <Border.Background>
+              <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%" RadiusX="55%" RadiusY="60%">
+                <GradientStop Color="#4D1E6F9E" Offset="0" />
+                <GradientStop Color="#1A0E2E52" Offset="0.5" />
+                <GradientStop Color="#00000000" Offset="1" />
+              </RadialGradientBrush>
+            </Border.Background>
+          </Border>
+
+          <!-- Corner brackets: the frame snapping around the badge -->
+          <Border Classes="introBracket tl" Opacity="0" Width="96" Height="96"
+                  Margin="72,64,0,0"
+                  HorizontalAlignment="Left" VerticalAlignment="Top"
+                  BorderBrush="#5A00D4FF" BorderThickness="2,2,0,0" />
+          <Border Classes="introBracket br" Opacity="0" Width="96" Height="96"
+                  Margin="0,0,72,64"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                  BorderBrush="#5A00D4FF" BorderThickness="0,0,2,2" />
+        </Panel>
+
+        <!-- Centre stack: rings behind, badge and copy in front -->
+        <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Ellipse Classes="introRing" Width="230" Height="230" Opacity="0"
+                   Stroke="#00D4FF" StrokeThickness="2"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="50%,50%" />
+          <Ellipse Classes="introRing r2" Width="230" Height="230" Opacity="0"
+                   Stroke="#34F5A4" StrokeThickness="1.5"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="50%,50%" />
+          <Ellipse Classes="introRing r3" Width="230" Height="230" Opacity="0"
+                   Stroke="#7C6BFF" StrokeThickness="1"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="50%,50%" />
+
+          <StackPanel Spacing="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Classes="introBadge" Spacing="14" HorizontalAlignment="Center"
+                        Opacity="0" RenderTransformOrigin="50%,50%">
+              <Panel>
+                <Ellipse Width="520" Height="260" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Ellipse.Fill>
+                    <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%" RadiusX="50%" RadiusY="50%">
+                      <GradientStop Color="#5900A0E0" Offset="0" />
+                      <GradientStop Color="#1F0060A0" Offset="0.55" />
+                      <GradientStop Color="#00000000" Offset="1" />
+                    </RadialGradientBrush>
+                  </Ellipse.Fill>
+                </Ellipse>
+                <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                     Height="132"
+                     HorizontalAlignment="Center"
+                     RenderOptions.BitmapInterpolationMode="HighQuality" />
+              </Panel>
+            </StackPanel>
+
+            <TextBlock Classes="introTag"
+                       Opacity="0"
+                       Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
+                       FontSize="13"
+                       LetterSpacing="4"
+                       Foreground="#8FB4DC"
+                       HorizontalAlignment="Center" />
+
+            <!-- Status line + fill rail -->
+            <StackPanel Classes="introStatus" Opacity="0" Spacing="10" HorizontalAlignment="Center" Margin="0,14,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                <Ellipse Width="7" Height="7" Fill="#34F5A4" VerticalAlignment="Center" />
+                <TextBlock Text="MAINFRAME ONLINE"
+                           FontSize="11"
+                           LetterSpacing="3"
+                           Foreground="#34F5A4"
+                           FontFamily="Cascadia Mono,Consolas,monospace" />
+              </StackPanel>
+              <Border Width="360" Height="4" CornerRadius="2" Background="#16233C"
+                      HorizontalAlignment="Center"
+                      BoxShadow="0 0 16 0 #4D00D4FF">
+                <Border Classes="introRail" CornerRadius="2"
+                        HorizontalAlignment="Stretch"
+                        RenderTransform="scaleX(0)"
+                        RenderTransformOrigin="0%,50%">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                      <GradientStop Color="#00D4FF" Offset="0" />
+                      <GradientStop Color="#34F5A4" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Panel>
+
+        <!-- The strike, on top of everything: the screen switching on -->
+        <Border Classes="introStrike" Opacity="0"
+                VerticalAlignment="Center" Height="260"
+                RenderTransformOrigin="50%,50%">
+          <Border.Background>
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+              <GradientStop Color="#00CFF3FF" Offset="0" />
+              <GradientStop Color="#CCE8FBFF" Offset="0.5" />
+              <GradientStop Color="#00CFF3FF" Offset="1" />
+            </LinearGradientBrush>
+          </Border.Background>
+        </Border>
       </Panel>
     </Border>
 

@@ -43,6 +43,8 @@
   </Window.Styles>
 
   <Panel>
+  <gui:AmbientBackdrop />
+
   <!-- Client area extends into the title bar; leave room for caption buttons -->
   <DockPanel Margin="26,40,26,22">
 

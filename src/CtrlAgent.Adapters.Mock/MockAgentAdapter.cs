@@ -108,6 +108,21 @@ public sealed class MockAgentAdapter : IAgentAdapter
                 Publish(AgentStateKind.Idle, $"Switched to {CurrentSessionId}.");
                 break;
 
+            case AgentCommandKind.ResumeSession:
+                if (command.Text is { } target && target.StartsWith("mock-", StringComparison.Ordinal) &&
+                    int.TryParse(target["mock-".Length..], out var number) && number >= 1)
+                {
+                    CancelActiveTurn();
+                    _sessionNumber = number;
+                    Publish(AgentStateKind.Idle, $"Resumed {CurrentSessionId}.");
+                }
+                else
+                {
+                    Publish(AgentStateKind.Error, $"Unknown mock session '{command.Text}'.");
+                }
+
+                break;
+
             case AgentCommandKind.PreviousSession:
                 CancelActiveTurn();
                 if (_sessionNumber > 1)

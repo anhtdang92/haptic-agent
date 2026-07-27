@@ -57,6 +57,9 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/CtrlAgent.Hosting/CtrlAgent.Hosting.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/CtrlAgent.Presentation/CtrlAgent.Presentation.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/CtrlAgent.Adapters.Mock/CtrlAgent.Adapters.Mock.csproj" />
+    <!-- MainViewModel reads Claude Code's on-disk session store for the
+         recents sidebar; the adapter project is platform-independent. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../src/CtrlAgent.Adapters.ClaudeCode/CtrlAgent.Adapters.ClaudeCode.csproj" />
   </ItemGroup>
 
 </Project>

@@ -231,6 +231,10 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
                 await SwitchThreadAsync(-1, cancellationToken).ConfigureAwait(false);
                 break;
 
+            case AgentCommandKind.ResumeSession:
+                await ResumeThreadByIdAsync(command.Text, cancellationToken).ConfigureAwait(false);
+                break;
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Unsupported Codex command.");
         }
@@ -355,6 +359,41 @@ public sealed class CodexAppServerAdapter : IAgentAdapter
         _threadId = target;
         _turnId = null;
         Publish(AgentStateKind.Idle, $"Active thread {position}/{count}: {target}.");
+    }
+
+    /// <summary>Resumes a specific thread by id — issued by a session list in
+    /// a UI rather than the blind next/previous cycle. The id may exist only
+    /// in Codex's on-disk store; the server decides whether it is real.</summary>
+    private async Task ResumeThreadByIdAsync(string? threadId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+        {
+            Publish(AgentStateKind.Error, "ResumeSession needs a thread id.");
+            return;
+        }
+
+        try
+        {
+            _ = await SendRequestAsync(
+                "thread/resume",
+                new
+                {
+                    threadId,
+                    cwd = _options.WorkingDirectory,
+                    approvalPolicy = "unlessTrusted",
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (CodexProtocolException exception)
+        {
+            Publish(AgentStateKind.Error, $"Could not resume thread {threadId}: {exception.Message}");
+            return;
+        }
+
+        RememberThread(threadId);
+        _threadId = threadId;
+        _turnId = null;
+        Publish(AgentStateKind.Idle, $"Resumed Codex thread {threadId}.");
     }
 
     private async Task StartTurnAsync(string prompt, CancellationToken cancellationToken)

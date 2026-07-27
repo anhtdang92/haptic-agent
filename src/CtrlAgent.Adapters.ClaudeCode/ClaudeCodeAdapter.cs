@@ -171,6 +171,10 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 await SwitchSessionAsync(-1, cancellationToken).ConfigureAwait(false);
                 break;
 
+            case AgentCommandKind.ResumeSession:
+                await ResumeSessionAsync(command.Text, cancellationToken).ConfigureAwait(false);
+                break;
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Unsupported Claude Code command.");
         }
@@ -316,6 +320,39 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         }
 
         await RelaunchAsync(target, $"Resuming Claude Code session {position}/{count}: {target}.", cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Resumes a specific session by id — the path a session list in a UI
+    /// takes, where the user picked an entry rather than cycling blind. The
+    /// id may come from Claude Code's on-disk session store, so it is not
+    /// required to be one this adapter has already seen; the CLI is the
+    /// authority on whether it exists, and a bad id surfaces as its error.
+    /// </summary>
+    private async Task ResumeSessionAsync(string? sessionId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            Publish(AgentStateKind.Error, "ResumeSession needs a session id.");
+            return;
+        }
+
+        lock (_sessionSync)
+        {
+            if (_sessionId == sessionId)
+            {
+                Publish(AgentStateKind.Idle, $"Session {sessionId} is already active.");
+                return;
+            }
+
+            if (!_sessionIds.Contains(sessionId))
+            {
+                _sessionIds.Add(sessionId);
+            }
+        }
+
+        await RelaunchAsync(sessionId, $"Resuming Claude Code session {sessionId}.", cancellationToken)
             .ConfigureAwait(false);
     }
 

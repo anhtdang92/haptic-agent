@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using CtrlAgent.Adapters.ClaudeCode;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
 using CtrlAgent.Presentation;
@@ -97,6 +98,9 @@ public sealed class MainViewModel : ViewModelBase
     private bool _isMainframePromptVisible;
     private GuiOptions _options;
     private string _workspacePath = string.Empty;
+    private bool _isSessionListVisible;
+    private bool _isDictating;
+    private readonly SpeechToTextService _speech = new();
 
     public MainViewModel(HostEngine? engine, GuiOptions options)
     {
@@ -141,6 +145,8 @@ public sealed class MainViewModel : ViewModelBase
         });
         ConfirmMainframeCommand = new RelayCommand(_ => ConfirmMainframe());
         DismissMainframePromptCommand = new RelayCommand(_ => DismissMainframePrompt());
+        RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
+        DictateCommand = new RelayCommand(_ => Dictate());
 
         if (engine is not null)
         {
@@ -207,6 +213,9 @@ public sealed class MainViewModel : ViewModelBase
         HasPendingApproval = false;
         PendingApprovalMessage = string.Empty;
         SessionId = string.Empty;
+        Sessions.Clear();
+        IsSessionListVisible = false;
+        Raise(nameof(IsSessionsEmpty));
         AgentState = "Starting…";
         IsAgentActive = false;
         AgentDotBrush = DotOff;
@@ -263,6 +272,12 @@ public sealed class MainViewModel : ViewModelBase
 
         Buddy.SetProfile(engine.Profile);
         _approvalControls = ApprovalControls.From(engine.Profile);
+
+        // The recents sidebar reads Claude Code's on-disk session store; the
+        // other adapters have no equivalent inventory yet, so it only shows
+        // for the adapter whose store we know how to read.
+        IsSessionListVisible = string.Equals(engine.AdapterId, "claude", StringComparison.Ordinal);
+        RefreshSessions();
 
         engine.LogEmitted += message => Post(() => AppendLog(message));
         engine.ControllerStatusChanged += status => Post(() =>
@@ -340,9 +355,18 @@ public sealed class MainViewModel : ViewModelBase
         });
         engine.AgentEventReceived += agentEvent => Post(() =>
         {
+            var sessionChanged = !string.Equals(_sessionId, agentEvent.SessionId, StringComparison.Ordinal);
             AppendToTranscript(agentEvent);
             AgentState = agentEvent.State.ToString();
             SessionId = agentEvent.SessionId;
+
+            // Keep the recents list truthful at the moments it can change:
+            // a new/switched session (new row, moved highlight) or a finished
+            // turn (fresh last-activity, and a first prompt becomes a title).
+            if (sessionChanged || agentEvent.State is AgentStateKind.Completed or AgentStateKind.Error)
+            {
+                RefreshSessions();
+            }
             AgentDotBrush = agentEvent.State switch
             {
                 AgentStateKind.Working => DotBusy,
@@ -422,6 +446,10 @@ public sealed class MainViewModel : ViewModelBase
     public ObservableCollection<ChatMessage> Transcript { get; } = [];
 
     public ObservableCollection<BindingRow> Bindings { get; } = [];
+
+    /// <summary>The recents sidebar: sessions from the agent's on-disk store,
+    /// newest first, rebuilt on refresh.</summary>
+    public ObservableCollection<SessionListItem> Sessions { get; } = [];
 
     public ControllerVisualViewModel ControllerVisual { get; } = new();
 
@@ -687,6 +715,141 @@ public sealed class MainViewModel : ViewModelBase
     public bool HasQueuedPrompts => _queuedPromptCount > 0;
 
     public string QueuedPromptLabel => $"queued: {_queuedPromptCount}";
+
+    /// <summary>True when the active adapter has a readable session store.</summary>
+    public bool IsSessionListVisible
+    {
+        get => _isSessionListVisible;
+        private set => Set(ref _isSessionListVisible, value);
+    }
+
+    public bool IsSessionsEmpty => Sessions.Count == 0;
+
+    /// <summary>True while the composer mic is capturing dictation.</summary>
+    public bool IsDictating
+    {
+        get => _isDictating;
+        private set => Set(ref _isDictating, value);
+    }
+
+    public ICommand RefreshSessionsCommand { get; }
+
+    public ICommand DictateCommand { get; }
+
+    /// <summary>Shows the recents sidebar with supplied rows. Exists for the
+    /// render harness, which has no Claude session store to read; the live
+    /// path is <see cref="RefreshSessions"/>.</summary>
+    public void ShowSessionList(IReadOnlyList<SessionListItem> sessions)
+    {
+        ArgumentNullException.ThrowIfNull(sessions);
+        IsSessionListVisible = true;
+        Sessions.Clear();
+        foreach (var session in sessions)
+        {
+            Sessions.Add(session);
+        }
+
+        Raise(nameof(IsSessionsEmpty));
+    }
+
+    /// <summary>
+    /// Rebuilds the recents list from the on-disk store. Disk work happens off
+    /// the UI thread; the swap happens on it. The engine reference and current
+    /// ids are captured first so a workspace switch mid-refresh publishes
+    /// nothing stale.
+    /// </summary>
+    private void RefreshSessions()
+    {
+        var engine = _engine;
+        if (engine is null || !IsSessionListVisible)
+        {
+            return;
+        }
+
+        var workspace = WorkspacePath;
+        var currentSessionId = SessionId;
+        _ = Task.Run(() =>
+        {
+            IReadOnlyList<ClaudeSessionInfo> found;
+            try
+            {
+                found = ClaudeSessionCatalog.ListSessions(workspace);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return;
+            }
+
+            Post(() =>
+            {
+                if (_engine != engine || WorkspacePath != workspace)
+                {
+                    return;
+                }
+
+                Sessions.Clear();
+                foreach (var info in found)
+                {
+                    Sessions.Add(new SessionListItem(
+                        info.SessionId,
+                        info.Title,
+                        info.LastActivity,
+                        isCurrent: string.Equals(info.SessionId, currentSessionId, StringComparison.Ordinal),
+                        new RelayCommand(_ => ResumeSession(info.SessionId))));
+                }
+
+                Raise(nameof(IsSessionsEmpty));
+            });
+        });
+    }
+
+    private void ResumeSession(string sessionId)
+    {
+        if (string.Equals(sessionId, SessionId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        AddChat(isUser: false, isActivity: true, $"↩ Resuming session {sessionId}…");
+        Fire(e => e.ResumeSessionAsync(sessionId));
+    }
+
+    /// <summary>
+    /// Composer dictation: one recognition pass lands in the prompt box for
+    /// review — never auto-sent, the same rule as the Mainframe voice screen.
+    /// Clicking again while listening cancels.
+    /// </summary>
+    private async void Dictate()
+    {
+        if (IsDictating)
+        {
+            _speech.CancelRecognition();
+            return;
+        }
+
+        if (!_speech.EnsureInitialized())
+        {
+            AddChat(isUser: false, isActivity: true,
+                $"🎙 Voice input unavailable: {_speech.UnavailableReason ?? "unknown"}.");
+            return;
+        }
+
+        IsDictating = true;
+        try
+        {
+            var text = await _speech.RecognizeOnceAsync().ConfigureAwait(true);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                PromptText = string.IsNullOrWhiteSpace(PromptText)
+                    ? text
+                    : $"{PromptText.TrimEnd()} {text}";
+            }
+        }
+        finally
+        {
+            IsDictating = false;
+        }
+    }
 
     /// <summary>
     /// Sends a prompt (typed, voice, or a slash-command tile): user bubble in

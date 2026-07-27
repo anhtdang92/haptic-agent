@@ -286,6 +286,20 @@
                 ToolTip.Tip="Prompts waiting to send when the current turn ends">
           <TextBlock Text="{Binding QueuedPromptLabel}" FontSize="10" Foreground="#FFD9A0" />
         </Border>
+        <!-- Dictation lands in the prompt box for review, never auto-sends;
+             clicking again while listening cancels. -->
+        <Button Content="🎙"
+                Classes="ghost"
+                Classes.listening="{Binding IsDictating}"
+                Command="{Binding DictateCommand}"
+                ToolTip.Tip="Dictate into the prompt box (click again to cancel)">
+          <Button.Styles>
+            <Style Selector="Button.listening">
+              <Setter Property="BorderBrush" Value="#99FF5A78" />
+              <Setter Property="Background" Value="#26FF5A78" />
+            </Style>
+          </Button.Styles>
+        </Button>
         <Button Content="Submit" Classes="accent" Command="{Binding SubmitPromptCommand}" />
         <Button Content="Interrupt" Command="{Binding InterruptCommand}" />
         <Button Content="Review" Command="{Binding ReviewCommand}" />
@@ -349,9 +363,82 @@
       </DockPanel>
     </Border>
 
-    <!-- Log + live input + bindings -->
-    <Grid ColumnDefinitions="3*,2*" Margin="0,14,0,0">
-      <Border Classes="card" Padding="16,14" Margin="0,0,9,0">
+    <!-- Sessions + log + live input + bindings -->
+    <Grid ColumnDefinitions="Auto,3*,2*" Margin="0,14,0,0">
+
+      <!-- Recents sidebar (Claude-app style): every session the agent's
+           on-disk store knows for this workspace, newest first — click one to
+           resume it. Auto column, so hiding it (non-Claude adapters have no
+           readable store yet) collapses the space entirely. -->
+      <Border Grid.Column="0"
+              Classes="card"
+              Padding="12,14"
+              Margin="0,0,9,0"
+              Width="212"
+              IsVisible="{Binding IsSessionListVisible}">
+        <Border.Styles>
+          <Style Selector="Button.sessionRow">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="9,7" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="CornerRadius" Value="8" />
+          </Style>
+          <Style Selector="Button.sessionRow.current">
+            <Setter Property="BorderBrush" Value="#5900D4FF" />
+            <Setter Property="Background" Value="#1400D4FF" />
+          </Style>
+        </Border.Styles>
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="4,0,0,8">
+            <Button DockPanel.Dock="Right"
+                    Content="↻"
+                    Classes="ghost"
+                    Padding="7,2"
+                    Command="{Binding RefreshSessionsCommand}"
+                    ToolTip.Tip="Refresh the session list" />
+            <TextBlock Text="SESSIONS" Classes="label" VerticalAlignment="Center" />
+          </DockPanel>
+          <Button DockPanel.Dock="Top"
+                  Content="+ New chat"
+                  Classes="accent"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Margin="0,0,0,10"
+                  Command="{Binding NewSessionCommand}" />
+          <Panel>
+            <TextBlock Classes="placeholder"
+                       Text="No sessions yet"
+                       IsVisible="{Binding IsSessionsEmpty}" />
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding Sessions}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="gui:SessionListItem">
+                    <Button Classes="ghost sessionRow"
+                            Classes.current="{Binding IsCurrent}"
+                            Command="{Binding ResumeCommand}"
+                            ToolTip.Tip="{Binding SessionId}">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding Title}"
+                                   TextWrapping="Wrap"
+                                   MaxLines="2"
+                                   TextTrimming="CharacterEllipsis"
+                                   FontSize="11.5"
+                                   Foreground="#D7E4FA" />
+                        <TextBlock Text="{Binding WhenLabel}"
+                                   FontSize="10"
+                                   Foreground="#5A7099" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Panel>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Column="1" Classes="card" Padding="16,14" Margin="0,0,9,0">
         <DockPanel>
           <DockPanel DockPanel.Dock="Top" Margin="4,0,0,6">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
@@ -402,10 +489,7 @@
                   <Border Classes="bubble"
                           Classes.user="{Binding IsUser}"
                           IsVisible="{Binding !IsActivity}">
-                    <TextBlock Text="{Binding Text}"
-                               TextWrapping="Wrap"
-                               FontSize="12.5"
-                               Foreground="#E2EDFF" />
+                    <gui:MarkdownView Markdown="{Binding Text}" />
                   </Border>
                 </Panel>
               </DataTemplate>
@@ -449,7 +533,7 @@
            whole column: ACTIVE BINDINGS disappeared entirely and the mirror
            drew straight over the HAPTICS chips. Stars mean both cards always
            get a share and the mirror scales into whatever it is given. -->
-      <Grid Grid.Column="1" Margin="9,0,0,0" RowDefinitions="3*,2*">
+      <Grid Grid.Column="2" Margin="9,0,0,0" RowDefinitions="3*,2*">
 
         <!-- Live controller mirror: every control lights up as it is used -->
         <Border Grid.Row="0" Classes="card" Padding="16,14" Margin="0,0,0,9">

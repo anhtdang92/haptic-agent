@@ -31,6 +31,13 @@ public enum AgentCommandKind
     NewSession,
     NextSession,
     PreviousSession,
+
+    /// <summary>Switch to a specific known session; <c>Text</c> carries the
+    /// session (or thread) id. Unlike <see cref="NextSession"/>/<see
+    /// cref="PreviousSession"/> — which cycle blind and exist for controller
+    /// buttons — this is the command a session list in a UI issues when the
+    /// user picks an entry directly.</summary>
+    ResumeSession,
     ReviewChanges,
 
     /// <summary>Switch the agent's permission mode; <c>Text</c> carries the

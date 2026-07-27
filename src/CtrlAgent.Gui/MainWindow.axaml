@@ -98,8 +98,8 @@
                   CornerRadius="13"
                   Padding="4,3">
             <StackPanel Orientation="Horizontal" Spacing="1">
-              <Button Classes="tool" Command="{Binding ReviewCommand}"
-                      ToolTip.Tip="Ask the agent to review the working tree (X on the controller)">
+              <Button Classes="tool" Command="{Binding ShowDiffCommand}"
+                      ToolTip.Tip="Review the workspace changes — every pending edit, before you approve more (Esc closes)">
 <TextBlock Text="◱" FontSize="13" VerticalAlignment="Center" />
               </Button>
               <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
@@ -613,6 +613,86 @@
     </Grid>
 
   </DockPanel>
+
+  <!-- ===================== DIFF REVIEW =====================
+       What has actually changed in the workspace, before more of it is
+       approved. An overlay rather than a card in the grid because reviewing
+       is a mode: while you are deciding, the diff deserves the whole window,
+       and Esc (or ✕) puts the conversation back. Right stick pages it while
+       it is open — the same binding that pages the agent feed. -->
+  <Border IsVisible="{Binding IsDiffVisible}" Background="#CC05080F">
+    <!-- Opaque, unlike the shared .card: code is read, not glanced at, and
+         the composer bleeding through the diff text made both unreadable. -->
+    <Border Classes="card"
+            Background="#F70B1424"
+            Margin="44,52"
+            Padding="18,14">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="4,0,0,10">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+            <Button Classes="ghost" Content="Refresh" Command="{Binding RefreshDiffCommand}"
+                    ToolTip.Tip="Re-read the workspace" />
+            <Button Classes="ghost" Content="Ask agent to review" Command="{Binding ReviewCommand}"
+                    ToolTip.Tip="Have the agent critique its own changes (X on the controller)" />
+            <Button Classes="tool" Command="{Binding CloseDiffCommand}" ToolTip.Tip="Close (Esc)">
+              <TextBlock Text="✕" FontSize="13" VerticalAlignment="Center" />
+            </Button>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <TextBlock Text="CHANGES" Classes="label" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding DiffSummary}"
+                       FontSize="12.5"
+                       Foreground="#7DD3FC"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+        </DockPanel>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding DiffError}"
+                   Foreground="#FF7A8C"
+                   FontSize="12.5"
+                   TextWrapping="Wrap"
+                   Margin="4,0,0,8"
+                   IsVisible="{Binding HasDiffError}" />
+
+        <Panel>
+          <StackPanel Spacing="7"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsDiffClean}">
+            <Ellipse Width="34" Height="34" HorizontalAlignment="Center"
+                     Fill="#1234F5A4" Stroke="#3334F5A4" StrokeThickness="1" />
+            <TextBlock Text="Nothing to review"
+                       FontSize="13"
+                       Foreground="#7B93BC"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="The working tree matches the last commit"
+                       FontSize="11.5"
+                       Foreground="#4C6A93"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+          <ScrollViewer x:Name="DiffScroller" HorizontalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding DiffRows}" Margin="4,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="gui:DiffRow">
+                  <Border Background="{Binding Background}"
+                          Margin="{Binding Margin}"
+                          Padding="8,1"
+                          CornerRadius="3">
+                    <TextBlock Text="{Binding Text}"
+                               FontFamily="Cascadia Mono,Consolas,monospace"
+                               FontSize="12"
+                               FontWeight="{Binding Weight}"
+                               Foreground="{Binding Foreground}" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Panel>
+      </DockPanel>
+    </Border>
+  </Border>
 
   <!-- Startup failure. Same treatment as first-run: a dead app is a screen in
        its own right, not a modal over a greyed-out UI that is not running.

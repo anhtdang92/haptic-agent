@@ -56,6 +56,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Agent states read as English, not enum names", TestAgentStateTextAsync),
     ("Log lines classify most-severe first", TestLogClassificationAsync),
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
+    ("Unified diff parses edits, adds, renames, binaries", TestUnifiedDiffParserAsync),
+    ("Workspace diff folds tracked and untracked changes", TestWorkspaceDiffAsync),
 };
 
 var failures = 0;
@@ -1739,6 +1741,163 @@ static Task TestExecutableResolverAsync()
         "claude", searchPath, windowsPathExt, _ => false));
 
     return Task.CompletedTask;
+}
+
+static Task TestUnifiedDiffParserAsync()
+{
+    // A modified file with two hunks: counts and line kinds, prefixes kept.
+    var files = UnifiedDiffParser.Parse(
+        """
+        diff --git a/src/App.cs b/src/App.cs
+        index 1111111..2222222 100644
+        --- a/src/App.cs
+        +++ b/src/App.cs
+        @@ -1,3 +1,3 @@
+         using System;
+        -var x = 1;
+        +var x = 2;
+        @@ -10,2 +10,3 @@ void Main()
+         return;
+        +Log();
+        \ No newline at end of file
+        """);
+    AssertEqual(1, files.Count);
+    AssertEqual("src/App.cs", files[0].Path);
+    AssertEqual(DiffFileChange.Modified, files[0].Change);
+    AssertEqual(2, files[0].Additions);
+    AssertEqual(1, files[0].Deletions);
+    AssertEqual(DiffLineKind.HunkHeader, files[0].Lines[0].Kind);
+    AssertEqual(DiffLineKind.Context, files[0].Lines[1].Kind);
+    AssertEqual("-var x = 1;", files[0].Lines[2].Text);
+    AssertEqual("+var x = 2;", files[0].Lines[3].Text);
+    Assert(files[0].Lines.All(line => line.Text != @"\ No newline at end of file"),
+        "The no-newline marker is noise and must not render.");
+    AssertEqual("M src/App.cs · +2 −1", files[0].Headline);
+
+    // New, deleted, renamed, and binary files all classify from the header
+    // block — and the +++/--- paths win over the diff --git guess.
+    files = UnifiedDiffParser.Parse(
+        """
+        diff --git a/new.txt b/new.txt
+        new file mode 100644
+        --- /dev/null
+        +++ b/new.txt
+        @@ -0,0 +1,1 @@
+        +hello
+        diff --git a/gone.txt b/gone.txt
+        deleted file mode 100644
+        --- a/gone.txt
+        +++ /dev/null
+        @@ -1,1 +0,0 @@
+        -bye
+        diff --git a/old-name.cs b/new-name.cs
+        similarity index 97%
+        rename from old-name.cs
+        rename to new-name.cs
+        diff --git a/logo.png b/logo.png
+        index 3333333..4444444 100644
+        Binary files a/logo.png and b/logo.png differ
+        """);
+    AssertEqual(4, files.Count);
+    AssertEqual(DiffFileChange.Added, files[0].Change);
+    AssertEqual("new.txt", files[0].Path);
+    AssertEqual(1, files[0].Additions);
+    AssertEqual(DiffFileChange.Deleted, files[1].Change);
+    AssertEqual("gone.txt", files[1].Path);
+    AssertEqual(1, files[1].Deletions);
+    AssertEqual(DiffFileChange.Renamed, files[2].Change);
+    AssertEqual("new-name.cs", files[2].Path);
+    AssertEqual("old-name.cs", files[2].RenamedFrom);
+
+    // Spaces make git quote the whole header, which defeats the header-path
+    // guess entirely — only the rename lines carry the clean paths.
+    var quoted = UnifiedDiffParser.Parse(
+        """
+        diff --git "a/my file.cs" "b/my file 2.cs"
+        similarity index 100%
+        rename from my file.cs
+        rename to my file 2.cs
+        """);
+    AssertEqual("my file 2.cs", quoted[0].Path);
+    AssertEqual("my file.cs", quoted[0].RenamedFrom);
+    Assert(files[3].IsBinary, "Binary marker must classify the file as binary.");
+    AssertEqual(0, files[3].Lines.Count);
+    AssertEqual("A new.txt · +1 −0", files[0].Headline);
+    AssertEqual("R old-name.cs → new-name.cs · +0 −0", files[2].Headline);
+    AssertEqual("M logo.png · binary", files[3].Headline);
+
+    // Junk in, nothing out — not an exception, not a phantom file.
+    AssertEqual(0, UnifiedDiffParser.Parse(null).Count);
+    AssertEqual(0, UnifiedDiffParser.Parse("not a diff at all").Count);
+
+    // The summary line reads like a status chip.
+    AssertEqual("Working tree clean", new WorkspaceChanges([]).Summary);
+    AssertEqual("Unavailable", new WorkspaceChanges([], Error: "no git").Summary);
+    var one = new WorkspaceChanges([new DiffFile("a.txt", DiffFileChange.Modified, false, 3, 1, [])]);
+    AssertEqual("1 file · +3 −1", one.Summary);
+    return Task.CompletedTask;
+}
+
+static async Task TestWorkspaceDiffAsync()
+{
+    var repo = Path.Combine(Path.GetTempPath(), $"ctrlagent-diff-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(repo);
+    try
+    {
+        // A directory that is not a repository reports why, not an empty diff.
+        var outside = await WorkspaceDiff.CollectAsync(repo);
+        Assert(outside.IsError, "A non-repository must surface an error.");
+
+        await RunAsync("git", ["-C", repo, "init", "--quiet"]);
+        File.WriteAllText(Path.Combine(repo, "tracked.txt"), "one\ntwo\n");
+        await RunAsync("git", ["-C", repo, "add", "."]);
+        await RunAsync("git", [
+            "-C", repo, "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "--quiet", "-m", "seed"]);
+
+        // Clean tree: no files, no error.
+        var clean = await WorkspaceDiff.CollectAsync(repo);
+        Assert(!clean.IsError, $"Clean repo errored: {clean.Error}");
+        AssertEqual(0, clean.Files.Count);
+
+        // One tracked edit + one untracked file: both appear, the untracked
+        // one as an all-added synthetic diff.
+        File.WriteAllText(Path.Combine(repo, "tracked.txt"), "one\nTWO\n");
+        File.WriteAllText(Path.Combine(repo, "fresh.txt"), "alpha\nbeta\n");
+        File.WriteAllBytes(Path.Combine(repo, "blob.bin"), [0x50, 0x00, 0x4E, 0x47]);
+        var changes = await WorkspaceDiff.CollectAsync(repo);
+        Assert(!changes.IsError, $"Collect errored: {changes.Error}");
+        AssertEqual(3, changes.Files.Count);
+        var tracked = changes.Files.Single(file => file.Path == "tracked.txt");
+        AssertEqual(1, tracked.Additions);
+        AssertEqual(1, tracked.Deletions);
+        var fresh = changes.Files.Single(file => file.Path == "fresh.txt");
+        AssertEqual(DiffFileChange.Added, fresh.Change);
+        AssertEqual(2, fresh.Additions);
+        AssertEqual("+alpha", fresh.Lines[0].Text);
+        var blob = changes.Files.Single(file => file.Path == "blob.bin");
+        Assert(blob.IsBinary, "A null byte marks an untracked file as binary.");
+        AssertEqual(0, blob.Lines.Count);
+        AssertEqual("3 files · +3 −1", changes.Summary);
+    }
+    finally
+    {
+        Directory.Delete(repo, recursive: true);
+    }
+
+    static async Task RunAsync(string fileName, string[] arguments)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo { FileName = fileName };
+        foreach (var argument in arguments)
+        {
+            info.ArgumentList.Add(argument);
+        }
+
+        using var process = System.Diagnostics.Process.Start(info)
+            ?? throw new InvalidOperationException($"{fileName} did not start.");
+        await process.WaitForExitAsync();
+        Assert(process.ExitCode == 0, $"{fileName} {string.Join(' ', arguments)} exited {process.ExitCode}.");
+    }
 }
 
 static void Assert(bool condition, string message)

@@ -29,7 +29,36 @@ public sealed partial class MainWindow : Window
                 eventArgs.Handled = true;
                 (Avalonia.Application.Current as App)?.ShowMainframe();
             }
+            else if (eventArgs.Key == Key.Escape &&
+                     DataContext is MainViewModel { IsDiffVisible: true } viewModel)
+            {
+                eventArgs.Handled = true;
+                viewModel.CloseDiffCommand.Execute(null);
+            }
         };
+    }
+
+    /// <summary>
+    /// Pages the surface on top when a binding scrolls the output: the diff
+    /// panel while it is open, the conversation otherwise. 80% of a viewport
+    /// per flick, matching the Mainframe feed.
+    /// </summary>
+    private void OnOutputScroll(int direction)
+    {
+        var scroll = DataContext is MainViewModel { IsDiffVisible: true }
+            ? DiffScroller
+            : ChatList.Scroll as ScrollViewer;
+        if (scroll is null)
+        {
+            return;
+        }
+
+        var page = scroll.Viewport.Height * 0.8;
+        var target = Math.Clamp(
+            scroll.Offset.Y + direction * page,
+            0,
+            Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
+        scroll.Offset = scroll.Offset.WithY(target);
     }
 
     // Enter sends; Shift+Enter falls through to the TextBox and becomes a
@@ -60,6 +89,7 @@ public sealed partial class MainWindow : Window
         _observedViewModel = viewModel;
         viewModel.Log.CollectionChanged += OnLogChanged;
         viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
+        viewModel.OutputScrollRequested += OnOutputScroll;
     }
 
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>

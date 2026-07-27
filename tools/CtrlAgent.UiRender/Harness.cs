@@ -15,6 +15,7 @@ using Avalonia.Threading;
 using CtrlAgent.Adapters.Mock;
 using CtrlAgent.Core;
 using CtrlAgent.Hosting;
+using CtrlAgent.Presentation;
 
 namespace CtrlAgent.Gui;
 
@@ -176,6 +177,60 @@ internal static class Harness
         approving.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
         approving.AppendLog("[agent] ApprovalRequired: Claude Code wants: Write: src/Mapping.cs");
         Render(new MainWindow { DataContext = approving }, "02-main-approval.png");
+
+        // The diff review panel: what you are about to approve, before you
+        // approve more of it. Populated through PresentDiff so the shot needs
+        // no git repository — the collection path is unit-tested separately.
+        var reviewing = new MainViewModel(engine, options);
+        reviewing.AttachEngine(engine);
+        reviewing.ControllerStatus = "Xbox Elite Series 2 (paddles)";
+        reviewing.AgentStatus = "claude";
+        reviewing.IsDiffVisible = true;
+        reviewing.PresentDiff(new WorkspaceChanges(
+        [
+            new DiffFile("src/CtrlAgent.Core/Mapping.cs", DiffFileChange.Modified, false, 3, 1,
+            [
+                new DiffLine(DiffLineKind.HunkHeader, "@@ -118,6 +118,8 @@ public IReadOnlyList<AgentCommand> Process(ControllerInputEvent input)"),
+                new DiffLine(DiffLineKind.Context, "         var matches = FindStructuralMatches(input);"),
+                new DiffLine(DiffLineKind.Removed, "-        return matches;"),
+                new DiffLine(DiffLineKind.Added, "+        var eligible = FilterByEligibility(matches);"),
+                new DiffLine(DiffLineKind.Added, "+        return Hydrate(eligible);"),
+                new DiffLine(DiffLineKind.HunkHeader, "@@ -204,3 +206,4 @@ private void Reset()"),
+                new DiffLine(DiffLineKind.Context, "         _pendingRequestId = null;"),
+                new DiffLine(DiffLineKind.Added, "+        _pendingSessionId = null;"),
+            ]),
+            new DiffFile("tests/CtrlAgent.Tests/Program.cs", DiffFileChange.Modified, false, 1, 1,
+            [
+                new DiffLine(DiffLineKind.HunkHeader, "@@ -12,7 +12,7 @@"),
+                new DiffLine(DiffLineKind.Removed, "-    (\"Plain A submits\", TestPlainMappingAsync),"),
+                new DiffLine(DiffLineKind.Added, "+    (\"Plain A submits a prompt\", TestPlainMappingAsync),"),
+            ]),
+            new DiffFile("src/CtrlAgent.Gui/DiffRow.cs", DiffFileChange.Added, false, 2, 0,
+            [
+                new DiffLine(DiffLineKind.Added, "+using Avalonia.Media;"),
+                new DiffLine(DiffLineKind.Added, "+using CtrlAgent.Presentation;"),
+            ]),
+            new DiffFile("assets/logo.png", DiffFileChange.Modified, true, 0, 0, []),
+        ]));
+        Render(new MainWindow { DataContext = reviewing }, "18-diff-review.png",
+            afterSettle: w =>
+            {
+                if (w.FindControl<ScrollViewer>("DiffScroller") is not { } scroller ||
+                    scroller.Bounds.Height < 40 ||
+                    scroller.Extent.Height < 40)
+                {
+                    Faults.Add("18-diff-review: the diff rows did not lay out.");
+                }
+            });
+
+        // The same panel over a clean tree: the empty state has to explain
+        // itself, not look like a failed load.
+        var cleanTree = new MainViewModel(engine, options);
+        cleanTree.AttachEngine(engine);
+        cleanTree.AgentStatus = "claude";
+        cleanTree.IsDiffVisible = true;
+        cleanTree.PresentDiff(new WorkspaceChanges([]));
+        Render(new MainWindow { DataContext = cleanTree }, "19-diff-clean.png");
 
         // The boot sequence, sampled across its timeline. The animation clock
         // DOES advance here — Pump sleeps in real time between render ticks —

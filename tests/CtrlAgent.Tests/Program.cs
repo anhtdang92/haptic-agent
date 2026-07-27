@@ -1643,7 +1643,7 @@ static async Task TestClaudeSessionCatalogAsync()
     }
     finally
     {
-        Directory.Delete(home, recursive: true);
+        DeleteTempDirectory(home);
     }
 
     await Task.CompletedTask;
@@ -1882,7 +1882,7 @@ static async Task TestWorkspaceDiffAsync()
     }
     finally
     {
-        Directory.Delete(repo, recursive: true);
+        DeleteTempDirectory(repo);
     }
 
     static async Task RunAsync(string fileName, string[] arguments)
@@ -1913,6 +1913,41 @@ static void AssertEqual<T>(T expected, T actual)
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
     {
         throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
+    }
+}
+
+/// <summary>
+/// Removes a temp directory built by a test. Two things a plain
+/// <see cref="Directory.Delete(string, bool)"/> gets wrong here: git marks
+/// everything under <c>.git/objects</c> read-only and Windows refuses to
+/// delete those, and a throwing cleanup replaces whichever assertion actually
+/// failed. A leftover temp directory is the smaller problem, so this clears
+/// the attribute first and then swallows whatever is left.
+/// </summary>
+static void DeleteTempDirectory(string path)
+{
+    if (!Directory.Exists(path))
+    {
+        return;
+    }
+
+    try
+    {
+        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            var attributes = File.GetAttributes(file);
+            if ((attributes & FileAttributes.ReadOnly) != 0)
+            {
+                File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            }
+        }
+
+        Directory.Delete(path, recursive: true);
+    }
+    catch (Exception exception) when (
+        exception is IOException or UnauthorizedAccessException)
+    {
+        Console.WriteLine($"  (left {path} behind: {exception.Message})");
     }
 }
 

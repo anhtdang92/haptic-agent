@@ -48,6 +48,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Host engine tracks session settings from every route", TestSessionSettingsTrackingAsync),
     ("Mock adapter emits approval lifecycle", TestMockAdapterAsync),
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
+    ("Mock adapter resumes a session by id", TestMockResumeSessionAsync),
+    ("Claude session catalog lists the on-disk store", TestClaudeSessionCatalogAsync),
+    ("MarkdownLite parses prose, code, and lists", TestMarkdownLiteAsync),
     ("An interrupt feels the same on every adapter", TestInterruptIsUniformAsync),
     ("Transcript folds streaming prose into one bubble", TestTranscriptFoldingAsync),
     ("Agent states read as English, not enum names", TestAgentStateTextAsync),
@@ -1550,6 +1553,139 @@ static async Task TestMockSessionNavigationAsync()
     await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.PreviousSession)).ConfigureAwait(false);
     Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a boundary event.");
     AssertEqual("mock-1", enumerator.Current.SessionId);
+}
+
+static async Task TestMockResumeSessionAsync()
+{
+    await using var adapter = new MockAgentAdapter();
+    await adapter.StartAsync().ConfigureAwait(false);
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+    await using var enumerator = adapter.ReadEventsAsync(timeout.Token).GetAsyncEnumerator(timeout.Token);
+
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected the ready event.");
+
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.NextSession)).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a switch event.");
+    AssertEqual("mock-2", enumerator.Current.SessionId);
+
+    // A direct resume jumps to the named session — the sidebar's path, not
+    // the blind cycle.
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.ResumeSession, Text: "mock-1")).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected a resume event.");
+    AssertEqual("mock-1", enumerator.Current.SessionId);
+    AssertEqual(AgentStateKind.Idle, enumerator.Current.State);
+
+    // A bad id is an error, not a silent no-op.
+    await adapter.ExecuteAsync(new AgentCommand(AgentCommandKind.ResumeSession, Text: "nonsense")).ConfigureAwait(false);
+    Assert(await enumerator.MoveNextAsync().ConfigureAwait(false), "Expected an error event.");
+    AssertEqual(AgentStateKind.Error, enumerator.Current.State);
+}
+
+static async Task TestClaudeSessionCatalogAsync()
+{
+    // The store's directory name: every character outside [A-Za-z0-9] → '-'.
+    AssertEqual(
+        "G--Old-Files-repo-name",
+        ClaudeSessionCatalog.EncodeProjectDirectoryName(@"G:\Old Files\repo_name"));
+
+    // Titles: a summary line wins over the first prompt; synthetic
+    // angle-bracket user entries never become titles; junk lines are skipped.
+    AssertEqual(
+        "Fix the login bug",
+        ClaudeSessionCatalog.ExtractTitle(
+        [
+            "not json at all",
+            """{"type":"queue-operation","operation":"enqueue"}""",
+            """{"type":"user","message":{"role":"user","content":"<system-reminder>ignore me</system-reminder>"}}""",
+            """{"type":"user","message":{"role":"user","content":"Fix the login bug"}}""",
+        ]));
+    AssertEqual(
+        "Login bug investigation",
+        ClaudeSessionCatalog.ExtractTitle(
+        [
+            """{"type":"user","message":{"role":"user","content":"Fix the login bug"}}""",
+            """{"type":"summary","summary":"Login bug investigation"}""",
+        ]));
+    AssertEqual(
+        "From a block array",
+        ClaudeSessionCatalog.ExtractTitle(
+        [
+            """{"type":"user","message":{"role":"user","content":[{"type":"text","text":"From a block array"}]}}""",
+        ]));
+
+    // Listing a real (temp) store: newest activity first, session id from the
+    // file name, a transcript with no usable prompt still lists.
+    var home = Path.Combine(Path.GetTempPath(), $"ctrlagent-test-{Guid.NewGuid():N}");
+    var workspace = @"C:\repos\demo";
+    var store = Path.Combine(home, "projects", ClaudeSessionCatalog.EncodeProjectDirectoryName(workspace));
+    Directory.CreateDirectory(store);
+    try
+    {
+        File.WriteAllText(
+            Path.Combine(store, "older.jsonl"),
+            """{"type":"user","message":{"role":"user","content":"First session prompt"}}""" + Environment.NewLine);
+        File.WriteAllText(
+            Path.Combine(store, "newer.jsonl"),
+            """{"type":"file-history-snapshot","messageId":"x"}""" + Environment.NewLine);
+        File.SetLastWriteTimeUtc(Path.Combine(store, "older.jsonl"), DateTime.UtcNow.AddHours(-2));
+
+        var sessions = ClaudeSessionCatalog.ListSessions(workspace, home);
+        AssertEqual(2, sessions.Count);
+        AssertEqual("newer", sessions[0].SessionId);
+        AssertEqual("New session", sessions[0].Title);
+        AssertEqual("older", sessions[1].SessionId);
+        AssertEqual("First session prompt", sessions[1].Title);
+
+        AssertEqual(0, ClaudeSessionCatalog.ListSessions(@"C:\repos\absent", home).Count);
+    }
+    finally
+    {
+        Directory.Delete(home, recursive: true);
+    }
+
+    await Task.CompletedTask;
+}
+
+static async Task TestMarkdownLiteAsync()
+{
+    // Inline styling inside one paragraph.
+    var blocks = MarkdownLite.Parse("**bold** and `code` here");
+    AssertEqual(1, blocks.Count);
+    var paragraph = (MarkdownParagraph)blocks[0];
+    AssertEqual(4, paragraph.Runs.Count);
+    AssertEqual("bold", paragraph.Runs[0].Text);
+    Assert(paragraph.Runs[0].Bold, "First run should be bold.");
+    AssertEqual(" and ", paragraph.Runs[1].Text);
+    Assert(paragraph.Runs[2].Code, "Third run should be code.");
+    AssertEqual("code", paragraph.Runs[2].Text);
+    AssertEqual(" here", paragraph.Runs[3].Text);
+
+    // Bare asterisks with spaces around them are arithmetic, not emphasis.
+    var literal = (MarkdownParagraph)MarkdownLite.Parse("2 * 3 * 4")[0];
+    AssertEqual(1, literal.Runs.Count);
+    AssertEqual("2 * 3 * 4", literal.Runs[0].Text);
+
+    // Fenced code keeps its body verbatim and carries the language.
+    blocks = MarkdownLite.Parse("intro\n```csharp\nvar x = 1;\n```\noutro");
+    AssertEqual(3, blocks.Count);
+    var code = (MarkdownCodeBlock)blocks[1];
+    AssertEqual("var x = 1;", code.Code);
+    AssertEqual("csharp", code.Language);
+
+    // Bullets, numbered items, and headings become their own blocks.
+    blocks = MarkdownLite.Parse("## Plan\n- first\n2. second");
+    AssertEqual(3, blocks.Count);
+    AssertEqual(2, ((MarkdownHeading)blocks[0]).Level);
+    AssertEqual("•", ((MarkdownListItem)blocks[1]).Marker);
+    AssertEqual("2.", ((MarkdownListItem)blocks[2]).Marker);
+
+    // An unterminated fence still renders as code — streams cut mid-block.
+    blocks = MarkdownLite.Parse("```\nhalf a block");
+    AssertEqual(1, blocks.Count);
+    AssertEqual("half a block", ((MarkdownCodeBlock)blocks[0]).Code);
+
+    await Task.CompletedTask;
 }
 
 static ControllerInputEvent Press(ControllerControl control) =>

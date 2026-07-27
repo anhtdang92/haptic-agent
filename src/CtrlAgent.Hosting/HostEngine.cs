@@ -205,6 +205,11 @@ public sealed class HostEngine : IAsyncDisposable
     public Task PreviousSessionAsync() =>
         ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.PreviousSession));
 
+    /// <summary>Switches to a specific session by id — what a session list in
+    /// a UI issues when the user picks an entry directly.</summary>
+    public Task ResumeSessionAsync(string sessionId) =>
+        ExecuteSafelyAsync(new AgentCommand(AgentCommandKind.ResumeSession, Text: sessionId));
+
     /// <summary>
     /// Answers the pending approval request. Returns false when nothing is
     /// pending (no command is sent).

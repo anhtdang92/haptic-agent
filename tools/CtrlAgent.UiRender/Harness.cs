@@ -145,6 +145,15 @@ internal static class Harness
         viewModel.AppendLog("[agent] Error: build failed in CtrlAgent.Core");
         viewModel.AppendLog("[agent] Completed: All tests pass (12.4s · 3 turns · $0.09)");
 
+        // The recents sidebar, populated the way a Claude workspace would be.
+        var noop = new RelayCommand(_ => { });
+        viewModel.ShowSessionList(
+        [
+            new SessionListItem("8f21c0a4", "Refactor the mapping engine tests", DateTimeOffset.UtcNow.AddMinutes(-3), isCurrent: true, noop),
+            new SessionListItem("2b77d1ee", "Add a session picker to Mainframe mode and wire it to the d-pad", DateTimeOffset.UtcNow.AddHours(-5), isCurrent: false, noop),
+            new SessionListItem("77aa19c2", "Fix the DualSense trigger effect", DateTimeOffset.UtcNow.AddDays(-2), isCurrent: false, noop),
+        ]);
+
         RenderButtonGallery();
         CheckPressDarkens();
 
@@ -219,6 +228,16 @@ internal static class Harness
         Pump(3000);
         chat.SubmitPromptText("Now write tests for it");
         Pump(3000);
+
+        // A markdown-rich agent reply, injected directly: the mock agent
+        // speaks plain prose, and this shot is what proves bold, inline code,
+        // bullets, and a fenced block actually render as styled blocks.
+        chat.Transcript.Add(new ChatMessage
+        {
+            IsUser = false,
+            IsActivity = false,
+            Text = "Here is the plan:\n\n## Mapping fix\n- Prefer **chords** over plain buttons in `MappingEngine.Process`\n- Keep *eligibility* filtering last\n\n```csharp\nvar commands = engine.Process(input);\n```",
+        });
         Render(new MainWindow { DataContext = chat }, "06-conversation.png");
 
         // First-run setup overlay.

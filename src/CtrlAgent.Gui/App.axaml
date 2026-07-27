@@ -270,12 +270,29 @@
         </Transitions>
       </Setter>
     </Style>
+    <!-- Drawn glyphs, not emoji. Emoji render at the mercy of whatever font
+         the platform picks — here they came out as grey blobs, and on Windows
+         they would arrive full-colour and clash with a monochrome UI. A stroked
+         Path looks the same everywhere and scales with the button. -->
+    <Style Selector="Path.icon">
+      <Setter Property="Stroke" Value="#E8F1FF" />
+      <Setter Property="StrokeThickness" Value="1.6" />
+      <Setter Property="StrokeLineCap" Value="Round" />
+      <Setter Property="StrokeJoin" Value="Round" />
+      <Setter Property="Fill" Value="Transparent" />
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Stretch" Value="Uniform" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
     <!-- Session knob: a pill in the status strip that both reports a value
          and steps it. Sized down so four of them read as one instrument
          cluster next to the facts rather than as four commands. -->
     <Style Selector="Button.knob">
-      <Setter Property="FontSize" Value="10" />
-      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="FontSize" Value="9.5" />
+      <Setter Property="Padding" Value="8,3" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="FontWeight" Value="Normal" />
       <Setter Property="VerticalAlignment" Value="Center" />

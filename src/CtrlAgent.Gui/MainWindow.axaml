@@ -14,6 +14,28 @@
         MinHeight="660">
 
   <Window.Styles>
+    <!-- First-run card: rises and settles once, so the app opens rather than
+         blinks into existence. Base state is set in markup because Avalonia
+         renders an element's own value during Animation.Delay. -->
+    <Style Selector="Border.setupCard">
+      <Style.Animations>
+        <Animation Duration="0:0:0.65" Delay="0:0:0.1" IterationCount="1"
+                   FillMode="Forward" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="22" />
+            <Setter Property="ScaleTransform.ScaleX" Value="0.97" />
+            <Setter Property="ScaleTransform.ScaleY" Value="0.97" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+            <Setter Property="ScaleTransform.ScaleX" Value="1" />
+            <Setter Property="ScaleTransform.ScaleY" Value="1" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
     <!-- Conversation view: prose as chat bubbles, tool/status lines as
          small dim activity rows — the Claude-app layout -->
     <Style Selector="ListBox.chat ListBoxItem">
@@ -48,271 +70,193 @@
   <!-- Client area extends into the title bar; leave room for caption buttons -->
   <DockPanel Margin="26,40,26,22">
 
-    <!-- Hero: slim single-band header — bot | wordmark | utility cluster.
-         Doubles as the window drag handle now that the title bar is gone. -->
+    <!-- ===================== COMMAND BAR =====================
+         Hero and status used to be two stacked cards with a wordmark in the
+         middle of the first one. The wordmark was the widest thing on screen
+         and told you nothing you did not already know — you are looking at the
+         app. Dropping it and merging the two cards gives ~90px back to the
+         conversation, which is the part you actually read.
+
+         One surface, two rows: who you are talking to, then what you can
+         change about it. Still the window drag handle. -->
     <Border DockPanel.Dock="Top"
             Name="HeroBand"
             PointerPressed="OnHeroPressed"
+            Classes="card"
             CornerRadius="18"
-            Padding="22,14"
-            Margin="0,0,0,6"
-            BorderBrush="#14FFFFFF"
-            BorderThickness="1"
-            BoxShadow="0 12 40 0 #59000000">
-      <Border.Background>
-        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-          <GradientStop Color="#B0142440" Offset="0" />
-          <GradientStop Color="#B00E1A30" Offset="1" />
-        </LinearGradientBrush>
-      </Border.Background>
-      <!-- Docked layout, not an overlay: the bot claims the left, the tools
-           claim the right, and the wordmark centers inside whatever is left.
-           Zones can shrink but they can never collide. -->
-      <DockPanel LastChildFill="True">
+            Padding="20,14"
+            Margin="0,0,0,12">
+      <StackPanel Spacing="12">
 
-        <!-- CTRL·BOT: the resident agent companion -->
-        <StackPanel DockPanel.Dock="Left"
-                    Orientation="Horizontal"
-                    Spacing="12"
-                    VerticalAlignment="Center"
-                    DataContext="{Binding Buddy}"
-                    x:DataType="gui:AgentBuddyViewModel">
-          <Viewbox Height="88" Stretch="Uniform">
-            <gui:BotView />
-          </Viewbox>
-
-          <!-- Speech bubble: fixed width so the text can never reflow the band -->
-          <Border Background="#7A17243E"
-                  BorderBrush="#14FFFFFF"
-                  BorderThickness="1"
-                  CornerRadius="14"
-                  Padding="13,9"
-                  Width="192"
-                  VerticalAlignment="Center">
-            <TextBlock Text="{Binding Message}"
-                       TextWrapping="Wrap"
-                       FontSize="12"
-                       Foreground="#CFE1FF" />
-          </Border>
-        </StackPanel>
-
-        <!-- Utility cluster: window-level tools, held in one segmented rail so
-             they read as a single instrument rather than four loose words.
-             The rail carries the chrome; the items inside stay quiet until
-             hovered, and each pairs a glyph with its label so the row is
-             scannable at a glance. -->
-        <Border DockPanel.Dock="Right"
-                VerticalAlignment="Center"
-                Background="#4D0E1728"
-                BorderBrush="#1FFFFFFF"
-                BorderThickness="1"
-                CornerRadius="13"
-                Padding="4,3">
-          <StackPanel Orientation="Horizontal" Spacing="1">
-            <Button Classes="tool"
-                    Click="OnShowMainframe"
-                    ToolTip.Tip="Mainframe — fullscreen controller-first mode (F11, Xbox/PS button, or double-press View)">
-              <StackPanel Orientation="Horizontal" Spacing="7">
-                <TextBlock Text="⛶" FontSize="13" VerticalAlignment="Center" />
-                <TextBlock Text="Mainframe" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
-            <Button Classes="tool" Click="OnToggleOverlay" ToolTip.Tip="Toggle the always-on-top HUD">
-              <StackPanel Orientation="Horizontal" Spacing="7">
-                <TextBlock Text="▤" FontSize="13" VerticalAlignment="Center" />
-                <TextBlock Text="Overlay" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
-            <Button Classes="tool" Click="OnEditProfile" ToolTip.Tip="Edit controller bindings with live validation">
-              <StackPanel Orientation="Horizontal" Spacing="7">
-                <TextBlock Text="⚙" FontSize="13" VerticalAlignment="Center" />
-                <TextBlock Text="Profile" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
-            <Button Classes="tool" Click="OnValidateHardware" ToolTip.Tip="Run the guided hardware validation wizard">
-              <StackPanel Orientation="Horizontal" Spacing="7">
-                <TextBlock Text="◎" FontSize="13" VerticalAlignment="Center" />
-                <TextBlock Text="Validate" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-          </StackPanel>
-        </Border>
-
-        <!-- Wordmark: centered in the space the other two zones leave behind -->
-        <StackPanel Spacing="4"
-                    Margin="12,0"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    IsHitTestVisible="False">
-          <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
-                 Height="46"
-                 HorizontalAlignment="Center"
-                 RenderOptions.BitmapInterpolationMode="HighQuality" />
-          <TextBlock Text="FOR AI CODING AGENTS"
-                     Classes="label"
-                     FontSize="8.5"
-                     LetterSpacing="2"
-                     TextAlignment="Center"
-                     HorizontalAlignment="Center" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <!-- Status: facts on top, session controls under them. One row could not
-         hold both — four fact blocks plus the session id and four knobs want
-         ~1250px while the card is 928px at the default window size, so the
-         knobs simply drew on top of WORKSPACE and PROFILE. Splitting is the
-         honest fix: the top line is what the session *is*, the bottom line is
-         what you can change about it. Facts wrap rather than clip. -->
-    <Border DockPanel.Dock="Top" Classes="card" Padding="20,11" Margin="0,4,0,0">
-      <StackPanel Spacing="9">
-
-        <!-- Hairlines carry an explicit Height: a WrapPanel gives each child
-             its desired size, and a Rectangle with only a Width desires none. -->
-        <WrapPanel ItemSpacing="22" LineSpacing="8">
-
-          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                     Fill="{Binding ControllerDotBrush}"
-                     Classes.pulse="{Binding IsControllerSearching}" />
-            <StackPanel Spacing="1">
-              <TextBlock Text="CONTROLLER" Classes="label" FontSize="9" />
-              <TextBlock Text="{Binding ControllerStatus}"
-                         FontSize="13" FontWeight="Medium" Foreground="#E6EFFB"
-                         TextTrimming="CharacterEllipsis" MaxWidth="230" />
-            </StackPanel>
-          </StackPanel>
-
-          <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
-
-          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                     Fill="{Binding AgentDotBrush}"
-                     Classes.pulse="{Binding IsAgentActive}" />
-            <StackPanel Spacing="1">
-              <TextBlock Text="AGENT" Classes="label" FontSize="9" />
-              <StackPanel Orientation="Horizontal" Spacing="7">
-                <TextBlock Text="{Binding AgentStatus}"
-                           FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
-                <TextBlock Text="{Binding AgentState}" FontSize="13" Foreground="#7DD3FC" />
-              </StackPanel>
-            </StackPanel>
-          </StackPanel>
-
-          <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
-
-          <!-- Workspace: which repository the agent is pointed at. Clickable,
-               because "which repo am I in" is the question you ask most and
-               switching used to mean restarting the app. -->
-          <Button Classes="ghost"
-                  Padding="0"
-                  Command="{Binding PickWorkspaceCommand}"
+        <!-- Row 1 — the companion, and the window-level tools -->
+        <DockPanel>
+          <Border DockPanel.Dock="Right"
                   VerticalAlignment="Center"
-                  Cursor="Hand"
-                  ToolTip.Tip="{Binding WorkspacePath}">
-            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-              <TextBlock Text="🗂" FontSize="12" VerticalAlignment="Center" Foreground="#6B84AD" />
-              <StackPanel Spacing="1">
-                <TextBlock Text="WORKSPACE" Classes="label" FontSize="9" />
-                <TextBlock Text="{Binding WorkspaceName}"
-                           FontSize="13" FontWeight="Medium" Foreground="#E6EFFB"
-                           TextTrimming="CharacterEllipsis" MaxWidth="150" />
-              </StackPanel>
+                  Background="#4D0E1728"
+                  BorderBrush="#1FFFFFFF"
+                  BorderThickness="1"
+                  CornerRadius="13"
+                  Padding="4,3">
+            <StackPanel Orientation="Horizontal" Spacing="1">
+              <Button Classes="tool" Command="{Binding ReviewCommand}"
+                      ToolTip.Tip="Ask the agent to review the working tree (X on the controller)">
+<TextBlock Text="◱" FontSize="13" VerticalAlignment="Center" />
+              </Button>
+              <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
+              <Button Classes="tool" Command="{Binding NewSessionCommand}"
+                      ToolTip.Tip="Start a fresh session (Menu on the controller)">
+<TextBlock Text="✦" FontSize="13" VerticalAlignment="Center" />
+              </Button>
+              <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
+              <Button Classes="tool" Click="OnShowMainframe"
+                      ToolTip.Tip="Mainframe — fullscreen controller-first mode (F11, Xbox/PS button, or double-press View)">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <TextBlock Text="⛶" FontSize="13" VerticalAlignment="Center" />
+                  <TextBlock Text="Mainframe" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
+              <Button Classes="tool" Click="OnToggleOverlay" ToolTip.Tip="Toggle the always-on-top HUD">
+                <TextBlock Text="▤" FontSize="13" VerticalAlignment="Center" />
+              </Button>
+              <Button Classes="tool" Click="OnEditProfile"
+                      ToolTip.Tip="Edit controller bindings with live validation">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <TextBlock Text="⚙" FontSize="13" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding ProfileName}" VerticalAlignment="Center" />
+                  <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{Binding ProfileDotBrush}" />
+                </StackPanel>
+              </Button>
+              <Button Classes="tool" Click="OnValidateHardware" ToolTip.Tip="Run the guided hardware validation wizard">
+                <TextBlock Text="◎" FontSize="13" VerticalAlignment="Center" />
+              </Button>
             </StackPanel>
-          </Button>
+          </Border>
 
-          <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
-
-          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{Binding ProfileDotBrush}" />
-            <StackPanel Spacing="1">
-              <TextBlock Text="PROFILE" Classes="label" FontSize="9" />
-              <TextBlock Text="{Binding ProfileName}"
-                         FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
-            </StackPanel>
+          <!-- CTRL·BOT and the line it is currently coaching -->
+          <StackPanel Orientation="Horizontal"
+                      Spacing="12"
+                      VerticalAlignment="Center"
+                      DataContext="{Binding Buddy}"
+                      x:DataType="gui:AgentBuddyViewModel">
+            <Viewbox Height="76" Stretch="Uniform">
+              <gui:BotView />
+            </Viewbox>
+            <Border Background="#7A17243E"
+                    BorderBrush="#14FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Padding="14,9"
+                    MaxWidth="360"
+                    VerticalAlignment="Center">
+              <TextBlock Text="{Binding Message}"
+                         TextWrapping="Wrap"
+                         FontSize="12.5"
+                         Foreground="#CFE1FF" />
+            </Border>
           </StackPanel>
-
-        </WrapPanel>
+        </DockPanel>
 
         <Rectangle Height="1" Fill="#14FFFFFF" />
 
-        <!-- Session knobs: what the agent is running as, and the only row in
-             this card you can click. Every one is also a controller binding,
-             so the labels read from the engine rather than from a local
-             counter (see PermissionModeLabel). -->
+        <!-- Row 2 — what the session is, and the knobs that change it -->
         <DockPanel LastChildFill="False">
-          <TextBlock DockPanel.Dock="Left"
-                     Text="{Binding SessionId}"
-                     FontSize="11" Foreground="#4C6A93"
-                     FontFamily="Cascadia Mono,Consolas,monospace"
-                     VerticalAlignment="Center"
-                     TextTrimming="CharacterEllipsis" MaxWidth="260" />
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-            <Button Content="{Binding PermissionModeLabel}"
-                    Command="{Binding CyclePermissionModeCommand}"
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
+                      VerticalAlignment="Center" Margin="16,0,0,0">
+            <Button Content="{Binding PermissionModeLabel}" Command="{Binding CyclePermissionModeCommand}"
                     Classes="knob"
                     ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
-            <Button Content="{Binding ModelLabel}"
-                    Command="{Binding CycleModelCommand}"
-                    Classes="knob"
-                    ToolTip.Tip="Cycle the model: default, sonnet, opus, haiku, fable" />
-            <Button Content="{Binding EffortLabel}"
-                    Command="{Binding CycleEffortCommand}"
-                    Classes="knob"
-                    ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
-            <Button Content="compact"
-                    Command="{Binding CompactCommand}"
-                    Classes="knob"
-                    ToolTip.Tip="Compact the conversation, freeing context" />
+            <Button Content="{Binding ModelLabel}" Command="{Binding CycleModelCommand}"
+                    Classes="knob" ToolTip.Tip="Cycle the model: default, sonnet, opus, haiku, fable" />
+            <Button Content="{Binding EffortLabel}" Command="{Binding CycleEffortCommand}"
+                    Classes="knob" ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
+            <Button Content="compact" Command="{Binding CompactCommand}"
+                    Classes="knob" ToolTip.Tip="Compact the conversation, freeing context" />
           </StackPanel>
+
+          <WrapPanel ItemSpacing="16" LineSpacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                       Fill="{Binding AgentDotBrush}" Classes.pulse="{Binding IsAgentActive}" />
+              <StackPanel Spacing="1">
+                <TextBlock Text="AGENT" Classes="label" FontSize="9" />
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <TextBlock Text="{Binding AgentStatus}" FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
+                  <TextBlock Text="{Binding AgentState}" FontSize="13" Foreground="#7DD3FC" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+
+            <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
+
+            <Button Classes="ghost" Padding="8,4" Command="{Binding PickWorkspaceCommand}"
+                    VerticalAlignment="Center" Cursor="Hand" ToolTip.Tip="{Binding WorkspacePath}">
+              <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                <TextBlock Text="🗂" FontSize="12" VerticalAlignment="Center" Foreground="#6B84AD" />
+                <StackPanel Spacing="1">
+                  <TextBlock Text="WORKSPACE" Classes="label" FontSize="9" />
+                  <TextBlock Text="{Binding WorkspaceName}" FontSize="13" FontWeight="Medium"
+                             Foreground="#E6EFFB" TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                </StackPanel>
+              </StackPanel>
+            </Button>
+
+            <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
+
+            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                       Fill="{Binding ControllerDotBrush}" Classes.pulse="{Binding IsControllerSearching}" />
+              <StackPanel Spacing="1">
+                <TextBlock Text="CONTROLLER" Classes="label" FontSize="9" />
+                <TextBlock Text="{Binding ControllerStatus}" FontSize="13" FontWeight="Medium"
+                           Foreground="#E6EFFB" TextTrimming="CharacterEllipsis" MaxWidth="240" />
+              </StackPanel>
+            </StackPanel>
+
+          </WrapPanel>
         </DockPanel>
       </StackPanel>
     </Border>
 
-    <!-- Action row: the only always-visible command strip -->
-    <DockPanel DockPanel.Dock="Top" Margin="0,14,0,0">
-      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="6,0,0,0"
-                  VerticalAlignment="Bottom">
-        <Border Background="#33FFB020"
-                BorderBrush="#66FFB020"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="8,2"
-                VerticalAlignment="Center"
+    <!-- ===================== COMPOSER =====================
+         One primary action, not four peers. Review and New session moved up to
+         the tool rail because they are session-level, and Interrupt appears
+         only while there is a turn to interrupt — a permanently-lit stop button
+         is noise for the 90% of the time nothing is running. -->
+    <DockPanel DockPanel.Dock="Top">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                  Margin="10,0,0,0" VerticalAlignment="Bottom">
+        <Border Background="#33FFB020" BorderBrush="#66FFB020" BorderThickness="1"
+                CornerRadius="8" Padding="8,2" VerticalAlignment="Center"
                 IsVisible="{Binding HasQueuedPrompts}"
                 ToolTip.Tip="Prompts waiting to send when the current turn ends">
           <TextBlock Text="{Binding QueuedPromptLabel}" FontSize="10" Foreground="#FFD9A0" />
         </Border>
-        <!-- Dictation lands in the prompt box for review, never auto-sends;
-             clicking again while listening cancels. -->
-        <Button Content="🎙"
-                Classes="ghost"
-                Classes.listening="{Binding IsDictating}"
-                Command="{Binding DictateCommand}"
-                ToolTip.Tip="Dictate into the prompt box (click again to cancel)">
-          <Button.Styles>
-            <Style Selector="Button.listening">
-              <Setter Property="BorderBrush" Value="#99FF5A78" />
-              <Setter Property="Background" Value="#26FF5A78" />
-            </Style>
-          </Button.Styles>
+        <Button Command="{Binding StartVoiceCommand}" Padding="12,9"
+                ToolTip.Tip="Speak a prompt (Y on the controller)">
+          <Path Classes="icon"
+                Data="M9,2.5 A2.6,2.6 0 0 1 11.6,5.1 L11.6,9.4 A2.6,2.6 0 0 1 6.4,9.4
+                      L6.4,5.1 A2.6,2.6 0 0 1 9,2.5 Z
+                      M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
+                      M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
         </Button>
-        <Button Content="Submit" Classes="accent" Command="{Binding SubmitPromptCommand}" />
-        <Button Content="Interrupt" Command="{Binding InterruptCommand}" />
-        <Button Content="Review" Command="{Binding ReviewCommand}" />
-        <Button Content="New session" Command="{Binding NewSessionCommand}" />
+        <Button Command="{Binding AttachFileCommand}" Padding="12,9"
+                ToolTip.Tip="Attach files for the next prompt (LB+X on the controller)">
+          <Path Classes="icon"
+                Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
+                      A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
+        </Button>
+        <Button Content="Interrupt" Classes="deny" Padding="16,10"
+                Command="{Binding InterruptCommand}"
+                IsVisible="{Binding IsAgentActive}"
+                ToolTip.Tip="Stop the current turn (B on the controller)" />
+        <Button Content="Submit" Classes="accent" FontSize="14" Padding="22,10"
+                Command="{Binding SubmitPromptCommand}" />
       </StackPanel>
-      <!-- Multi-line: a coding agent gets pasted stack traces and numbered
-           steps, and a single-line box silently flattened them. Enter still
-           submits (handled in code-behind so it beats the newline insert);
-           Shift+Enter is the newline. The box grows to a few lines, then
-           scrolls, so a long paste never eats the window. -->
+
       <TextBox Text="{Binding PromptText}"
                FontSize="14"
-               Padding="14,10"
+               Padding="16,11"
                AcceptsReturn="True"
                AcceptsTab="False"
                TextWrapping="Wrap"
@@ -321,6 +265,50 @@
                x:Name="PromptBox"
                Watermark="Ask the agent anything — Enter submits, Shift+Enter for a new line" />
     </DockPanel>
+
+
+    <!-- Attached files: shown under the prompt because they are part of what
+         the next Submit sends, not a separate thing that happened. -->
+    <Border DockPanel.Dock="Top"
+            Classes="card"
+            Padding="12,8"
+            Margin="0,8,0,0"
+            IsVisible="{Binding HasAttachments}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right"
+                Classes="ghost"
+                Content="Clear"
+                FontSize="11"
+                Command="{Binding ClearAttachmentsCommand}" />
+        <TextBlock DockPanel.Dock="Left"
+                   Text="📎"
+                   FontSize="13"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0" />
+        <StackPanel Spacing="3">
+          <TextBlock Text="{Binding AttachmentLabel}" Classes="label" FontSize="9" />
+          <ItemsControl ItemsSource="{Binding Attachments}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Border Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                        CornerRadius="6" Padding="7,2">
+                  <TextBlock Text="{Binding}"
+                             FontSize="11"
+                             Foreground="#B9CCEF"
+                             MaxWidth="320"
+                             TextTrimming="CharacterEllipsis" />
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </DockPanel>
+    </Border>
 
     <!-- Approval banner: docked in the flow directly under the prompt row, so
          it pushes content down rather than covering the controls you need to
@@ -392,11 +380,13 @@
         <DockPanel>
           <DockPanel DockPanel.Dock="Top" Margin="4,0,0,8">
             <Button DockPanel.Dock="Right"
-                    Content="↻"
                     Classes="ghost"
-                    Padding="7,2"
+                    Padding="8,5"
                     Command="{Binding RefreshSessionsCommand}"
-                    ToolTip.Tip="Refresh the session list" />
+                    ToolTip.Tip="Refresh the session list">
+              <Path Classes="icon"
+                    Data="M14.2,9 A5.2,5.2 0 1 1 12.7,5.3 M12.7,2.6 L12.7,5.6 L9.7,5.6" />
+            </Button>
             <TextBlock Text="SESSIONS" Classes="label" VerticalAlignment="Center" />
           </DockPanel>
           <Button DockPanel.Dock="Top"
@@ -624,116 +614,137 @@
 
   </DockPanel>
 
-  <!-- Startup failure: a dead app must say so. This sits above everything
-       because the window otherwise looks merely disconnected, and the real
-       reason used to be reachable only by toggling to the event stream. -->
-  <Border IsVisible="{Binding HasStartupError}"
-          Background="#F0060B14"
-          Padding="28">
-    <Border Classes="card"
-            MaxWidth="560"
-            Padding="24"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Center"
-            Background="#241016"
-            BorderBrush="#80FF5A78">
-      <StackPanel Spacing="12">
-        <TextBlock Text="CTRLAGENT COULDN'T START"
-                   Classes="label"
-                   FontSize="12"
-                   Foreground="#FF9AA8"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="{Binding StartupError}"
-                   FontSize="13"
-                   Foreground="#FFD9DF"
-                   TextWrapping="Wrap"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center" />
-        <TextBlock Text="Nothing is connected and no bindings are active until this is resolved. If you passed command-line flags, check that any path containing spaces is quoted."
-                   FontSize="11.5"
-                   Foreground="#9FB7DF"
-                   TextWrapping="Wrap" />
-        <Button Content="Change settings…"
-                Classes="accent"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                Command="{Binding DismissStartupErrorCommand}" />
-      </StackPanel>
-    </Border>
-  </Border>
+  <!-- Startup failure. Same treatment as first-run: a dead app is a screen in
+       its own right, not a modal over a greyed-out UI that is not running.
+       Showing the disabled app behind it invited people to poke at controls
+       that do nothing. -->
+  <Border IsVisible="{Binding HasStartupError}" Background="#05080F">
+    <Panel>
+      <gui:AmbientBackdrop />
 
-  <!-- Guide-button confirmation. The Xbox button is easy to catch with a palm
-       and Mainframe takes the whole screen, so it asks first. -->
-  <Border IsVisible="{Binding IsMainframePromptVisible}" Background="#E0060B14">
-    <Border Classes="card"
-            MaxWidth="440"
-            Padding="26"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Center">
-      <StackPanel Spacing="14">
-        <TextBlock Text="ENTER MAINFRAME?"
-                   Classes="label"
-                   FontSize="12"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="Mainframe takes over the full screen and the controller drives it."
-                   FontSize="12.5"
-                   Foreground="#9FB7DF"
-                   TextWrapping="Wrap"
-                   TextAlignment="Center" />
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-          <Button Content="Enter"
-                  Classes="accent"
-                  MinWidth="120"
-                  HorizontalContentAlignment="Center"
-                  Command="{Binding ConfirmMainframeCommand}" />
-          <Button Content="Stay here"
-                  MinWidth="120"
-                  HorizontalContentAlignment="Center"
-                  Command="{Binding DismissMainframePromptCommand}" />
-        </StackPanel>
-        <TextBlock Text="A — enter     B — stay here"
-                   Classes="label"
-                   FontSize="10"
-                   Opacity="0.75"
-                   HorizontalAlignment="Center" />
-      </StackPanel>
-    </Border>
-  </Border>
-
-  <!-- First-run setup overlay -->
-  <Border IsVisible="{Binding IsSetupVisible}" Background="#E0060B14">
-    <Border Classes="card" MaxWidth="480" Padding="26" VerticalAlignment="Center" HorizontalAlignment="Center">
-      <StackPanel Spacing="12">
-        <TextBlock Text="WELCOME TO CTRLAGENT" Classes="label" FontSize="12" HorizontalAlignment="Center" />
-        <TextBlock Text="One-time setup: pick the agent to drive and the repository to work in. Saved for next launch — command-line flags always override."
-                   FontSize="12"
-                   Foreground="#9FB7DF"
-                   TextWrapping="Wrap" />
-        <TextBlock Text="Agent platform" FontSize="11" Opacity="0.6" />
-        <ComboBox ItemsSource="{x:Static gui:MainViewModel.SetupAgents}"
-                  SelectedItem="{Binding SetupAgent}"
-                  HorizontalAlignment="Stretch" />
-        <TextBlock Text="Working directory (your repository)" FontSize="11" Opacity="0.6" />
-        <DockPanel>
-          <Button DockPanel.Dock="Right" Content="Browse…" Margin="6,0,0,0" Click="OnBrowseWorkingDirectory" />
-          <TextBox Text="{Binding SetupWorkingDirectory}" />
-        </DockPanel>
-        <TextBlock Text="{Binding SetupError}"
-                   Foreground="#FF7A6E"
-                   FontSize="12"
-                   TextWrapping="Wrap"
-                   IsVisible="{Binding SetupError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        <Button Content="Start"
-                Classes="accent"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                Command="{Binding StartSetupCommand}" />
-        <TextBlock Text="mock is the safe demo agent (no real AI calls). codex and claude need their CLI installed and authenticated."
-                   FontSize="11"
+      <Border Classes="card setupCard"
+              Opacity="0"
+              MaxWidth="560"
+              Padding="40,34"
+              VerticalAlignment="Center"
+              HorizontalAlignment="Center"
+              Background="#26150E14"
+              BorderBrush="#66FF5A78"
+              RenderTransformOrigin="50%,50%">
+        <StackPanel Spacing="18">
+          <StackPanel Spacing="10">
+            <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                   Height="56"
                    Opacity="0.5"
-                   TextWrapping="Wrap" />
-      </StackPanel>
-    </Border>
+                   HorizontalAlignment="Center"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Text="COULDN'T START"
+                       Classes="label"
+                       FontSize="11"
+                       LetterSpacing="3"
+                       Foreground="#FF9AA8"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <Rectangle Height="1" Fill="#33FF5A78" />
+
+          <TextBlock Text="{Binding StartupError}"
+                     FontSize="14"
+                     Foreground="#FFD9DF"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+
+          <TextBlock Text="Nothing is connected and no bindings are active until this is resolved. If you passed command-line flags, check that any path containing spaces is quoted."
+                     FontSize="12"
+                     Foreground="#9FB7DF"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+
+          <Button Content="Change settings…"
+                  Classes="accent"
+                  FontSize="14"
+                  Padding="14,10"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Command="{Binding DismissStartupErrorCommand}" />
+        </StackPanel>
+      </Border>
+    </Panel>
+  </Border>
+
+  <!-- First-run setup: the very first thing anyone sees. It used to be a
+       plain card over a dimmed screenshot of an app you had not started yet,
+       with the wordmark greyed out behind the scrim — the one moment the
+       product introduces itself, spent showing a disabled UI. Now it is its
+       own screen: opaque, on the shared field, brand first. -->
+  <Border IsVisible="{Binding IsSetupVisible}" Background="#05080F">
+    <Panel>
+      <gui:AmbientBackdrop />
+
+      <Border Classes="card setupCard" Opacity="0" MaxWidth="520" Padding="40,34"
+              VerticalAlignment="Center" HorizontalAlignment="Center"
+              RenderTransformOrigin="50%,50%">
+        <StackPanel Spacing="18">
+
+          <StackPanel Spacing="10">
+            <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
+                   Height="72"
+                   HorizontalAlignment="Center"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Text="CONTROLLER INTERFACE FOR AI CODING AGENTS"
+                       Classes="label"
+                       FontSize="9"
+                       LetterSpacing="2.6"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <Rectangle Height="1" Fill="#14FFFFFF" />
+
+          <TextBlock Text="Pick the agent to drive and the repository to work in. Saved for next launch — command-line flags always override."
+                     FontSize="12.5"
+                     Foreground="#9FB7DF"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="AGENT PLATFORM" Classes="label" FontSize="9" />
+            <ComboBox ItemsSource="{x:Static gui:MainViewModel.SetupAgents}"
+                      SelectedItem="{Binding SetupAgent}"
+                      HorizontalAlignment="Stretch" />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="WORKING DIRECTORY" Classes="label" FontSize="9" />
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Content="Browse…" Margin="8,0,0,0" Click="OnBrowseWorkingDirectory" />
+              <TextBox Text="{Binding SetupWorkingDirectory}" />
+            </DockPanel>
+          </StackPanel>
+
+          <TextBlock Text="{Binding SetupError}"
+                     Foreground="#FF7A6E"
+                     FontSize="12"
+                     TextWrapping="Wrap"
+                     IsVisible="{Binding SetupError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+          <Button Content="Start"
+                  Classes="accent"
+                  FontSize="14"
+                  Padding="14,10"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Command="{Binding StartSetupCommand}" />
+
+          <TextBlock Text="mock is the safe demo agent — no real AI calls. codex and claude need their CLI installed and authenticated."
+                     FontSize="11"
+                     Foreground="#5A7099"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Panel>
   </Border>
   </Panel>
 </Window>

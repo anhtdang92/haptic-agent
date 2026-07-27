@@ -493,7 +493,8 @@
               <TextBlock Text="Use a shortcut below, or press Y to speak a prompt"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
+            <ScrollViewer x:Name="FeedScroller"
+                          VerticalScrollBarVisibility="Auto"
                           IsVisible="{Binding !IsFeedEmpty}">
               <ItemsControl ItemsSource="{Binding Responses}">
                 <ItemsControl.ItemTemplate>
@@ -623,35 +624,35 @@
     </Grid>
 
     <!-- Shortcuts screen -->
-    <Border IsVisible="{Binding IsShortcutsVisible}">
-      <!-- Opaque, but blooming like the field underneath so the fullscreen
-           screens feel like the same room with the lights moved. -->
-      <Border.Background>
-        <RadialGradientBrush Center="50%,12%" GradientOrigin="50%,12%" RadiusX="85%" RadiusY="95%">
-          <GradientStop Color="#0D1729" Offset="0" />
-          <GradientStop Color="#070C16" Offset="0.55" />
-          <GradientStop Color="#03050A" Offset="1" />
-        </RadialGradientBrush>
-      </Border.Background>
-      <DockPanel Margin="72,48">
-        <TextBlock DockPanel.Dock="Top"
-                   Text="CONTROLLER SHORTCUTS"
-                   Classes="label"
-                   FontSize="18"
-                   HorizontalAlignment="Center"
-                   Margin="0,0,0,10" />
-        <TextBlock DockPanel.Dock="Top"
-                   Text="Everything the active profile binds. Approval-tagged inputs only fire while the agent is asking for permission. Press B to go back."
-                   FontSize="15"
-                   Foreground="#8FA8CF"
-                   HorizontalAlignment="Center"
-                   Margin="0,0,0,26" />
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <!-- Centered both ways: a short binding list should sit in the middle
-               of the screen, not cling to the top edge -->
-          <ItemsControl ItemsSource="{Binding Main.Bindings}"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
+    <Border IsVisible="{Binding IsShortcutsVisible}" Background="#05080F">
+      <!-- Near-opaque, with its own copy of the field behind the list. A true
+           scrim let the whole Mainframe show through and the two layers fought
+           each other; painting a flat colour instead made this a different
+           room from the one you just left. This gets the shared depth without
+           the bleed-through. -->
+      <Panel>
+      <gui:AmbientBackdrop />
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <!-- Header and grid travel together as one centred block. Docking the
+             header to the top left it stranded ~180px above its own content on
+             a short list. -->
+        <StackPanel Spacing="26" Margin="72,48"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+          <StackPanel Spacing="10">
+            <TextBlock Text="CONTROLLER SHORTCUTS"
+                       Classes="label"
+                       FontSize="18"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Everything the active profile binds. Approval-tagged inputs only fire while the agent is asking for permission. Press B to go back."
+                       FontSize="15"
+                       Foreground="#8FA8CF"
+                       MaxWidth="900"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <ItemsControl ItemsSource="{Binding Main.Bindings}" HorizontalAlignment="Center">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="14" />
@@ -659,15 +660,17 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="gui:BindingRow">
-                <Border Background="#8A16233C" BorderBrush="#14FFFFFF" BorderThickness="1"
-                        CornerRadius="16" Padding="18,14" Width="330">
+                <!-- Same chip and keycap styles the HUD uses, so this screen
+                     inherits their lit surfaces instead of restating a flatter
+                     copy of them. Wider than before: at 330px "Approve once"
+                     wrapped onto two lines with room to spare beside it. -->
+                <Border Classes="hudChip" Width="410" Padding="16,12">
                   <DockPanel>
-                    <Border DockPanel.Dock="Left"
-                            Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
-                            CornerRadius="9" Padding="12,5" MinWidth="112" VerticalAlignment="Center">
+                    <Border Classes="hudKey" DockPanel.Dock="Left"
+                            MinWidth="96" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Chord}"
                                  FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="16" Foreground="#7DD3FC" HorizontalAlignment="Center" />
+                                 FontSize="16" HorizontalAlignment="Center" />
                     </Border>
                     <Border DockPanel.Dock="Right"
                             Background="#33FFB020" CornerRadius="6" Padding="8,3"
@@ -675,14 +678,16 @@
                       <TextBlock Text="approval" FontSize="11" Foreground="#FFD9A0" />
                     </Border>
                     <TextBlock Text="{Binding Action}" FontSize="16" Foreground="#DDE9FF"
-                               Margin="14,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                               Margin="14,0" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
                   </DockPanel>
                 </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-        </ScrollViewer>
-      </DockPanel>
+        </StackPanel>
+      </ScrollViewer>
+      </Panel>
     </Border>
 
     <!-- Boot intro overlay: plays once on open, then dissolves to the UI.
@@ -816,14 +821,12 @@
     </Border>
 
     <!-- Voice prompt overlay -->
-    <Border IsVisible="{Binding IsVoiceVisible}">
-      <Border.Background>
-        <RadialGradientBrush Center="50%,45%" GradientOrigin="50%,45%" RadiusX="80%" RadiusY="90%">
-          <GradientStop Color="#0F1B30" Offset="0" />
-          <GradientStop Color="#070C16" Offset="0.55" />
-          <GradientStop Color="#03050A" Offset="1" />
-        </RadialGradientBrush>
-      </Border.Background>
+    <Border IsVisible="{Binding IsVoiceVisible}" Background="#05080F">
+      <!-- Same treatment as the shortcuts screen: opaque, with the shared
+           field behind it, rather than a hand-rolled radial that reads as a
+           different surface from every other screen in the app. -->
+      <Panel>
+      <gui:AmbientBackdrop />
       <Border Classes="card" MaxWidth="760" Padding="42,36"
               VerticalAlignment="Center" HorizontalAlignment="Center">
         <StackPanel Spacing="20" HorizontalAlignment="Center">
@@ -847,6 +850,7 @@
           </Border>
         </StackPanel>
       </Border>
+      </Panel>
     </Border>
   </Panel>
 </Window>

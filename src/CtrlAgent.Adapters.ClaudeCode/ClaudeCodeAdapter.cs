@@ -543,6 +543,13 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         switch (message)
         {
             case ClaudeStreamMessage.SessionInit init:
+                // The CLI emits system/init at the start of EVERY turn, not
+                // once per process (verified live against 2.1.220: three
+                // prompts produced three inits). Announcing each one put a
+                // "session ready" banner and the whole slash-command list into
+                // the transcript before every single prompt. The session is
+                // announced when it actually changes, and never again.
+                var isNewSession = !string.Equals(_sessionId, init.SessionId, StringComparison.Ordinal);
                 _sessionId = init.SessionId;
                 lock (_sessionSync)
                 {
@@ -550,6 +557,11 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                     {
                         _sessionIds.Add(init.SessionId);
                     }
+                }
+
+                if (!isNewSession)
+                {
+                    break;
                 }
 
                 var initDetails = new List<string>();

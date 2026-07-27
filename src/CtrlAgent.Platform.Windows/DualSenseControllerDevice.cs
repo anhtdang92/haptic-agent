@@ -77,7 +77,9 @@ public sealed class DualSenseControllerDevice : IControllerDevice
         HasLowFrequencyRumble: true,
         HasHighFrequencyRumble: true,
         HasLeftTriggerRumble: true,
-        HasRightTriggerRumble: true);
+        HasRightTriggerRumble: true,
+        // Raw HID sees the whole report, PS button included.
+        HasGuideButton: true);
 
     public bool IsConnected => _isConnected;
 

@@ -64,6 +64,38 @@ public enum AgentCommandKind
     /// <summary>Step to the next level in <see cref="AgentModes.EffortCycle"/>;
     /// resolved to <see cref="SetEffort"/> by the host.</summary>
     CycleEffort,
+
+    /// <summary>
+    /// Start dictation and put the result in the prompt box. Handled by the
+    /// host, never sent to an adapter — speaking a prompt is a way of typing,
+    /// not an agent operation.
+    /// <para>
+    /// It is a bindable command rather than a hardcoded key because the mic is
+    /// the one input you reach for when your hands are already off the
+    /// keyboard, which is the entire premise of this tool.
+    /// </para>
+    /// </summary>
+    StartVoicePrompt,
+
+    /// <summary>
+    /// Pick files to hand to the agent. Also host-handled: the picker is UI,
+    /// and the chosen paths ride along with the next prompt rather than
+    /// burning a turn of their own.
+    /// </summary>
+    AttachFile,
+
+    /// <summary>
+    /// Page back through what the agent has said. Host-handled.
+    /// <para>
+    /// Without this the tool can show you a long reply and let you approve it
+    /// from the couch, but not <em>read</em> it — you could see that something
+    /// happened and never find out what.
+    /// </para>
+    /// </summary>
+    ScrollOutputUp,
+
+    /// <summary>Page forward through the agent's output, back toward newest.</summary>
+    ScrollOutputDown,
 }
 
 /// <summary>

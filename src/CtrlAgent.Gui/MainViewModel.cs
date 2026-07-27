@@ -99,8 +99,6 @@ public sealed class MainViewModel : ViewModelBase
     private GuiOptions _options;
     private string _workspacePath = string.Empty;
     private bool _isSessionListVisible;
-    private bool _isDictating;
-    private readonly SpeechToTextService _speech = new();
 
     public MainViewModel(HostEngine? engine, GuiOptions options)
     {
@@ -138,6 +136,13 @@ public sealed class MainViewModel : ViewModelBase
         PlayPatternCommand = new RelayCommand(parameter => Fire(e => PreviewPatternAsync(e, parameter as string)));
         StartSetupCommand = new RelayCommand(_ => CompleteSetup());
         PickWorkspaceCommand = new RelayCommand(_ => WorkspacePickerRequested?.Invoke());
+        AttachFileCommand = new RelayCommand(_ => AttachFileRequested?.Invoke());
+        StartVoiceCommand = new RelayCommand(_ => VoicePromptRequested?.Invoke());
+        ClearAttachmentsCommand = new RelayCommand(_ =>
+        {
+            Attachments.Clear();
+            RaiseAttachmentState();
+        });
         DismissStartupErrorCommand = new RelayCommand(_ =>
         {
             StartupError = string.Empty;
@@ -146,7 +151,6 @@ public sealed class MainViewModel : ViewModelBase
         ConfirmMainframeCommand = new RelayCommand(_ => ConfirmMainframe());
         DismissMainframePromptCommand = new RelayCommand(_ => DismissMainframePrompt());
         RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
-        DictateCommand = new RelayCommand(_ => Dictate());
 
         if (engine is not null)
         {
@@ -162,6 +166,12 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Raised when the user picks a different workspace to work in.</summary>
     public event Action? WorkspacePickerRequested;
+
+    /// <summary>Raised when files should be picked (button or controller binding).</summary>
+    public event Action? AttachFileRequested;
+
+    /// <summary>Raised when dictation should start (button or controller binding).</summary>
+    public event Action? VoicePromptRequested;
 
     /// <summary>Absolute path of the directory the agent is working in.</summary>
     public string WorkspacePath
@@ -224,6 +234,8 @@ public sealed class MainViewModel : ViewModelBase
         // A new engine means a new session, which starts on the agent's own
         // defaults — carrying the old workspace's model/effort/mode labels
         // over would claim settings the new session never received.
+        Attachments.Clear();
+        RaiseAttachmentState();
         _settings = new SessionSettings(null, null, null);
         Raise(nameof(PermissionModeLabel));
         Raise(nameof(ModelLabel));
@@ -235,12 +247,11 @@ public sealed class MainViewModel : ViewModelBase
     /// a double-press of View.
     /// <para>
     /// The Guide press is best-effort by transport. Raw-HID DualSense reports
-    /// the PS button reliably. XInput only reports the Xbox button through the
-    /// undocumented ordinal-100 entry point, and the GameInput bridge cannot
-    /// report it at all — the SDK reserves that button for the system. Steam
-    /// and the Xbox Game Bar also hook it globally, so a press may be consumed
-    /// before it reaches us. View double-press stays as the shortcut that
-    /// works on every transport.
+    /// the PS button reliably; XInput only through the undocumented ordinal-100
+    /// entry point; the GameInput bridge when the device advertises the button
+    /// and background guide access was requested. Steam and the Xbox Game Bar
+    /// hook it globally, so a press may still be consumed before it reaches us.
+    /// View double-press stays as the shortcut that works on every transport.
     /// </para>
     /// </summary>
     public event Action? MainframeRequested;
@@ -357,7 +368,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             var sessionChanged = !string.Equals(_sessionId, agentEvent.SessionId, StringComparison.Ordinal);
             AppendToTranscript(agentEvent);
-            AgentState = agentEvent.State.ToString();
+            AgentState = AgentStateText.Describe(agentEvent.State);
             SessionId = agentEvent.SessionId;
 
             // Keep the recents list truthful at the moments it can change:
@@ -389,6 +400,8 @@ public sealed class MainViewModel : ViewModelBase
             // Light up the physical controls that can answer this approval.
             ControllerVisual.SetApprovalHighlight(message is null ? null : _approvalControls);
         });
+        engine.VoicePromptRequested += () => Post(() => VoicePromptRequested?.Invoke());
+        engine.AttachFileRequested += () => Post(() => AttachFileRequested?.Invoke());
         engine.SessionSettingsChanged += settings => Post(() =>
         {
             _settings = settings;
@@ -479,6 +492,44 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Opens the workspace picker.</summary>
     public ICommand PickWorkspaceCommand { get; }
+
+    /// <summary>Files chosen to hand to the agent with the next prompt.</summary>
+    public ObservableCollection<string> Attachments { get; } = [];
+
+    public bool HasAttachments => Attachments.Count > 0;
+
+    public string AttachmentLabel =>
+        Attachments.Count == 1 ? "1 file attached" : $"{Attachments.Count} files attached";
+
+    /// <summary>Opens the file picker.</summary>
+    public ICommand AttachFileCommand { get; }
+
+    /// <summary>Drops every attachment without sending anything.</summary>
+    public ICommand ClearAttachmentsCommand { get; }
+
+    /// <summary>Starts dictation.</summary>
+    public ICommand StartVoiceCommand { get; }
+
+    /// <summary>Adds picked files, ignoring ones already on the list.</summary>
+    public void AddAttachments(IEnumerable<string> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        foreach (var path in paths)
+        {
+            if (!string.IsNullOrWhiteSpace(path) && !Attachments.Contains(path))
+            {
+                Attachments.Add(path);
+            }
+        }
+
+        RaiseAttachmentState();
+    }
+
+    private void RaiseAttachmentState()
+    {
+        Raise(nameof(HasAttachments));
+        Raise(nameof(AttachmentLabel));
+    }
 
     public ICommand DismissStartupErrorCommand { get; }
 
@@ -725,16 +776,7 @@ public sealed class MainViewModel : ViewModelBase
 
     public bool IsSessionsEmpty => Sessions.Count == 0;
 
-    /// <summary>True while the composer mic is capturing dictation.</summary>
-    public bool IsDictating
-    {
-        get => _isDictating;
-        private set => Set(ref _isDictating, value);
-    }
-
     public ICommand RefreshSessionsCommand { get; }
-
-    public ICommand DictateCommand { get; }
 
     /// <summary>Shows the recents sidebar with supplied rows. Exists for the
     /// render harness, which has no Claude session store to read; the live
@@ -815,52 +857,22 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Composer dictation: one recognition pass lands in the prompt box for
-    /// review — never auto-sent, the same rule as the Mainframe voice screen.
-    /// Clicking again while listening cancels.
-    /// </summary>
-    private async void Dictate()
-    {
-        if (IsDictating)
-        {
-            _speech.CancelRecognition();
-            return;
-        }
-
-        if (!_speech.EnsureInitialized())
-        {
-            AddChat(isUser: false, isActivity: true,
-                $"🎙 Voice input unavailable: {_speech.UnavailableReason ?? "unknown"}.");
-            return;
-        }
-
-        IsDictating = true;
-        try
-        {
-            var text = await _speech.RecognizeOnceAsync().ConfigureAwait(true);
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                PromptText = string.IsNullOrWhiteSpace(PromptText)
-                    ? text
-                    : $"{PromptText.TrimEnd()} {text}";
-            }
-        }
-        finally
-        {
-            IsDictating = false;
-        }
-    }
-
-    /// <summary>
     /// Sends a prompt (typed, voice, or a slash-command tile): user bubble in
     /// the transcript, then the engine — which queues it if the agent is
     /// mid-turn.
     /// </summary>
     public void SubmitPromptText(string? text)
     {
+        var composed = PromptComposer.Compose(text, [.. Attachments]);
+        if (Attachments.Count > 0)
+        {
+            Attachments.Clear();
+            RaiseAttachmentState();
+        }
+
         AddChat(isUser: true, isActivity: false,
-            string.IsNullOrWhiteSpace(text) ? "(default prompt)" : text);
-        Fire(e => e.SubmitPromptAsync(text));
+            string.IsNullOrWhiteSpace(composed) ? "(default prompt)" : composed);
+        Fire(e => e.SubmitPromptAsync(string.IsNullOrWhiteSpace(composed) ? null : composed));
     }
 
     /// <summary>Show or hide raw controller input lines in the event stream.</summary>

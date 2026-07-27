@@ -279,7 +279,12 @@ public sealed class GameInputBridgeControllerDevice : IControllerDevice
                     ReadBoolean(root, "hasLowFrequencyRumble", true),
                     ReadBoolean(root, "hasHighFrequencyRumble", true),
                     ReadBoolean(root, "hasLeftTriggerRumble", true),
-                    ReadBoolean(root, "hasRightTriggerRumble", true));
+                    ReadBoolean(root, "hasRightTriggerRumble", true),
+                    // The bridge computes this from the device's
+                    // supportedSystemButtons; it was being emitted and thrown
+                    // away, so a pad that cannot send Guide still advertised
+                    // the shortcut.
+                    ReadBoolean(root, "hasGuideButton", true));
                 _ready.TrySetResult();
                 break;
 

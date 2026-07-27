@@ -66,6 +66,22 @@ internal static partial class XInputNative
 
         return GetState(userIndex, out state);
     }
+
+    /// <summary>
+    /// Whether the Guide button can be observed on this runtime, i.e. whether
+    /// ordinal 100 resolved. Probes once if nothing has read state yet, so a
+    /// caller asking before the first poll still gets the real answer rather
+    /// than a default.
+    /// </summary>
+    internal static bool SupportsGuideButton()
+    {
+        if (!_extendedProbed)
+        {
+            GetStateWithGuide(0, out _);
+        }
+
+        return _extendedAvailable;
+    }
 }
 
 [StructLayout(LayoutKind.Sequential)]

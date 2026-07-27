@@ -69,12 +69,21 @@ public sealed record ControllerProfile(
     /// </summary>
     public static bool IsControlAvailable(
         ControllerControl control,
-        ControllerCapabilities? capabilities) =>
-        control is not (ControllerControl.PaddleLeft1
+        ControllerCapabilities? capabilities) => control switch
+    {
+        ControllerControl.PaddleLeft1
             or ControllerControl.PaddleLeft2
             or ControllerControl.PaddleRight1
-            or ControllerControl.PaddleRight2)
-        || (capabilities?.HasFourPaddles ?? true);
+            or ControllerControl.PaddleRight2 => capabilities?.HasFourPaddles ?? true,
+
+        // The guide button is per-transport, so a profile that binds it is
+        // only honest on hardware that delivers it. Coaching "press Xbox" on
+        // a transport that never reports the press is the same dead end the
+        // paddle rule exists to prevent.
+        ControllerControl.Guide => capabilities?.HasGuideButton ?? true,
+
+        _ => true,
+    };
 
     /// <summary>
     /// True when this binding could actually fire on a device with these
@@ -153,6 +162,33 @@ public sealed record ControllerProfile(
                 InputGesture.Press,
                 AgentCommandKind.SetPermissionMode,
                 Text: "plan"),
+            // Y is free as a plain press (it only carries an approval as RB+Y),
+            // and it is where the Mainframe already put voice, so binding it
+            // makes the same button work everywhere instead of only there.
+            new(ControllerControl.Y, InputGesture.Press, AgentCommandKind.StartVoicePrompt),
+
+            // LB+X to attach: a chord, because picking files opens a modal and
+            // a stray face-button press should not.
+            new(
+                ControllerControl.X,
+                InputGesture.Press,
+                AgentCommandKind.AttachFile,
+                Modifiers: new HashSet<ControllerControl> { ControllerControl.LeftShoulder }),
+
+            // Right stick reads the agent's output. A stick rather than a
+            // chord because reading is the one thing you do repeatedly, and a
+            // signed threshold because up and down must differ.
+            new(
+                ControllerControl.RightThumbstickY,
+                InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputUp,
+                MinimumValue: 0.6f),
+            new(
+                ControllerControl.RightThumbstickY,
+                InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputDown,
+                MinimumValue: -0.6f),
+
             new(ControllerControl.LeftThumbstickButton, InputGesture.Press, AgentCommandKind.CycleEffort),
             new(ControllerControl.RightThumbstickButton, InputGesture.Press, AgentCommandKind.CycleModel),
         ]);
@@ -232,7 +268,7 @@ public sealed class MappingEngine
             // deterministic and clock-free.
             TimeSpan? doublePressInterval = null;
             TimeSpan? heldDuration = null;
-            float previousAxisMagnitude = 0f;
+            float previousAxisValue = 0f;
 
             switch (inputEvent.Kind)
             {
@@ -258,7 +294,7 @@ public sealed class MappingEngine
                     break;
 
                 case ControllerInputEventKind.ValueChanged:
-                    previousAxisMagnitude = Math.Abs(_axisValues.GetValueOrDefault(inputEvent.Control));
+                    previousAxisValue = _axisValues.GetValueOrDefault(inputEvent.Control);
                     _axisValues[inputEvent.Control] = inputEvent.Value;
                     break;
             }
@@ -270,7 +306,7 @@ public sealed class MappingEngine
                     inputEvent,
                     doublePressInterval,
                     heldDuration,
-                    previousAxisMagnitude))
+                    previousAxisValue))
                 .ToArray();
 
             if (inputEvent.Kind == ControllerInputEventKind.Pressed)
@@ -310,12 +346,21 @@ public sealed class MappingEngine
         }
     }
 
+    /// <summary>
+    /// Whether an axis just crossed its threshold, in the direction the
+    /// threshold's sign asks for. A zero threshold is treated as positive.
+    /// </summary>
+    private static bool CrossedThreshold(float value, float previous, float threshold) =>
+        threshold < 0f
+            ? value <= threshold && previous > threshold
+            : value >= threshold && previous < threshold;
+
     private bool StructurallyMatches(
         InputBinding binding,
         ControllerInputEvent inputEvent,
         TimeSpan? doublePressInterval,
         TimeSpan? heldDuration,
-        float previousAxisMagnitude)
+        float previousAxisValue)
     {
         if (binding.Control != inputEvent.Control)
         {
@@ -328,12 +373,19 @@ public sealed class MappingEngine
                 inputEvent.Kind == ControllerInputEventKind.Pressed,
             InputGesture.Release =>
                 inputEvent.Kind == ControllerInputEventKind.Released,
-            // Latches on the upward crossing: analog jitter above the
-            // threshold must not re-fire the command.
+            // Latches on the crossing: analog jitter past the threshold must
+            // not re-fire the command.
+            //
+            // A NEGATIVE threshold means the negative half of the axis, so
+            // "stick up" and "stick down" are separately bindable. They were
+            // not before: both sides compared Math.Abs, so one binding fired
+            // in both directions and a scroll-up/scroll-down pair was
+            // impossible to express. Positive thresholds keep their meaning,
+            // except that they no longer fire when the stick is pushed the
+            // other way — which was surprising rather than useful.
             InputGesture.AxisThreshold =>
                 inputEvent.Kind == ControllerInputEventKind.ValueChanged &&
-                Math.Abs(inputEvent.Value) >= binding.MinimumValue &&
-                previousAxisMagnitude < binding.MinimumValue,
+                CrossedThreshold(inputEvent.Value, previousAxisValue, binding.MinimumValue),
             InputGesture.Tap =>
                 inputEvent.Kind == ControllerInputEventKind.Released &&
                 heldDuration is { } tapDuration &&

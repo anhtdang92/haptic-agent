@@ -493,7 +493,8 @@
               <TextBlock Text="Use a shortcut below, or press Y to speak a prompt"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
+            <ScrollViewer x:Name="FeedScroller"
+                          VerticalScrollBarVisibility="Auto"
                           IsVisible="{Binding !IsFeedEmpty}">
               <ItemsControl ItemsSource="{Binding Responses}">
                 <ItemsControl.ItemTemplate>

@@ -52,7 +52,7 @@ dotnet run --project src/CtrlAgent.App/CtrlAgent.App.csproj -- --agent mock --pr
 |---|---|---|---|
 | `control` | string | required | A `ControllerControl` name: `a`, `b`, `x`, `y`, `menu`, `view`, `guide`, `dPadUp/Down/Left/Right`, `leftShoulder`, `rightShoulder`, `leftThumbstickButton`, `rightThumbstickButton`, `leftTrigger`, `rightTrigger`, `leftThumbstickX/Y`, `rightThumbstickX/Y`, `paddleLeft1/2`, `paddleRight1/2` |
 | `gesture` | string | `press` | One of the gestures below |
-| `command` | string | required | An `AgentCommandKind`: `submitPrompt`, `interrupt`, `approveOnce`, `approveForSession`, `decline`, `cancel`, `newSession`, `nextSession`, `previousSession`, `reviewChanges`, `setPermissionMode` (uses `text`: `default`, `plan`, `acceptEdits`, `auto`, `dontAsk`), `compactContext`, `setModel` (uses `text`), `setEffort` (uses `text`: `low`…`max`), `cycleModel`, `cycleEffort` |
+| `command` | string | required | An `AgentCommandKind`: `submitPrompt`, `interrupt`, `approveOnce`, `approveForSession`, `decline`, `cancel`, `newSession`, `nextSession`, `previousSession`, `reviewChanges`, `setPermissionMode` (uses `text`: `default`, `plan`, `acceptEdits`, `auto`, `dontAsk`), `startVoicePrompt`, `attachFile`, `compactContext`, `setModel` (uses `text`), `setEffort` (uses `text`: `low`…`max`), `cycleModel`, `cycleEffort` |
 | `modifiers` | string[] | none | Controls that must be held for this binding to match (turns it into a chord) |
 | `minimumValue` | number | 0.5 | `axisThreshold` only: absolute axis value that triggers the binding (0 < v ≤ 1) |
 | `text` | string | none | `submitPrompt` only: overrides the default prompt |

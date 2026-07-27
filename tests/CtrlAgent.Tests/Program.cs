@@ -21,6 +21,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Tap and hold split on release duration", TestTapVersusHoldAsync),
     ("Double press fires inside its window", TestDoublePressAsync),
     ("Axis threshold latches until the axis drops", TestAxisThresholdLatchAsync),
+    ("Stick up and stick down are separate bindings", TestDirectionalAxisAsync),
     ("Profile JSON round-trips", TestProfileJsonRoundTripAsync),
     ("Guide control binds and round-trips", TestGuideControlAsync),
     ("Session-setting cycles wrap and resolve", TestSessionSettingCyclesAsync),
@@ -29,6 +30,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Profile layers activate by device capability", TestProfileLayersAsync),
     ("Reachable bindings exclude controls the device lacks", TestReachableBindingsAsync),
     ("Guide bindings hide on transports that cannot send it", TestGuideReachabilityAsync),
+    ("Attachments ride along with the next prompt", TestPromptComposerAsync),
+    ("Host-handled commands never reach the adapter", TestHostHandledCommandsAsync),
     ("Haptic hub survives detach and device loss", TestHapticHubAsync),
     ("Validation report computes go/no-go gates", TestValidationReportGatesAsync),
     ("Validation report renders evidence markdown", TestValidationReportMarkdownAsync),
@@ -47,6 +50,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Mock adapter navigates sessions", TestMockSessionNavigationAsync),
     ("An interrupt feels the same on every adapter", TestInterruptIsUniformAsync),
     ("Transcript folds streaming prose into one bubble", TestTranscriptFoldingAsync),
+    ("Agent states read as English, not enum names", TestAgentStateTextAsync),
     ("Log lines classify most-severe first", TestLogClassificationAsync),
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
 };
@@ -283,6 +287,67 @@ static Task TestAxisThresholdLatchAsync()
     // Dropping below re-arms; the next crossing fires again.
     AssertEqual(0, engine.Process(Axis(0.2f, 30)).Count);
     AssertEqual(1, engine.Process(Axis(0.9f, 40)).Count);
+    return Task.CompletedTask;
+}
+
+// Up and down on one stick used to be inexpressible: both sides of the
+// threshold check compared Math.Abs, so a single binding fired in both
+// directions and a scroll-up/scroll-down pair could not exist. A negative
+// threshold now means the negative half of the axis.
+static Task TestDirectionalAxisAsync()
+{
+    var profile = new ControllerProfile(
+        "stick",
+        [
+            new(ControllerControl.RightThumbstickY, InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputUp, MinimumValue: 0.6f),
+            new(ControllerControl.RightThumbstickY, InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputDown, MinimumValue: -0.6f),
+        ]);
+
+    var engine = new MappingEngine(profile);
+    var at = DateTimeOffset.UnixEpoch;
+
+    AgentCommand? Move(float value)
+    {
+        at = at.AddMilliseconds(50);
+        return engine.Process(new ControllerInputEvent(
+            "test", ControllerControl.RightThumbstickY,
+            ControllerInputEventKind.ValueChanged, value, at)).SingleOrDefault();
+    }
+
+    // Pushing up fires only the up command.
+    AssertEqual(AgentCommandKind.ScrollOutputUp, Move(0.9f)!.Kind);
+    // Still held: latched, so jitter does not repeat it.
+    Assert(Move(0.95f) is null, "A held axis must not re-fire.");
+    // Back to centre, then down: only the down command.
+    Assert(Move(0f) is null, "Returning to centre fires nothing.");
+    AssertEqual(AgentCommandKind.ScrollOutputDown, Move(-0.9f)!.Kind);
+    Assert(Move(-0.95f) is null, "A held axis must not re-fire in either direction.");
+
+    // Crossing straight from one extreme to the other still fires the new one.
+    AssertEqual(AgentCommandKind.ScrollOutputUp, Move(0.8f)!.Kind);
+
+    // Both directions on one stick are a legal profile, not a collision.
+    Assert(ControllerProfileValidator.Validate(profile).Count == 0, "Opposite directions must validate.");
+
+    // Same direction twice is still a collision.
+    var clashing = new ControllerProfile(
+        "clash",
+        [
+            new(ControllerControl.RightThumbstickY, InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputUp, MinimumValue: 0.6f),
+            new(ControllerControl.RightThumbstickY, InputGesture.AxisThreshold,
+                AgentCommandKind.ScrollOutputDown, MinimumValue: 0.8f),
+        ]);
+    Assert(ControllerProfileValidator.Validate(clashing).Count > 0, "Same direction twice must collide.");
+
+    // A zero threshold would fire at rest.
+    var atRest = new ControllerProfile(
+        "zero",
+        [new(ControllerControl.RightThumbstickY, InputGesture.AxisThreshold,
+             AgentCommandKind.ScrollOutputUp, MinimumValue: 0f)]);
+    Assert(ControllerProfileValidator.Validate(atRest).Count > 0, "A zero threshold must be rejected.");
     return Task.CompletedTask;
 }
 
@@ -591,6 +656,67 @@ static Task TestGuideReachabilityAsync()
     AssertEqual(0, chord.ReachableBindings(withoutGuide).Count());
     AssertEqual(1, chord.ReachableBindings(withGuide).Count());
     return Task.CompletedTask;
+}
+
+static Task TestPromptComposerAsync()
+{
+    // No attachments: the prompt is untouched.
+    AssertEqual("fix the tests", PromptComposer.Compose("fix the tests", []));
+
+    // The ask comes first, then the files — the agent should read what to do
+    // before the bookkeeping.
+    var one = PromptComposer.Compose("review this", ["/repo/a.cs"]);
+    Assert(one.StartsWith("review this", StringComparison.Ordinal), "The instruction leads.");
+    Assert(one.Contains("Attached file:", StringComparison.Ordinal), "Singular for one file.");
+    Assert(one.Contains("- /repo/a.cs", StringComparison.Ordinal), "The path is listed.");
+
+    var many = PromptComposer.Compose("compare", ["/repo/a.cs", "/repo/b.cs"]);
+    Assert(many.Contains("Attached files:", StringComparison.Ordinal), "Plural for several.");
+    Assert(many.Contains("- /repo/b.cs", StringComparison.Ordinal), "Every path is listed.");
+
+    // Attaching without typing still sends something meaningful rather than a
+    // prompt that begins with a blank line.
+    var bare = PromptComposer.Compose("   ", ["/repo/a.cs"]);
+    Assert(bare.StartsWith("Attached file:", StringComparison.Ordinal), "No leading blank.");
+    return Task.CompletedTask;
+}
+
+// StartVoicePrompt and AttachFile are bindable so a controller can reach them,
+// but they are UI actions — an adapter has no idea what a microphone is, and
+// forwarding them would surface as "Unsupported command" errors.
+static async Task TestHostHandledCommandsAsync()
+{
+    var recording = new RecordingAdapter();
+    await using var engine = new HostEngine(
+        new SingleControllerProvider(new ScriptedController()),
+        recording,
+        ControllerProfile.Default,
+        new HostEngineOptions("prompt"));
+
+    var voice = 0;
+    var attach = 0;
+    engine.VoicePromptRequested += () => voice++;
+    engine.AttachFileRequested += () => attach++;
+
+    await engine.StartVoicePromptAsync().ConfigureAwait(false);
+    await engine.AttachFileAsync().ConfigureAwait(false);
+
+    AssertEqual(1, voice);
+    AssertEqual(1, attach);
+    AssertEqual(0, recording.Commands.Count);
+
+    // An ordinary command still gets through, so the interception is targeted.
+    await engine.InterruptAsync().ConfigureAwait(false);
+    AssertEqual(1, recording.Commands.Count);
+    AssertEqual(AgentCommandKind.Interrupt, recording.Commands[0].Kind);
+
+    // Both are in the default profile, so a stock controller can reach them.
+    Assert(
+        ControllerProfile.Default.Bindings.Any(b => b.Command == AgentCommandKind.StartVoicePrompt),
+        "The default profile must bind voice.");
+    Assert(
+        ControllerProfile.Default.Bindings.Any(b => b.Command == AgentCommandKind.AttachFile),
+        "The default profile must bind attach.");
 }
 
 static async Task TestHapticHubAsync()
@@ -978,6 +1104,25 @@ static AgentEvent Event(AgentStateKind state, string message) =>
 // is not prose closes it so the next chunk starts a fresh one. Getting this
 // wrong either erases text the user was reading or shatters a reply into a
 // wall of fragments.
+static Task TestAgentStateTextAsync()
+{
+    AssertEqual("approval", AgentStateText.Describe(AgentStateKind.ApprovalRequired));
+    AssertEqual("waiting", AgentStateText.Describe(AgentStateKind.WaitingForInput));
+    AssertEqual("working", AgentStateText.Describe(AgentStateKind.Working));
+    AssertEqual("done", AgentStateText.Describe(AgentStateKind.Completed));
+
+    // Every state must have wording, and none may leak a C# identifier or run
+    // long enough to reflow the command bar.
+    foreach (var state in Enum.GetValues<AgentStateKind>())
+    {
+        var text = AgentStateText.Describe(state);
+        Assert(text.Length is > 0 and <= 10, $"{state} reads as '{text}', which is too long.");
+        Assert(text != state.ToString(), $"{state} still shows its enum name.");
+    }
+
+    return Task.CompletedTask;
+}
+
 static Task TestTranscriptFoldingAsync()
 {
     var folder = new TranscriptFolder();
@@ -1604,6 +1749,41 @@ internal sealed class BlockingController : IControllerDevice
     public ValueTask DisposeAsync()
     {
         Completed.TrySetResult(true);
+        return ValueTask.CompletedTask;
+    }
+}
+
+
+/// <summary>Records commands instead of doing anything with them.</summary>
+internal sealed class RecordingAdapter : IAgentAdapter
+{
+    private readonly System.Threading.Channels.Channel<AgentEvent> _events =
+        System.Threading.Channels.Channel.CreateUnbounded<AgentEvent>();
+
+    public List<AgentCommand> Commands { get; } = [];
+
+    public string Id => "recording";
+
+    public bool IsStarted { get; private set; }
+
+    public ValueTask StartAsync(CancellationToken cancellationToken = default)
+    {
+        IsStarted = true;
+        return ValueTask.CompletedTask;
+    }
+
+    public IAsyncEnumerable<AgentEvent> ReadEventsAsync(CancellationToken cancellationToken = default) =>
+        _events.Reader.ReadAllAsync(cancellationToken);
+
+    public ValueTask ExecuteAsync(AgentCommand command, CancellationToken cancellationToken = default)
+    {
+        lock (Commands) Commands.Add(command);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _events.Writer.TryComplete();
         return ValueTask.CompletedTask;
     }
 }

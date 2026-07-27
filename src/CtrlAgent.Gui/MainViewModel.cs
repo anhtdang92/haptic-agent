@@ -99,6 +99,10 @@ public sealed class MainViewModel : ViewModelBase
     private GuiOptions _options;
     private string _workspacePath = string.Empty;
     private bool _isSessionListVisible;
+    private bool _isDiffVisible;
+    private bool _isDiffLoading;
+    private string _diffSummary = string.Empty;
+    private string _diffError = string.Empty;
 
     public MainViewModel(HostEngine? engine, GuiOptions options)
     {
@@ -151,6 +155,13 @@ public sealed class MainViewModel : ViewModelBase
         ConfirmMainframeCommand = new RelayCommand(_ => ConfirmMainframe());
         DismissMainframePromptCommand = new RelayCommand(_ => DismissMainframePrompt());
         RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
+        ShowDiffCommand = new RelayCommand(_ =>
+        {
+            IsDiffVisible = true;
+            RefreshDiff();
+        });
+        CloseDiffCommand = new RelayCommand(_ => IsDiffVisible = false);
+        RefreshDiffCommand = new RelayCommand(_ => RefreshDiff());
 
         if (engine is not null)
         {
@@ -172,6 +183,11 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Raised when dictation should start (button or controller binding).</summary>
     public event Action? VoicePromptRequested;
+
+    /// <summary>Raised (on the UI thread) when a binding pages the output;
+    /// -1 is toward older text. The window routes it to whichever surface is
+    /// on top — the diff panel when open, the conversation otherwise.</summary>
+    public event Action<int>? OutputScrollRequested;
 
     /// <summary>Absolute path of the directory the agent is working in.</summary>
     public string WorkspacePath
@@ -230,6 +246,13 @@ public sealed class MainViewModel : ViewModelBase
         IsAgentActive = false;
         AgentDotBrush = DotOff;
         QueuedPromptCount = 0;
+
+        IsDiffVisible = false;
+        _isDiffLoading = false;
+        DiffRows.Clear();
+        DiffSummary = string.Empty;
+        DiffError = string.Empty;
+        Raise(nameof(IsDiffClean));
 
         // A new engine means a new session, which starts on the agent's own
         // defaults — carrying the old workspace's model/effort/mode labels
@@ -402,6 +425,7 @@ public sealed class MainViewModel : ViewModelBase
         });
         engine.VoicePromptRequested += () => Post(() => VoicePromptRequested?.Invoke());
         engine.AttachFileRequested += () => Post(() => AttachFileRequested?.Invoke());
+        engine.OutputScrollRequested += direction => Post(() => OutputScrollRequested?.Invoke(direction));
         engine.SessionSettingsChanged += settings => Post(() =>
         {
             _settings = settings;
@@ -777,6 +801,104 @@ public sealed class MainViewModel : ViewModelBase
     public bool IsSessionsEmpty => Sessions.Count == 0;
 
     public ICommand RefreshSessionsCommand { get; }
+
+    /// <summary>
+    /// The diff review panel: what has actually changed in the workspace,
+    /// shown before anything is approved. The rows are read-only on purpose —
+    /// this is the couch-distance answer to "what am I saying yes to", not an
+    /// editor.
+    /// </summary>
+    public ObservableCollection<DiffRow> DiffRows { get; } = [];
+
+    public ICommand ShowDiffCommand { get; }
+
+    public ICommand CloseDiffCommand { get; }
+
+    public ICommand RefreshDiffCommand { get; }
+
+    public bool IsDiffVisible
+    {
+        get => _isDiffVisible;
+        set => Set(ref _isDiffVisible, value);
+    }
+
+    /// <summary>"3 files · +120 −45", or "Reading…" while git runs.</summary>
+    public string DiffSummary
+    {
+        get => _diffSummary;
+        private set => Set(ref _diffSummary, value);
+    }
+
+    public string DiffError
+    {
+        get => _diffError;
+        private set
+        {
+            if (Set(ref _diffError, value))
+            {
+                Raise(nameof(HasDiffError));
+            }
+        }
+    }
+
+    public bool HasDiffError => !string.IsNullOrWhiteSpace(_diffError);
+
+    /// <summary>True when the tree is genuinely clean — not merely still
+    /// loading, and not failed. Drives the "nothing to review" empty state.</summary>
+    public bool IsDiffClean => !_isDiffLoading && !HasDiffError && DiffRows.Count == 0;
+
+    /// <summary>
+    /// Shows collected changes in the panel. Public because the render harness
+    /// needs to populate the panel without a git repository; the live path is
+    /// <see cref="RefreshDiff"/>.
+    /// </summary>
+    public void PresentDiff(WorkspaceChanges changes)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+
+        _isDiffLoading = false;
+        DiffError = changes.Error ?? string.Empty;
+        DiffSummary = changes.Note is null ? changes.Summary : $"{changes.Summary} · {changes.Note}";
+        DiffRows.Clear();
+        foreach (var row in DiffRow.Build(changes))
+        {
+            DiffRows.Add(row);
+        }
+
+        Raise(nameof(IsDiffClean));
+    }
+
+    /// <summary>
+    /// Re-collects the workspace diff. Git runs off the UI thread; the swap
+    /// happens on it, and a workspace switch mid-collection publishes nothing
+    /// stale (same guard as <see cref="RefreshSessions"/>).
+    /// </summary>
+    private void RefreshDiff()
+    {
+        var workspace = WorkspacePath;
+        if (string.IsNullOrWhiteSpace(workspace))
+        {
+            return;
+        }
+
+        _isDiffLoading = true;
+        DiffSummary = "Reading…";
+        DiffError = string.Empty;
+        Raise(nameof(IsDiffClean));
+        _ = Task.Run(async () =>
+        {
+            var changes = await WorkspaceDiff.CollectAsync(workspace).ConfigureAwait(false);
+            Post(() =>
+            {
+                if (WorkspacePath != workspace)
+                {
+                    return;
+                }
+
+                PresentDiff(changes);
+            });
+        });
+    }
 
     /// <summary>Shows the recents sidebar with supplied rows. Exists for the
     /// render harness, which has no Claude session store to read; the live

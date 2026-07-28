@@ -15,7 +15,7 @@ DisposeAsync()                  kill children, stop streams, complete the event 
 
 ### Event semantics
 
-`AgentEvent(AdapterId, SessionId, State, Timestamp, Message?, RequestId?, TurnId?)` with `AgentStateKind`:
+`AgentEvent(AdapterId, SessionId, State, Timestamp, Message?, RequestId?, TurnId?, Model?)` with `AgentStateKind`:
 
 | State | Meaning | Host reaction |
 |---|---|---|
@@ -27,6 +27,8 @@ DisposeAsync()                  kill children, stop streams, complete the event 
 | `Error` | failure of any kind | error cue; clears pending approval |
 
 The pending-approval lifecycle is the load-bearing part: publish `ApprovalRequired`/`WaitingForInput` with the request id, and make sure *some* later event (`Completed`, `Error`, or `Working`+`RequestId`) clears it — otherwise approval paddles stay armed forever.
+
+`Model` is optional metadata: an adapter that knows which model is live (Claude Code states it in `system/init` every turn) stamps it on every event, and `HostEngine` folds it into `Settings` so UI model labels show the real model without the user touching a knob. Adapters that don't know leave it null — the label falls back to "default".
 
 ### Command semantics
 

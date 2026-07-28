@@ -90,7 +90,12 @@ public sealed partial class MainWindow : Window
         viewModel.Log.CollectionChanged += OnLogChanged;
         viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
         viewModel.OutputScrollRequested += OnOutputScroll;
+        viewModel.ModelPickerRequested += OnModelPickerRequested;
     }
+
+    // Typed "/model" means "show me the picker" — open the chip's flyout
+    // exactly as if it had been clicked.
+    private void OnModelPickerRequested() => ModelKnob.Flyout?.ShowAt(ModelKnob);
 
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
         StickToBottom(EventStream, eventArgs);

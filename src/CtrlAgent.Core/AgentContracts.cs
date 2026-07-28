@@ -18,7 +18,8 @@ public sealed record AgentEvent(
     DateTimeOffset Timestamp,
     string? Message = null,
     string? RequestId = null,
-    string? TurnId = null);
+    string? TurnId = null,
+    string? Model = null);
 
 public enum AgentCommandKind
 {

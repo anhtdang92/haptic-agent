@@ -128,6 +128,13 @@ public sealed class MainViewModel : ViewModelBase
             Fire(e => e.SetPermissionModeAsync(
                 AgentModes.Next(AgentModes.PermissionModes, e.Settings.PermissionMode))));
         CycleModelCommand = new RelayCommand(_ => Fire(e => e.CycleModelAsync()));
+        SelectModelCommand = new RelayCommand(parameter =>
+        {
+            if (parameter is string model && model.Length > 0)
+            {
+                Fire(e => e.SetModelAsync(model));
+            }
+        });
         CycleEffortCommand = new RelayCommand(_ => Fire(e => e.CycleEffortAsync()));
         CompactCommand = new RelayCommand(_ => Fire(e => e.CompactContextAsync()));
         InterruptCommand = new RelayCommand(_ => Fire(e => e.InterruptAsync()));
@@ -188,6 +195,10 @@ public sealed class MainViewModel : ViewModelBase
     /// -1 is toward older text. The window routes it to whichever surface is
     /// on top — the diff panel when open, the conversation otherwise.</summary>
     public event Action<int>? OutputScrollRequested;
+
+    /// <summary>Typed "/model" with no argument: the window opens the model
+    /// chip's flyout, so the command lands on the picker it means.</summary>
+    public event Action? ModelPickerRequested;
 
     /// <summary>Absolute path of the directory the agent is working in.</summary>
     public string WorkspacePath
@@ -764,11 +775,15 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public string PermissionModeLabel => $"mode: {_settings.PermissionMode ?? "default"}";
 
-    public string ModelLabel => $"model: {_settings.Model ?? "default"}";
+    public string ModelLabel => $"model: {ModelText.Short(_settings.Model)}";
 
     public string EffortLabel => $"effort: {_settings.Effort ?? "default"}";
 
     public ICommand CycleModelCommand { get; }
+
+    /// <summary>Sets a specific model by alias — the model-picker flyout's
+    /// command, with the alias as the parameter.</summary>
+    public ICommand SelectModelCommand { get; }
 
     public ICommand CycleEffortCommand { get; }
 
@@ -1022,6 +1037,20 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public void SubmitPromptText(string? text)
     {
+        // Commands the app can answer itself never reach the agent — sending
+        // "/model" to a headless CLI only buys a "not available here" turn.
+        switch (ComposerIntercept.TryParse(text))
+        {
+            case ComposerAction.OpenModelPicker:
+                ModelPickerRequested?.Invoke();
+                return;
+
+            case ComposerAction.SetModel picked:
+                AddChat(isUser: false, isActivity: true, $"Model → {picked.Model}");
+                Fire(e => e.SetModelAsync(picked.Model));
+                return;
+        }
+
         var composed = PromptComposer.Compose(text, [.. Attachments]);
         if (Attachments.Count > 0)
         {

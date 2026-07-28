@@ -30,6 +30,7 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
     private Task? _stderrLoop;
     private long _nextControlId;
     private string? _sessionId;
+    private string? _model;
     private readonly List<string> _sessionIds = [];
     private readonly object _sessionSync = new();
     private readonly System.Text.StringBuilder _streamedText = new();
@@ -551,6 +552,16 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
                 // announced when it actually changes, and never again.
                 var isNewSession = !string.Equals(_sessionId, init.SessionId, StringComparison.Ordinal);
                 _sessionId = init.SessionId;
+
+                // Captured on every init, not just new sessions: init arrives
+                // at the start of every turn and is the only place the CLI
+                // states which model is live, so this is what keeps a UI's
+                // model label truthful.
+                if (init.Model is { Length: > 0 })
+                {
+                    _model = init.Model;
+                }
+
                 lock (_sessionSync)
                 {
                     if (!_sessionIds.Contains(init.SessionId))
@@ -771,13 +782,16 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
 
     private void Publish(AgentStateKind state, string message, string? requestId = null)
     {
+        // Every event carries the live model (like the session id) so hosts
+        // can fold it into their session settings whenever it changes.
         _events.Writer.TryWrite(new AgentEvent(
             Id,
             _sessionId ?? "claude-uninitialized",
             state,
             DateTimeOffset.UtcNow,
             message,
-            requestId));
+            requestId,
+            Model: _model));
     }
 
     private static async Task AwaitQuietlyAsync(Task? task)

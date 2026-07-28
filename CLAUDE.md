@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CtrlAgent turns a game controller into a two-way control surface for AI coding agents: controller inputs become agent commands (submit, interrupt, approve, decline, switch session), and agent lifecycle events come back as distinct rumble patterns. Both sides are deliberately pluggable — controllers via `IControllerDevice` (today: Xbox-family/XInput, Elite Series 2 paddles via the GameInput bridge, and PS5 DualSense/Edge over raw HID; next: generic pads), agents via `IAgentAdapter` (today: Codex and Claude Code; planned: Cursor, Google Antigravity). The product direction is all popular controllers × all popular agentic platforms — don't frame it as Xbox- or single-agent-specific. Windows-first, pre-alpha MVP.
 
+**CtrlAgent is a pure vibe-coding app, never a text editor** (owner's explicit direction). The user directs, the agent writes, the user reads and approves — prompt/voice in, streamed replies and diffs out, approvals on paddles. Do not add code-editing surfaces, file trees for editing, or IDE features; the workspace is a real folder on disk, so the user's own editor is always one window away and always sees the agent's changes instantly. Features that help *direct and judge* the agent (better prompts, better diff reading, better approval context) fit; features that help *type code* do not.
+
 ## Build and test
 
 The SDK is pinned to .NET 10 `10.0.302` via `global.json` (rolls forward within .NET 10). All managed projects share `Directory.Build.props`: `net10.0`, C# 14, nullable enabled, **warnings as errors** (the tree is warning-free — keep it so rather than suppressing).

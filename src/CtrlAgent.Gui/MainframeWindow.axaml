@@ -446,23 +446,71 @@
                RenderOptions.BitmapInterpolationMode="HighQuality" />
       </DockPanel>
 
-      <!-- Center stage: CTRL·BOT | agent feed -->
+      <!-- Center stage: the controller hub | agent feed.
+           The hub is ONE column — bot, its coaching line, the live pad, and
+           the shortcuts that can fire right now — because they are one
+           subject: "what can my controller do at this moment". They used to
+           be split between here and a chip pile at the bottom of the screen,
+           which meant looking in two places to answer one question. -->
       <Grid Grid.Row="1" ColumnDefinitions="2*,3*" Margin="0,28">
 
-        <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
-          <Viewbox Height="235" Stretch="Uniform"
+        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,Auto,*" MaxWidth="470">
+          <Viewbox Grid.Row="0" Height="150" Stretch="Uniform"
                    DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
             <gui:BotView />
           </Viewbox>
-          <Border Background="#8A17243E" BorderBrush="#1FFFFFFF" BorderThickness="1"
-                  CornerRadius="16" Padding="22,13" MaxWidth="420"
+          <Border Grid.Row="1" Background="#8A17243E" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                  CornerRadius="16" Padding="20,11" MaxWidth="420" Margin="0,12,0,0"
+                  HorizontalAlignment="Center"
                   DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
-            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="16" Foreground="#CFE1FF" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="15" Foreground="#CFE1FF" />
           </Border>
-          <!-- Live input, fullscreen: the pad mirrors while you drive -->
-          <gui:ControllerMirrorView MaxHeight="190"
+          <!-- Live input: the pad mirrors while you drive -->
+          <gui:ControllerMirrorView Grid.Row="2" MaxHeight="165" Margin="0,14,0,0"
                                     DataContext="{Binding Main.ControllerVisual}" />
-        </StackPanel>
+
+          <TextBlock Grid.Row="3"
+                     Text="{Binding HintHeading}"
+                     Classes="label"
+                     FontSize="12"
+                     Margin="12,16,0,8"
+                     Foreground="#8FA9D6"
+                     IsVisible="{Binding IsHudVisible}" />
+
+          <!-- The map of the pad in your hands: read-only by design, only
+               what can actually fire right now, amber when a pending
+               approval is the only thing worth answering. -->
+          <ScrollViewer Grid.Row="4"
+                        VerticalScrollBarVisibility="Auto"
+                        IsVisible="{Binding IsHudVisible}">
+            <ItemsControl ItemsSource="{Binding Hints}" Margin="8,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="gui:ActionHint">
+                  <Border Classes="hudChip" Classes.armed="{Binding IsApproval}"
+                          Margin="0,3" HorizontalAlignment="Stretch">
+                    <DockPanel>
+                      <Border DockPanel.Dock="Left" Classes="hudKey" Classes.armed="{Binding IsApproval}"
+                              MinWidth="120" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Chord}"
+                                   FontFamily="Cascadia Mono,Consolas,monospace"
+                                   FontSize="14"
+                                   FontWeight="Bold"
+                                   HorizontalAlignment="Center" />
+                      </Border>
+                      <TextBlock Text="{Binding Label}"
+                                 FontSize="15"
+                                 FontWeight="Medium"
+                                 Foreground="#EAF3FF"
+                                 Margin="14,0,0,0"
+                                 TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" />
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
 
         <!-- Agent response feed -->
         <Border Grid.Column="1" Classes="card" Padding="24" Margin="24,0,0,0">
@@ -596,43 +644,10 @@
         </StackPanel>
       </Border>
 
-      <!-- Action HUD: the shortcuts that can fire right now, big enough to
-           read across a room. Read-only by design — these are not buttons,
-           they are the map of the pad in your hands. -->
-      <StackPanel Grid.Row="3" Spacing="12" IsVisible="{Binding IsHudVisible}">
-        <TextBlock Text="{Binding HintHeading}"
-                   Classes="label"
-                   FontSize="13"
-                   HorizontalAlignment="Center"
-                   Foreground="#8FA9D6" />
-        <ItemsControl ItemsSource="{Binding Hints}" HorizontalAlignment="Center">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="12" MaxWidth="1460" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="gui:ActionHint">
-              <Border Classes="hudChip" Classes.armed="{Binding IsApproval}">
-                <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
-                  <Border Classes="hudKey" Classes.armed="{Binding IsApproval}">
-                    <TextBlock Text="{Binding Chord}"
-                               FontFamily="Cascadia Mono,Consolas,monospace"
-                               FontSize="18"
-                               FontWeight="Bold"
-                               HorizontalAlignment="Center" />
-                  </Border>
-                  <TextBlock Text="{Binding Label}"
-                             FontSize="19"
-                             FontWeight="Medium"
-                             Foreground="#EAF3FF"
-                             VerticalAlignment="Center" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
+      <!-- The shortcuts HUD used to be a chip pile here — four rows of it,
+           fighting the feed for vertical space and living a screen away from
+           the controller it describes. It now rides in the hub column with
+           the bot and the pad; this row is only the settings rail. -->
 
       <!-- Settings panel: the one place focus navigation exists. Tiles respond
            to hover and click as well as the d-pad, so a mouse works here. -->

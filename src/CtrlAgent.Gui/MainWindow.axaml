@@ -102,7 +102,10 @@
             Margin="0,0,0,12">
       <StackPanel Spacing="12">
 
-        <!-- Row 1 — the companion, and the window-level tools -->
+        <!-- Row 1 — what the session is, and the window-level tools. CTRL·BOT
+             moved out of here into the controller hub on the right: the bot,
+             the pad, and the shortcuts are one subject and belong in one
+             place, and the command bar gets calmer for it. -->
         <DockPanel>
           <Border DockPanel.Dock="Right"
                   VerticalAlignment="Center"
@@ -156,69 +159,7 @@
             </StackPanel>
           </Border>
 
-          <!-- CTRL·BOT and the line it is currently coaching -->
-          <StackPanel Orientation="Horizontal"
-                      Spacing="12"
-                      VerticalAlignment="Center"
-                      DataContext="{Binding Buddy}"
-                      x:DataType="gui:AgentBuddyViewModel">
-            <Viewbox Height="76" Stretch="Uniform">
-              <gui:BotView />
-            </Viewbox>
-            <Border Background="#7A17243E"
-                    BorderBrush="#14FFFFFF"
-                    BorderThickness="1"
-                    CornerRadius="14"
-                    Padding="14,9"
-                    MaxWidth="360"
-                    VerticalAlignment="Center">
-              <TextBlock Text="{Binding Message}"
-                         TextWrapping="Wrap"
-                         FontSize="12.5"
-                         Foreground="#CFE1FF" />
-            </Border>
-          </StackPanel>
-        </DockPanel>
-
-        <Rectangle Height="1" Fill="#14FFFFFF" />
-
-        <!-- Row 2 — what the session is, and the knobs that change it -->
-        <DockPanel LastChildFill="False">
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
-                      VerticalAlignment="Center" Margin="16,0,0,0">
-            <Button Content="{Binding PermissionModeLabel}" Command="{Binding CyclePermissionModeCommand}"
-                    Classes="knob"
-                    ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
-            <!-- A picker, not a blind cycle: clicking shows the choices like
-                 the Claude app's model menu. The controller's CycleModel
-                 binding still steps the same setting — both paths meet in
-                 HostEngine.Settings, so the label follows either. -->
-            <Button Name="ModelKnob"
-                    Content="{Binding ModelLabel}"
-                    Classes="knob"
-                    ToolTip.Tip="Choose the model for this session">
-              <Button.Flyout>
-                <MenuFlyout Placement="Bottom">
-                  <MenuItem Header="default — let Claude Code choose"
-                            Command="{Binding SelectModelCommand}" CommandParameter="default" />
-                  <MenuItem Header="opus — most capable"
-                            Command="{Binding SelectModelCommand}" CommandParameter="opus" />
-                  <MenuItem Header="sonnet — balanced"
-                            Command="{Binding SelectModelCommand}" CommandParameter="sonnet" />
-                  <MenuItem Header="haiku — fastest"
-                            Command="{Binding SelectModelCommand}" CommandParameter="haiku" />
-                  <MenuItem Header="fable — frontier"
-                            Command="{Binding SelectModelCommand}" CommandParameter="fable" />
-                </MenuFlyout>
-              </Button.Flyout>
-            </Button>
-            <Button Content="{Binding EffortLabel}" Command="{Binding CycleEffortCommand}"
-                    Classes="knob" ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
-            <Button Content="compact" Command="{Binding CompactCommand}"
-                    Classes="knob" ToolTip.Tip="Compact the conversation, freeing context" />
-          </StackPanel>
-
-          <WrapPanel ItemSpacing="16" LineSpacing="8">
+          <WrapPanel ItemSpacing="16" LineSpacing="8" VerticalAlignment="Center">
             <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
               <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                        Fill="{Binding AgentDotBrush}" Classes.pulse="{Binding IsAgentActive}" />
@@ -259,6 +200,45 @@
             </StackPanel>
 
           </WrapPanel>
+        </DockPanel>
+
+        <Rectangle Height="1" Fill="#14FFFFFF" />
+
+        <!-- Row 2 — the session knobs, on their own quiet line -->
+        <DockPanel LastChildFill="False">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
+                      VerticalAlignment="Center">
+            <Button Content="{Binding PermissionModeLabel}" Command="{Binding CyclePermissionModeCommand}"
+                    Classes="knob"
+                    ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
+            <!-- A picker, not a blind cycle: clicking shows the choices like
+                 the Claude app's model menu. The controller's CycleModel
+                 binding still steps the same setting — both paths meet in
+                 HostEngine.Settings, so the label follows either. -->
+            <Button Name="ModelKnob"
+                    Content="{Binding ModelLabel}"
+                    Classes="knob"
+                    ToolTip.Tip="Choose the model for this session">
+              <Button.Flyout>
+                <MenuFlyout Placement="Bottom">
+                  <MenuItem Header="default — let Claude Code choose"
+                            Command="{Binding SelectModelCommand}" CommandParameter="default" />
+                  <MenuItem Header="opus — most capable"
+                            Command="{Binding SelectModelCommand}" CommandParameter="opus" />
+                  <MenuItem Header="sonnet — balanced"
+                            Command="{Binding SelectModelCommand}" CommandParameter="sonnet" />
+                  <MenuItem Header="haiku — fastest"
+                            Command="{Binding SelectModelCommand}" CommandParameter="haiku" />
+                  <MenuItem Header="fable — frontier"
+                            Command="{Binding SelectModelCommand}" CommandParameter="fable" />
+                </MenuFlyout>
+              </Button.Flyout>
+            </Button>
+            <Button Content="{Binding EffortLabel}" Command="{Binding CycleEffortCommand}"
+                    Classes="knob" ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
+            <Button Content="compact" Command="{Binding CompactCommand}"
+                    Classes="knob" ToolTip.Tip="Compact the conversation, freeing context" />
+          </StackPanel>
         </DockPanel>
       </StackPanel>
     </Border>
@@ -532,6 +512,9 @@
             <TextBlock Text="Type a prompt, or press A on the controller"
                        FontSize="11.5"
                        Foreground="#4C6A93"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       MaxWidth="260"
                        HorizontalAlignment="Center" />
           </StackPanel>
           <ListBox x:Name="ChatList"
@@ -586,51 +569,78 @@
         </DockPanel>
       </Border>
 
-      <!-- Proportional rows, not Top-docked + fill. Docked, the mirror card
-           took its full desired height first, so on a short window it ate the
-           whole column: ACTIVE BINDINGS disappeared entirely and the mirror
-           drew straight over the HAPTICS chips. Stars mean both cards always
-           get a share and the mirror scales into whatever it is given. -->
-      <Grid Grid.Column="2" Margin="9,0,0,0" RowDefinitions="3*,2*">
+      <!-- ===================== CONTROLLER HUB =====================
+           One card, one subject: the companion that coaches the pad, the pad
+           itself, and everything it can do right now. These lived in three
+           places (bot in the command bar, mirror and bindings in separate
+           cards), which meant looking around the app to answer the single
+           question "what can my controller do". Fixed rows for the bot and
+           mirror, star row for the shortcuts — the list absorbs short
+           windows instead of the mirror eating the column. -->
+      <Grid Grid.Column="2" Margin="9,0,0,0">
+        <Border Classes="card" Padding="16,14">
+          <Grid RowDefinitions="Auto,Auto,Auto,*">
 
-        <!-- Live controller mirror: every control lights up as it is used -->
-        <Border Grid.Row="0" Classes="card" Padding="16,14" Margin="0,0,0,9">
-          <DockPanel>
+            <!-- CTRL·BOT and the line it is currently coaching. DockPanel so
+                 the bubble fills what remains and can never overflow the
+                 card edge on a narrow window. -->
+            <DockPanel Grid.Row="0" Margin="4,0,0,4"
+                       DataContext="{Binding Buddy}"
+                       x:DataType="gui:AgentBuddyViewModel">
+              <Viewbox DockPanel.Dock="Left" Height="62" Stretch="Uniform" Margin="0,0,10,0">
+                <gui:BotView />
+              </Viewbox>
+              <Border Background="#7A17243E"
+                      BorderBrush="#14FFFFFF"
+                      BorderThickness="1"
+                      CornerRadius="12"
+                      Padding="12,7"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Center">
+                <TextBlock Text="{Binding Message}"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="#CFE1FF" />
+              </Border>
+            </DockPanel>
 
-            <!-- Haptic preview chips: fire a pattern on the mirrored controller -->
-            <WrapPanel DockPanel.Dock="Bottom" Margin="4,8,0,0" ItemSpacing="1" LineSpacing="2">
-              <WrapPanel.Styles>
-                <Style Selector="Button">
-                  <Setter Property="FontSize" Value="11" />
-                  <Setter Property="Padding" Value="8,3" />
-                </Style>
-              </WrapPanel.Styles>
-              <TextBlock Text="HAPTICS" Classes="label" VerticalAlignment="Center" Margin="0,0,8,0" />
-              <Button Content="Working" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="working" />
-              <Button Content="Approval" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="approval" />
-              <Button Content="Waiting" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="waiting" />
-              <Button Content="Completed" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="completed" />
-              <Button Content="Error" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="error" />
-              <Button Content="Stop" Classes="ghost" Foreground="#E08496" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
-            </WrapPanel>
+            <!-- Live input: every control lights up as it is used. Elite
+                 Series 2 layout: asymmetric sticks, hybrid d-pad disc,
+                 notched stick rings, guide button, rear paddle blades. -->
+            <gui:ControllerMirrorView Grid.Row="1"
+                                      MaxHeight="185"
+                                      Margin="0,6,0,0"
+                                      DataContext="{Binding ControllerVisual}" />
 
-          <!-- DockPanel, not StackPanel: a StackPanel hands each child its
-               full desired height and never compresses, so the mirror spilled
-               over the haptics row instead of shrinking. Here it fills what is
-               left and its Viewbox scales to fit. -->
-          <DockPanel DataContext="{Binding ControllerVisual}" x:DataType="gui:ControllerVisualViewModel">
-            <TextBlock DockPanel.Dock="Top" Text="LIVE INPUT" Classes="label" Margin="4,0,0,6" />
-            <!-- Elite Series 2 layout: asymmetric Xbox sticks, hybrid d-pad
-                 disc, notched stick rings, guide button, rear paddle blades. -->
-            <gui:ControllerMirrorView MaxHeight="230" />
-          </DockPanel>
-          </DockPanel>
-        </Border>
+            <!-- Six haptic-preview chips used to sit here and wrapped into a
+                 five-row stack on a narrow window, shoving the shortcuts
+                 below the fold. Testing rumble is an occasional act; it fits
+                 in one flyout. -->
+            <StackPanel Grid.Row="2" Spacing="6" Margin="0,10,0,6">
+              <Rectangle Height="1" Fill="#14FFFFFF" />
+              <DockPanel Margin="4,4,0,0">
+                <Button DockPanel.Dock="Right"
+                        Classes="ghost"
+                        FontSize="11"
+                        Padding="8,2"
+                        Content="haptics"
+                        ToolTip.Tip="Play a haptic pattern on the connected controller">
+                  <Button.Flyout>
+                    <MenuFlyout Placement="Bottom">
+                      <MenuItem Header="Working" Command="{Binding PlayPatternCommand}" CommandParameter="working" />
+                      <MenuItem Header="Approval" Command="{Binding PlayPatternCommand}" CommandParameter="approval" />
+                      <MenuItem Header="Waiting" Command="{Binding PlayPatternCommand}" CommandParameter="waiting" />
+                      <MenuItem Header="Completed" Command="{Binding PlayPatternCommand}" CommandParameter="completed" />
+                      <MenuItem Header="Error" Command="{Binding PlayPatternCommand}" CommandParameter="error" />
+                      <MenuItem Header="Stop" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+                <TextBlock Text="SHORTCUTS" Classes="label" VerticalAlignment="Center" />
+              </DockPanel>
+            </StackPanel>
 
-        <Border Grid.Row="1" Classes="card" Padding="16,14">
-          <DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="ACTIVE BINDINGS" Classes="label" Margin="4,0,0,6" />
-            <Panel>
+            <Panel Grid.Row="3">
             <TextBlock Classes="placeholder"
                        Text="No bindings — open Profile… to add some."
                        IsVisible="{Binding IsBindingsEmpty}" />
@@ -650,11 +660,11 @@
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="6,2"
-                            MinWidth="84"
+                            MinWidth="60"
                             VerticalAlignment="Center">
                       <TextBlock Text="{Binding Chord}"
                                  FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="11"
+                                 FontSize="10.5"
                                  Foreground="#7DD3FC"
                                  HorizontalAlignment="Center" />
                     </Border>
@@ -669,13 +679,14 @@
                     <TextBlock Text="{Binding Action}"
                                Margin="8,0"
                                VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
                                Foreground="#B9CCEF" />
                   </DockPanel>
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
             </Panel>
-          </DockPanel>
+          </Grid>
         </Border>
       </Grid>
     </Grid>

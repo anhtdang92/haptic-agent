@@ -100,6 +100,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _workspacePath = string.Empty;
     private bool _isSessionListVisible;
     private bool _isDiffVisible;
+    private bool _isShortcutsVisible;
     private bool _isDiffLoading;
     private string _diffSummary = string.Empty;
     private string _diffError = string.Empty;
@@ -168,6 +169,8 @@ public sealed class MainViewModel : ViewModelBase
             RefreshDiff();
         });
         CloseDiffCommand = new RelayCommand(_ => IsDiffVisible = false);
+        ShowShortcutsCommand = new RelayCommand(_ => IsShortcutsVisible = true);
+        CloseShortcutsCommand = new RelayCommand(_ => IsShortcutsVisible = false);
         RefreshDiffCommand = new RelayCommand(_ => RefreshDiff());
 
         if (engine is not null)
@@ -876,6 +879,22 @@ public sealed class MainViewModel : ViewModelBase
         get => _isDiffVisible;
         set => Set(ref _isDiffVisible, value);
     }
+
+    /// <summary>
+    /// The all-shortcuts overlay (F1). The main window is desktop-first, so
+    /// the inline hub keeps only a compact reference list; the complete map —
+    /// every binding, all visible at once — is one click or keypress away at
+    /// full height, the way a desktop app shows its shortcuts.
+    /// </summary>
+    public bool IsShortcutsVisible
+    {
+        get => _isShortcutsVisible;
+        set => Set(ref _isShortcutsVisible, value);
+    }
+
+    public ICommand ShowShortcutsCommand { get; }
+
+    public ICommand CloseShortcutsCommand { get; }
 
     /// <summary>"3 files · +120 −45", or "Reading…" while git runs.</summary>
     public string DiffSummary

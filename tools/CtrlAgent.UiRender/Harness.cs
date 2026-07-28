@@ -170,6 +170,11 @@ internal static class Harness
         // until something renders narrow.
         Render(new MainWindow { DataContext = viewModel }, "16-main-narrow.png", 740, 660);
 
+        // The desktop all-shortcuts overlay (F1): every binding, full height.
+        viewModel.IsShortcutsVisible = true;
+        Render(new MainWindow { DataContext = viewModel }, "29-shortcuts-overlay.png");
+        viewModel.IsShortcutsVisible = false;
+
         // Approval state: banner + highlighted controls.
         var approving = new MainViewModel(engine, options);
         approving.AttachEngine(engine);

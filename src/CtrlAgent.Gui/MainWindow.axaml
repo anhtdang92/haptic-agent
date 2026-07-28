@@ -636,6 +636,14 @@
                     </MenuFlyout>
                   </Button.Flyout>
                 </Button>
+                <Button DockPanel.Dock="Right"
+                        Classes="ghost"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="0,0,6,0"
+                        Content="view all"
+                        ToolTip.Tip="Every binding at full size (F1)"
+                        Command="{Binding ShowShortcutsCommand}" />
                 <TextBlock Text="SHORTCUTS" Classes="label" VerticalAlignment="Center" />
               </DockPanel>
             </StackPanel>
@@ -699,6 +707,81 @@
     </Grid>
 
   </DockPanel>
+
+  <!-- ===================== ALL SHORTCUTS =====================
+       The complete controller map at desktop scale (F1, Esc closes). The
+       main window is mouse-and-keyboard-first, so the inline hub keeps a
+       compact reference and this overlay is where "show me everything"
+       lives — every binding visible at once, full height, no scrolling
+       squeezed into a sidebar. -->
+  <Border IsVisible="{Binding IsShortcutsVisible}" Background="#CC05080F">
+    <Border Classes="card"
+            Background="#F70B1424"
+            MaxWidth="640"
+            Margin="0,36"
+            Padding="24,16"
+            HorizontalAlignment="Center">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="4,0,0,12">
+          <Button DockPanel.Dock="Right" Classes="tool" Command="{Binding CloseShortcutsCommand}"
+                  ToolTip.Tip="Close (Esc)">
+            <Path Classes="icon" Width="12" Height="12"
+                  Data="M4.5,4.5 L13.5,13.5 M13.5,4.5 L4.5,13.5" />
+          </Button>
+          <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <TextBlock Text="CONTROLLER SHORTCUTS" Classes="label" VerticalAlignment="Center" />
+            <TextBlock Text="approval-tagged inputs only fire while the agent is asking"
+                       FontSize="11.5" Foreground="#5A7099" VerticalAlignment="Center" />
+          </StackPanel>
+        </DockPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Bindings}" Margin="4,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="gui:BindingRow">
+                <DockPanel Margin="0,1.5">
+                  <Border DockPanel.Dock="Left"
+                          Background="#4D0E1728"
+                          BorderBrush="#1FFFFFFF"
+                          BorderThickness="1"
+                          CornerRadius="7"
+                          Padding="8,2"
+                          MinWidth="118"
+                          VerticalAlignment="Center">
+                    <Panel>
+                      <TextBlock Text="{Binding Chord}"
+                                 FontFamily="Cascadia Mono,Consolas,monospace"
+                                 FontSize="13"
+                                 Foreground="#7DD3FC"
+                                 HorizontalAlignment="Center"
+                                 IsVisible="{Binding !IsDPad}" />
+                      <gui:DPadIcon Width="19" Height="19"
+                                    HorizontalAlignment="Center"
+                                    Direction="{Binding DPadControl}"
+                                    IsVisible="{Binding IsDPad}" />
+                    </Panel>
+                  </Border>
+                  <Border DockPanel.Dock="Right"
+                          Background="#33FFB020"
+                          CornerRadius="5"
+                          Padding="7,2"
+                          VerticalAlignment="Center"
+                          IsVisible="{Binding IsApproval}">
+                    <TextBlock Text="approval" FontSize="10" Foreground="#FFD9A0" />
+                  </Border>
+                  <TextBlock Text="{Binding Action}"
+                             Margin="12,0"
+                             FontSize="14"
+                             VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"
+                             Foreground="#D7E4FA" />
+                </DockPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Border>
 
   <!-- ===================== DIFF REVIEW =====================
        What has actually changed in the workspace, before more of it is

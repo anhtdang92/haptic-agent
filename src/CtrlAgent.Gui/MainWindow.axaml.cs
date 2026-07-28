@@ -22,19 +22,47 @@ public sealed partial class MainWindow : Window
         // KeyBinding) never sees the key we want to intercept.
         PromptBox.AddHandler(KeyDownEvent, OnPromptKeyDown, RoutingStrategies.Tunnel);
 
-        // F11 = enter Mainframe, the standard fullscreen key.
+        // Desktop-first: the keyboard reaches everything the mouse can.
+        // F1 shortcuts map, F3 diff review, Ctrl+N new session, F11
+        // Mainframe, Esc closes whichever overlay is on top.
         KeyDown += (_, eventArgs) =>
         {
-            if (eventArgs.Key == Key.F11)
+            if (DataContext is not MainViewModel viewModel)
             {
-                eventArgs.Handled = true;
-                (Avalonia.Application.Current as App)?.ShowMainframe();
+                return;
             }
-            else if (eventArgs.Key == Key.Escape &&
-                     DataContext is MainViewModel { IsDiffVisible: true } viewModel)
+
+            switch (eventArgs.Key)
             {
-                eventArgs.Handled = true;
-                viewModel.CloseDiffCommand.Execute(null);
+                case Key.F11:
+                    eventArgs.Handled = true;
+                    (Avalonia.Application.Current as App)?.ShowMainframe();
+                    break;
+
+                case Key.F1:
+                    eventArgs.Handled = true;
+                    viewModel.IsShortcutsVisible = !viewModel.IsShortcutsVisible;
+                    break;
+
+                case Key.F3:
+                    eventArgs.Handled = true;
+                    viewModel.ShowDiffCommand.Execute(null);
+                    break;
+
+                case Key.N when eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control):
+                    eventArgs.Handled = true;
+                    viewModel.NewSessionCommand.Execute(null);
+                    break;
+
+                case Key.Escape when viewModel.IsShortcutsVisible:
+                    eventArgs.Handled = true;
+                    viewModel.CloseShortcutsCommand.Execute(null);
+                    break;
+
+                case Key.Escape when viewModel.IsDiffVisible:
+                    eventArgs.Handled = true;
+                    viewModel.CloseDiffCommand.Execute(null);
+                    break;
             }
         };
     }

@@ -301,7 +301,10 @@ internal static class Harness
 
         // Guide-button confirmation before Mainframe takes the screen.
         var mainframePrompt = new MainViewModel(null, options) { IsMainframePromptVisible = true };
-        Render(new MainWindow { DataContext = mainframePrompt }, "15-mainframe-prompt.png");
+        Render(
+            new MainWindow { DataContext = mainframePrompt },
+            "15-mainframe-prompt.png",
+            expectVisibleText: "ENTER MAINFRAME?");
 
         // Startup failure. A dead host used to be indistinguishable from a
         // disconnected one, so this surface is worth a render check.
@@ -311,7 +314,10 @@ internal static class Harness
             ControllerStatus = "Failed to start",
             AgentStatus = "Failed to start",
         };
-        Render(new MainWindow { DataContext = failed }, "13-startup-error.png");
+        Render(
+            new MainWindow { DataContext = failed },
+            "13-startup-error.png",
+            expectVisibleText: "COULDN'T START");
 
         // Profile editor.
         Render(new ProfileEditorWindow(engine), "08-profile-editor.png", 940, 660);
@@ -708,7 +714,8 @@ internal static class Harness
         int? width = null,
         int? height = null,
         Action<Window>? afterShow = null,
-        Action<Window>? afterSettle = null)
+        Action<Window>? afterSettle = null,
+        string? expectVisibleText = null)
     {
         if (width is { } w && height is { } h)
         {
@@ -730,6 +737,22 @@ internal static class Harness
 
         Diagnose(window, fileName);
         CheckCards(window, fileName);
+
+        // A shot exists to prove a surface renders; if the markup for that
+        // surface is deleted (say, in a merge), the shot quietly becomes a
+        // picture of the window behind it and proves nothing. Pinning one
+        // expected string makes the disappearance a failure. This is exactly
+        // how the Mainframe confirmation vanished unnoticed.
+        if (expectVisibleText is not null)
+        {
+            var found = window.GetVisualDescendants()
+                .OfType<TextBlock>()
+                .Any(block => block.IsEffectivelyVisible && block.Text == expectVisibleText);
+            if (!found)
+            {
+                Faults.Add($"{fileName}: expected visible text '{expectVisibleText}' was not rendered.");
+            }
+        }
 
         var frame = window.GetLastRenderedFrame();
         if (frame is null)

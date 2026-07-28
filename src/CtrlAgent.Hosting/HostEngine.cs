@@ -437,6 +437,17 @@ public sealed class HostEngine : IAsyncDisposable
                     Log($"[agent] {agentEvent.State}: {agentEvent.Message}");
                 }
 
+                // The adapter is the authority on which model is actually
+                // live (its init reports it every turn). Folding it into
+                // Settings here means a model label shows the real model
+                // from the first event — not "default" until the user
+                // happens to touch the knob.
+                if (agentEvent.Model is { Length: > 0 } reportedModel &&
+                    !string.Equals(Settings.Model, reportedModel, StringComparison.Ordinal))
+                {
+                    PublishSettings(Settings with { Model = reportedModel });
+                }
+
                 AgentEventReceived?.Invoke(agentEvent);
 
                 if (agentEvent.State is AgentStateKind.ApprovalRequired or AgentStateKind.WaitingForInput)

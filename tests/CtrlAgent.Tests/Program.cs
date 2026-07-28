@@ -54,6 +54,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("An interrupt feels the same on every adapter", TestInterruptIsUniformAsync),
     ("Transcript folds streaming prose into one bubble", TestTranscriptFoldingAsync),
     ("Agent states read as English, not enum names", TestAgentStateTextAsync),
+    ("Model names shorten to chip size", TestModelTextAsync),
     ("Log lines classify most-severe first", TestLogClassificationAsync),
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
     ("Unified diff parses edits, adds, renames, binaries", TestUnifiedDiffParserAsync),
@@ -938,6 +939,41 @@ static async Task TestSessionSettingsTrackingAsync()
     AssertEqual("sonnet", engine.Settings.Model!);
     AssertEqual(4, published.Count);
     AssertEqual("sonnet", published[^1].Model!);
+
+    // An adapter that reports the live model on its events (Claude's init
+    // does, every turn) updates Settings without the user touching a knob —
+    // and a repeat of the same model does not re-publish.
+    var reporting = new ModelReportingAdapter();
+    var reportingController = new ScriptedController();
+    await using var reportingEngine = new HostEngine(
+        new SingleControllerProvider(reportingController),
+        reporting,
+        ControllerProfile.Default,
+        new HostEngineOptions("prompt"));
+
+    var reported = new List<SessionSettings>();
+    var firstReport = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    reportingEngine.SessionSettingsChanged += settings =>
+    {
+        reported.Add(settings);
+        firstReport.TrySetResult();
+    };
+
+    await reportingEngine.StartAsync().ConfigureAwait(false);
+    reporting.Emit(new AgentEvent(
+        "reporting", "sess-1", AgentStateKind.Idle, DateTimeOffset.UtcNow,
+        "ready", Model: "claude-opus-5"));
+    await firstReport.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+    AssertEqual("claude-opus-5", reportingEngine.Settings.Model!);
+
+    reporting.Emit(new AgentEvent(
+        "reporting", "sess-1", AgentStateKind.Working, DateTimeOffset.UtcNow,
+        "working", Model: "claude-opus-5"));
+    reporting.Emit(new AgentEvent(
+        "reporting", "sess-1", AgentStateKind.Completed, DateTimeOffset.UtcNow,
+        "done", Model: "claude-opus-5"));
+    await Task.Delay(150).ConfigureAwait(false);
+    AssertEqual(1, reported.Count);
 }
 
 // The Codex classification used to live inside the adapter, entangled with
@@ -1125,6 +1161,24 @@ static Task TestAgentStateTextAsync()
         Assert(text != state.ToString(), $"{state} still shows its enum name.");
     }
 
+    return Task.CompletedTask;
+}
+
+static Task TestModelTextAsync()
+{
+    // Full CLI-reported ids shed only the vendor prefix every entry shares.
+    AssertEqual("opus-4-7[1m]", ModelText.Short("claude-opus-4-7[1m]"));
+    AssertEqual("sonnet-5", ModelText.Short("claude-sonnet-5"));
+
+    // User-picked aliases and unknown names pass through untouched.
+    AssertEqual("opus", ModelText.Short("opus"));
+    AssertEqual("gpt-x", ModelText.Short("gpt-x"));
+
+    // Not reported yet reads as the CLI's own default, and the degenerate
+    // bare prefix is not shortened into an empty chip.
+    AssertEqual("default", ModelText.Short(null));
+    AssertEqual("default", ModelText.Short("  "));
+    AssertEqual("claude-", ModelText.Short("claude-"));
     return Task.CompletedTask;
 }
 
@@ -2017,6 +2071,38 @@ internal sealed class SingleControllerProvider(ScriptedController controller) : 
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+/// <summary>An adapter whose events the test writes by hand — for exercising
+/// what a host engine does with event metadata (the reported model).</summary>
+internal sealed class ModelReportingAdapter : IAgentAdapter
+{
+    private readonly System.Threading.Channels.Channel<AgentEvent> _events =
+        System.Threading.Channels.Channel.CreateUnbounded<AgentEvent>();
+
+    public string Id => "reporting";
+
+    public bool IsStarted { get; private set; }
+
+    public ValueTask StartAsync(CancellationToken cancellationToken = default)
+    {
+        IsStarted = true;
+        return ValueTask.CompletedTask;
+    }
+
+    public IAsyncEnumerable<AgentEvent> ReadEventsAsync(CancellationToken cancellationToken = default) =>
+        _events.Reader.ReadAllAsync(cancellationToken);
+
+    public ValueTask ExecuteAsync(AgentCommand command, CancellationToken cancellationToken = default) =>
+        ValueTask.CompletedTask;
+
+    public void Emit(AgentEvent agentEvent) => _events.Writer.TryWrite(agentEvent);
+
+    public ValueTask DisposeAsync()
+    {
+        _events.Writer.TryComplete();
+        return ValueTask.CompletedTask;
+    }
 }
 
 internal sealed class BlockingController : IControllerDevice

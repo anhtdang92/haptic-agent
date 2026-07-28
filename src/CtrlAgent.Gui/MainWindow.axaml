@@ -166,8 +166,28 @@
             <Button Content="{Binding PermissionModeLabel}" Command="{Binding CyclePermissionModeCommand}"
                     Classes="knob"
                     ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
-            <Button Content="{Binding ModelLabel}" Command="{Binding CycleModelCommand}"
-                    Classes="knob" ToolTip.Tip="Cycle the model: default, sonnet, opus, haiku, fable" />
+            <!-- A picker, not a blind cycle: clicking shows the choices like
+                 the Claude app's model menu. The controller's CycleModel
+                 binding still steps the same setting — both paths meet in
+                 HostEngine.Settings, so the label follows either. -->
+            <Button Content="{Binding ModelLabel}"
+                    Classes="knob"
+                    ToolTip.Tip="Choose the model for this session">
+              <Button.Flyout>
+                <MenuFlyout Placement="Bottom">
+                  <MenuItem Header="default — let Claude Code choose"
+                            Command="{Binding SelectModelCommand}" CommandParameter="default" />
+                  <MenuItem Header="opus — most capable"
+                            Command="{Binding SelectModelCommand}" CommandParameter="opus" />
+                  <MenuItem Header="sonnet — balanced"
+                            Command="{Binding SelectModelCommand}" CommandParameter="sonnet" />
+                  <MenuItem Header="haiku — fastest"
+                            Command="{Binding SelectModelCommand}" CommandParameter="haiku" />
+                  <MenuItem Header="fable — frontier"
+                            Command="{Binding SelectModelCommand}" CommandParameter="fable" />
+                </MenuFlyout>
+              </Button.Flyout>
+            </Button>
             <Button Content="{Binding EffortLabel}" Command="{Binding CycleEffortCommand}"
                     Classes="knob" ToolTip.Tip="Cycle reasoning effort: low, medium, high, xhigh, max" />
             <Button Content="compact" Command="{Binding CompactCommand}"

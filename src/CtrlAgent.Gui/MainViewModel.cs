@@ -128,6 +128,13 @@ public sealed class MainViewModel : ViewModelBase
             Fire(e => e.SetPermissionModeAsync(
                 AgentModes.Next(AgentModes.PermissionModes, e.Settings.PermissionMode))));
         CycleModelCommand = new RelayCommand(_ => Fire(e => e.CycleModelAsync()));
+        SelectModelCommand = new RelayCommand(parameter =>
+        {
+            if (parameter is string model && model.Length > 0)
+            {
+                Fire(e => e.SetModelAsync(model));
+            }
+        });
         CycleEffortCommand = new RelayCommand(_ => Fire(e => e.CycleEffortAsync()));
         CompactCommand = new RelayCommand(_ => Fire(e => e.CompactContextAsync()));
         InterruptCommand = new RelayCommand(_ => Fire(e => e.InterruptAsync()));
@@ -764,11 +771,15 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public string PermissionModeLabel => $"mode: {_settings.PermissionMode ?? "default"}";
 
-    public string ModelLabel => $"model: {_settings.Model ?? "default"}";
+    public string ModelLabel => $"model: {ModelText.Short(_settings.Model)}";
 
     public string EffortLabel => $"effort: {_settings.Effort ?? "default"}";
 
     public ICommand CycleModelCommand { get; }
+
+    /// <summary>Sets a specific model by alias — the model-picker flyout's
+    /// command, with the alias as the parameter.</summary>
+    public ICommand SelectModelCommand { get; }
 
     public ICommand CycleEffortCommand { get; }
 

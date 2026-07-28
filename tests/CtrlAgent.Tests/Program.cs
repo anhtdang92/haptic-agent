@@ -1330,7 +1330,7 @@ static Task TestClaudeStreamParserAsync()
     var success = ParseClaudeLine(
         """{"type":"result","subtype":"success","is_error":false,"result":"All done","duration_ms":42500,"num_turns":3,"total_cost_usd":0.1845,"session_id":"sess-1"}""");
     Assert(
-        success is ClaudeStreamMessage.TurnResult { IsError: false, Summary: "All done (42.5s · 3 turns · $0.1845)" },
+        success is ClaudeStreamMessage.TurnResult { IsError: false, Summary: "All done (42.5s · 3 turns · ~$0.1845 API rate)" },
         "Expected success result with turn stats.");
 
     var failure = ParseClaudeLine(

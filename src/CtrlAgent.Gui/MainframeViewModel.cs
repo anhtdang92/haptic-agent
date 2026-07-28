@@ -860,20 +860,8 @@ public sealed class MainframeViewModel : ViewModelBase
     /// pending request; Interrupt needs something to interrupt; while a
     /// request is pending everything else steps aside.
     /// </summary>
-    private static bool IsAvailable(BindingRow binding, bool pending, bool busy)
-    {
-        if (binding.IsApproval)
-        {
-            return pending;
-        }
-
-        if (pending)
-        {
-            return false;
-        }
-
-        return binding.Command != AgentCommandKind.Interrupt || busy;
-    }
+    private static bool IsAvailable(BindingRow binding, bool pending, bool busy) =>
+        BindingAvailability.IsAvailable(binding, pending, busy);
 
     /// <summary>
     /// While an approval is pending, the approval tiles lead the rail and

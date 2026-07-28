@@ -744,7 +744,13 @@ public sealed class MainViewModel : ViewModelBase
     public bool HasPendingApproval
     {
         get => _hasPendingApproval;
-        set => Set(ref _hasPendingApproval, value);
+        set
+        {
+            if (Set(ref _hasPendingApproval, value))
+            {
+                RebuildVisibleBindings();
+            }
+        }
     }
 
     public string PendingApprovalMessage
@@ -782,7 +788,13 @@ public sealed class MainViewModel : ViewModelBase
     public bool IsAgentActive
     {
         get => _isAgentActive;
-        set => Set(ref _isAgentActive, value);
+        set
+        {
+            if (Set(ref _isAgentActive, value))
+            {
+                RebuildVisibleBindings();
+            }
+        }
     }
 
     public bool IsLogEmpty
@@ -1158,7 +1170,32 @@ public sealed class MainViewModel : ViewModelBase
             }
         }
 
-        IsBindingsEmpty = Bindings.Count == 0;
+        RebuildVisibleBindings();
+    }
+
+    /// <summary>The hub's shortcut rows: only what can fire right now, the
+    /// same rule as Mainframe's HUD and the engine's approval lockout. The
+    /// full map (every binding, fireable or not) stays in <see cref="Bindings"/>
+    /// for the F1 overlay — a reference shows everything, a HUD tells the
+    /// truth about this moment.</summary>
+    public ObservableCollection<BindingRow> VisibleBindings { get; } = [];
+
+    /// <summary>"SHORTCUTS" normally; "ANSWER WITH" while an approval waits.</summary>
+    public string ShortcutsHeading => _hasPendingApproval ? "ANSWER WITH" : "SHORTCUTS";
+
+    private void RebuildVisibleBindings()
+    {
+        VisibleBindings.Clear();
+        foreach (var binding in Bindings)
+        {
+            if (BindingAvailability.IsAvailable(binding, _hasPendingApproval, _isAgentActive))
+            {
+                VisibleBindings.Add(binding);
+            }
+        }
+
+        IsBindingsEmpty = VisibleBindings.Count == 0;
+        Raise(nameof(ShortcutsHeading));
     }
 
     public void AppendLog(string message)

@@ -182,6 +182,12 @@ internal static class Harness
         approving.AgentStatus = "claude";
         approving.AgentState = "ApprovalRequired";
         approving.HasPendingApproval = true;
+        // Drive the bot with the real event so the bubble coaches the
+        // approval, as it does live — a hand-set flag skips OnAgentEvent and
+        // left the shot showing stale "send me a prompt" advice.
+        approving.Buddy.OnAgentEvent(new AgentEvent(
+            "claude", "sess", AgentStateKind.ApprovalRequired, DateTimeOffset.UtcNow,
+            "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs", "req-1"));
         approving.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
         approving.AppendLog("[agent] ApprovalRequired: Claude Code wants: Write: src/Mapping.cs");
         Render(new MainWindow { DataContext = approving }, "02-main-approval.png");

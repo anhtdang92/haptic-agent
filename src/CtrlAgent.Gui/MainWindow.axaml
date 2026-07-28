@@ -644,7 +644,7 @@
                         Content="view all"
                         ToolTip.Tip="Every binding at full size (F1)"
                         Command="{Binding ShowShortcutsCommand}" />
-                <TextBlock Text="SHORTCUTS" Classes="label" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding ShortcutsHeading}" Classes="label" VerticalAlignment="Center" />
               </DockPanel>
             </StackPanel>
 
@@ -652,7 +652,7 @@
             <TextBlock Classes="placeholder"
                        Text="No bindings — open Profile… to add some."
                        IsVisible="{Binding IsBindingsEmpty}" />
-            <ListBox ItemsSource="{Binding Bindings}" FontSize="12">
+            <ListBox ItemsSource="{Binding VisibleBindings}" FontSize="12">
               <ListBox.Styles>
                 <Style Selector="ListBoxItem">
                   <Setter Property="Padding" Value="6,3" />

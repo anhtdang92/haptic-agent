@@ -337,6 +337,7 @@ public sealed class MappingEngine
             return structuralMatches
                 .Where(binding => (binding.Modifiers?.Count ?? 0) == highestSpecificity)
                 .Where(IsEligible)
+                .Where(FiresWhilePending)
                 .Select(binding => new AgentCommand(
                     binding.Command,
                     _pendingApproval?.SessionId,
@@ -411,6 +412,19 @@ public sealed class MappingEngine
 
     private bool IsEligible(InputBinding binding) =>
         !binding.RequiresPendingApproval || _pendingApproval is not null;
+
+    /// <summary>
+    /// While an approval is pending, only the approval answers (and output
+    /// scrolling — reading the diff is how you decide) may fire. Everything
+    /// else is suppressed, not hidden: the HUD already showed only the answer
+    /// chords in that state, but a muscle-memory LB+A still queued its preset
+    /// prompt behind the user's back. A request the agent is waiting on is a
+    /// modal question, and the pad answers the question or does nothing.
+    /// </summary>
+    private bool FiresWhilePending(InputBinding binding) =>
+        _pendingApproval is null ||
+        binding.RequiresPendingApproval ||
+        binding.Command is AgentCommandKind.ScrollOutputUp or AgentCommandKind.ScrollOutputDown;
 
     private bool IsLayerActive(InputBinding binding)
     {

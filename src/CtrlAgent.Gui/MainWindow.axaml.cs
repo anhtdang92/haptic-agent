@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -97,6 +98,18 @@ public sealed partial class MainWindow : Window
     // Typed "/model" means "show me the picker" — open the chip's flyout
     // exactly as if it had been clicked.
     private void OnModelPickerRequested() => ModelKnob.Flyout?.ShowAt(ModelKnob);
+
+    // Rebuilt on every open so a headset plugged in mid-session appears
+    // without a restart.
+    private void OnPickMicrophone(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.RefreshMicrophones();
+        }
+
+        FlyoutBase.ShowAttachedFlyout(MicPickButton);
+    }
 
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
         StickToBottom(EventStream, eventArgs);

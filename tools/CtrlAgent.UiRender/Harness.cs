@@ -28,6 +28,9 @@ public sealed class SpeechToTextService : IDisposable
     /// <summary>When set, recognition "hears" this instead of failing.</summary>
     public static string? ScriptedResult { get; set; }
 
+    /// <summary>Mirrors the real service's device selection surface.</summary>
+    public static string? PreferredMicrophone { get; set; }
+
     public event Action<string>? HypothesisChanged;
 
     public string? UnavailableReason { get; private set; } =

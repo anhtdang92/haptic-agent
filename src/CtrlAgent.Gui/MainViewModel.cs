@@ -554,6 +554,37 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>Starts dictation.</summary>
     public ICommand StartVoiceCommand { get; }
 
+    /// <summary>The mic-picker rows: "System default" plus every capture
+    /// device winmm reports, rebuilt each time the flyout opens so plugging
+    /// in a headset shows up without a restart.</summary>
+    public ObservableCollection<MicrophoneChoice> Microphones { get; } = [];
+
+    /// <summary>Raised after the user picks a microphone so the host app can
+    /// persist the choice; the selection itself is already applied.</summary>
+    public event Action<string?>? MicrophoneChanged;
+
+    public void RefreshMicrophones()
+    {
+        Microphones.Clear();
+        var current = SpeechToTextService.PreferredMicrophone;
+        Microphones.Add(MicrophoneChoice.For(null, current is null, SelectMicrophone));
+        foreach (var device in MicrophoneCatalog.List())
+        {
+            Microphones.Add(MicrophoneChoice.For(
+                device.Name,
+                string.Equals(device.Name, current, StringComparison.OrdinalIgnoreCase),
+                SelectMicrophone));
+        }
+    }
+
+    private void SelectMicrophone(string? name)
+    {
+        SpeechToTextService.PreferredMicrophone = name;
+        AppendLog($"Microphone: {name ?? "system default"}");
+        MicrophoneChanged?.Invoke(name);
+        RefreshMicrophones();
+    }
+
     /// <summary>Adds picked files, ignoring ones already on the list.</summary>
     public void AddAttachments(IEnumerable<string> paths)
     {

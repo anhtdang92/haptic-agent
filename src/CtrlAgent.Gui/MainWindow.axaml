@@ -285,6 +285,27 @@
                       M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
                       M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
         </Button>
+        <!-- Mic picker: which device the dictation listens on. In-app because
+             System.Speech only follows the Windows default otherwise, and
+             "change your OS sound settings" is not a feature. -->
+        <Button x:Name="MicPickButton"
+                Padding="6,9"
+                Click="OnPickMicrophone"
+                ToolTip.Tip="Choose which microphone dictation uses">
+          <Path Classes="icon" Width="10" Height="10" Data="M4,7 L9,12 L14,7" />
+          <FlyoutBase.AttachedFlyout>
+            <MenuFlyout ItemsSource="{Binding Microphones}">
+              <MenuFlyout.ItemContainerTheme>
+                <ControlTheme TargetType="MenuItem"
+                              BasedOn="{StaticResource {x:Type MenuItem}}"
+                              x:DataType="gui:MicrophoneChoice">
+                  <Setter Property="Header" Value="{Binding Label}" />
+                  <Setter Property="Command" Value="{Binding SelectCommand}" />
+                </ControlTheme>
+              </MenuFlyout.ItemContainerTheme>
+            </MenuFlyout>
+          </FlyoutBase.AttachedFlyout>
+        </Button>
         <Button Command="{Binding AttachFileCommand}" Padding="12,9"
                 ToolTip.Tip="Attach files for the next prompt (LB+X on the controller)">
           <Path Classes="icon"

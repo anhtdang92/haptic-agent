@@ -244,11 +244,12 @@
     </Border>
 
     <!-- ===================== COMPOSER =====================
-         One primary action, not four peers. Review and New session moved up to
-         the tool rail because they are session-level, and Interrupt appears
-         only while there is a turn to interrupt — a permanently-lit stop button
-         is noise for the 90% of the time nothing is running. -->
-    <DockPanel DockPanel.Dock="Top">
+         Docked to the BOTTOM, like every chat app: the conversation reads
+         downward and ends where the hands are. It sat under the command bar
+         at the top for a while, which meant the reply streamed in below the
+         box you were typing into. One primary action, not four peers:
+         Interrupt appears only while there is a turn to interrupt. -->
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
                   Margin="10,0,0,0" VerticalAlignment="Bottom">
         <Border Background="#33FFB020" BorderBrush="#66FFB020" BorderThickness="1"
@@ -313,9 +314,9 @@
     </DockPanel>
 
 
-    <!-- Attached files: shown under the prompt because they are part of what
-         the next Submit sends, not a separate thing that happened. -->
-    <Border DockPanel.Dock="Top"
+    <!-- Attached files: directly above the prompt because they are part of
+         what the next Submit sends, not a separate thing that happened. -->
+    <Border DockPanel.Dock="Bottom"
             Classes="card"
             Padding="12,8"
             Margin="0,8,0,0"
@@ -358,11 +359,10 @@
       </DockPanel>
     </Border>
 
-    <!-- Approval banner: docked in the flow directly under the prompt row, so
-         it pushes content down rather than covering the controls you need to
-         answer with. It kept a hardcoded top margin when it floated, which
-         landed it on top of the prompt row at every window size. -->
-    <Border DockPanel.Dock="Top"
+    <!-- Approval banner: directly above the input area, where the eye
+         already rests between reading and typing — the same place the
+         Claude app raises its own permission prompts. -->
+    <Border DockPanel.Dock="Bottom"
             Classes="alert approvalBanner"
             Classes.show="{Binding HasPendingApproval}"
             Margin="0,12,0,0"
@@ -399,8 +399,8 @@
       </DockPanel>
     </Border>
 
-    <!-- Sessions + log + live input + bindings -->
-    <Grid ColumnDefinitions="Auto,3*,2*" Margin="0,14,0,0">
+    <!-- Sessions + conversation + controller hub fill the middle -->
+    <Grid ColumnDefinitions="Auto,3*,2*" Margin="0,14,0,10">
 
       <!-- Recents sidebar (Claude-app style): every session the agent's
            on-disk store knows for this workspace, newest first — click one to

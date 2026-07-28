@@ -91,7 +91,6 @@ public sealed class MainframeViewModel : ViewModelBase
     private bool _hasTranscript;
     private string _voiceStatus = string.Empty;
     private string _transcript = string.Empty;
-    private string _latestResponse = "Waiting for the agent…";
     private bool _lastResponseWasWorking;
     private bool _isFeedEmpty = true;
     private bool _detached;
@@ -119,8 +118,45 @@ public sealed class MainframeViewModel : ViewModelBase
         // Capture stays off until something focusable is on screen.
         _engine.SetInputCapture(false);
         Main.PropertyChanged += OnMainPropertyChanged;
+        Main.Transcript.CollectionChanged += OnTranscriptMirrored;
         RebuildTiles();
         RebuildHints();
+    }
+
+    /// <summary>
+    /// Mirrors the user's own prompts into the feed, whichever surface they
+    /// were typed (or spoken) on. Without them the feed was half a
+    /// conversation — replies with no questions — which is why chatting from
+    /// Mainframe felt impossible even once it had a composer.
+    /// </summary>
+    private void OnTranscriptMirrored(
+        object? sender,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (_detached ||
+            eventArgs.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Add ||
+            eventArgs.NewItems is null)
+        {
+            return;
+        }
+
+        foreach (var item in eventArgs.NewItems)
+        {
+            if (item is ChatMessage { IsUser: true, IsActivity: false } prompt)
+            {
+                Responses.Add($"You — {prompt.Text}");
+                while (Responses.Count > MaxResponses)
+                {
+                    Responses.RemoveAt(0);
+                }
+
+                // The next Working snapshot starts a fresh row rather than
+                // overwriting the prompt that caused it.
+                _lastResponseWasWorking = false;
+            }
+        }
+
+        IsFeedEmpty = Responses.Count == 0;
     }
 
     /// <summary>Raised when the user asks to leave Mainframe mode.</summary>
@@ -166,12 +202,6 @@ public sealed class MainframeViewModel : ViewModelBase
 
     /// <summary>The agent's recent messages, oldest first.</summary>
     public ObservableCollection<string> Responses { get; } = [];
-
-    public string LatestResponse
-    {
-        get => _latestResponse;
-        private set => Set(ref _latestResponse, value);
-    }
 
     /// <summary>True until the agent says something, so the feed can explain
     /// itself instead of showing an empty panel.</summary>
@@ -267,6 +297,7 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine.AgentEventReceived -= _agentHandler;
         _engine.PendingApprovalChanged -= OnPendingApprovalChanged;
         Main.PropertyChanged -= OnMainPropertyChanged;
+        Main.Transcript.CollectionChanged -= OnTranscriptMirrored;
         _engine.SetInputCapture(false);
         _engine.OutputScrollRequested -= _scrollHandler;
         _speech.Dispose();
@@ -589,7 +620,6 @@ public sealed class MainframeViewModel : ViewModelBase
 
         IsFeedEmpty = Responses.Count == 0;
         _lastResponseWasWorking = agentEvent.State == AgentStateKind.Working;
-        LatestResponse = agentEvent.Message;
     }
 
     // Approvals are answered by paddles and chords, never by a tile, so a

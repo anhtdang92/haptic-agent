@@ -24,6 +24,11 @@ public sealed partial class MainframeWindow : Window
         InitializeComponent();
         KeyDown += OnKeyDown;
 
+        // Same Enter-sends contract as the main window's prompt box, and for
+        // the same reason: AcceptsReturn means the TextBox consumes Enter
+        // before any bubbling handler sees it, so the submit hook must tunnel.
+        MainframePromptBox.AddHandler(KeyDownEvent, OnPromptKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
         // The reticle pointer: this mode is meant to be driven from a couch,
         // but a mouse should feel deliberate here rather than borrowed from
         // the desktop. Null means the backend refused it — keep the default.
@@ -39,11 +44,13 @@ public sealed partial class MainframeWindow : Window
                 {
                     _observed.FeedScrollRequested -= OnFeedScroll;
                     _observed.FocusMoved -= OnFocusMoved;
+                    _observed.Responses.CollectionChanged -= OnFeedChanged;
                 }
 
                 _observed = viewModel;
                 viewModel.FocusMoved += OnFocusMoved;
                 viewModel.FeedScrollRequested += OnFeedScroll;
+                viewModel.Responses.CollectionChanged += OnFeedChanged;
             }
         };
         Opened += async (_, _) =>
@@ -76,6 +83,49 @@ public sealed partial class MainframeWindow : Window
         var target = scroller.Offset.Y + (direction * page);
         var highest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
         scroller.Offset = scroller.Offset.WithY(Math.Clamp(target, 0, highest));
+    }
+
+    /// <summary>
+    /// Follows new and streaming feed text while already at the bottom, same
+    /// rules as the main window's conversation: stickiness is decided before
+    /// layout absorbs the change, the scroll runs after it, and paging back
+    /// with the stick disarms following until the user returns to the bottom.
+    /// Replace matters as much as Add here — a streaming turn rewrites the
+    /// last row in place.
+    /// </summary>
+    private void OnFeedChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Action is not (System.Collections.Specialized.NotifyCollectionChangedAction.Add
+            or System.Collections.Specialized.NotifyCollectionChangedAction.Replace))
+        {
+            return;
+        }
+
+        if (FeedScroller is not { } scroller ||
+            scroller.Offset.Y < scroller.Extent.Height - scroller.Viewport.Height - 48)
+        {
+            return;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            scroller.ScrollToEnd,
+            Avalonia.Threading.DispatcherPriority.Background);
+    }
+
+    // Enter sends, Shift+Enter breaks the line — the habit every chat client
+    // teaches, kept identical across both windows.
+    private void OnPromptKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Key != Key.Enter || eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return;
+        }
+
+        eventArgs.Handled = true;
+        if (DataContext is MainframeViewModel viewModel)
+        {
+            viewModel.Main.SubmitPromptCommand.Execute(null);
+        }
     }
 
     /// <summary>Keeps the focused settings tile on screen.</summary>

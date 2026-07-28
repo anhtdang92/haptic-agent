@@ -468,20 +468,32 @@
         <Border Grid.Column="1" Classes="card" Padding="24" Margin="24,0,0,0">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="AGENT FEED" Classes="label" FontSize="13" Margin="0,0,0,14" />
-            <Border DockPanel.Dock="Bottom"
-                    Background="#33122544"
-                    BorderBrush="#5500D4FF"
-                    BorderThickness="1"
-                    CornerRadius="10"
-                    Padding="16,12"
-                    Margin="0,14,0,0">
-              <TextBlock Text="{Binding LatestResponse}"
-                         TextWrapping="Wrap"
-                         FontSize="19"
-                         Foreground="#EAF3FF"
-                         MaxLines="5"
-                         TextTrimming="CharacterEllipsis" />
-            </Border>
+            <!-- A real composer, not a readout. This strip used to echo the
+                 latest response (already visible in the feed above it) while
+                 the mode had no way to type at all — Mainframe is a place to
+                 work, not only to watch. Same PromptText and submit command
+                 as the main window, so a half-typed prompt survives switching
+                 between the two. -->
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+              <Button DockPanel.Dock="Right"
+                      Content="Send"
+                      Classes="accent"
+                      FontSize="16"
+                      Padding="22,11"
+                      Margin="12,0,0,0"
+                      VerticalAlignment="Bottom"
+                      Command="{Binding Main.SubmitPromptCommand}" />
+              <TextBox x:Name="MainframePromptBox"
+                       Text="{Binding Main.PromptText}"
+                       FontSize="16"
+                       Padding="16,11"
+                       AcceptsReturn="True"
+                       AcceptsTab="False"
+                       TextWrapping="Wrap"
+                       MaxHeight="120"
+                       VerticalContentAlignment="Top"
+                       Watermark="Type a prompt — Enter sends, Shift+Enter for a new line (Y to speak)" />
+            </DockPanel>
             <!-- Empty state: a quiet mark and two short lines, not a
                  paragraph adrift in a large panel -->
             <StackPanel Spacing="10"
@@ -492,7 +504,7 @@
                        Fill="#12FFFFFF" Stroke="#1FFFFFFF" StrokeThickness="1" />
               <TextBlock Text="Nothing from the agent yet"
                          FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
-              <TextBlock Text="Use a shortcut below, or press Y to speak a prompt"
+              <TextBlock Text="Type below, use a shortcut, or press Y to speak a prompt"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
             <ScrollViewer x:Name="FeedScroller"

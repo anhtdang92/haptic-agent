@@ -59,6 +59,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Unified diff parses edits, adds, renames, binaries", TestUnifiedDiffParserAsync),
     ("Workspace diff folds tracked and untracked changes", TestWorkspaceDiffAsync),
     ("Startup preflight names every missing prerequisite", TestStartupPreflightAsync),
+    ("Stored transcripts reload as prose, tools skipped", TestTranscriptReloadAsync),
 };
 
 var failures = 0;
@@ -1899,6 +1900,68 @@ static async Task TestWorkspaceDiffAsync()
         await process.WaitForExitAsync();
         Assert(process.ExitCode == 0, $"{fileName} {string.Join(' ', arguments)} exited {process.ExitCode}.");
     }
+}
+
+static Task TestTranscriptReloadAsync()
+{
+    // A realistic stored session: prompts, replies with tool machinery mixed
+    // into the content blocks, synthetic user entries, junk lines.
+    var entries = ClaudeSessionCatalog.ParseTranscript(
+    [
+        """{"type":"file-history-snapshot","messageId":"x"}""",
+        """{"type":"user","message":{"role":"user","content":"Fix the login bug"}}""",
+        """{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"Found it — the token check."},{"type":"tool_use","name":"Bash","input":{}}]}}""",
+        """{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"exit 0"}]}}""",
+        """{"type":"user","message":{"role":"user","content":"<system-reminder>noise</system-reminder>"}}""",
+        "not json at all",
+        """{"type":"assistant","message":{"content":[{"type":"text","text":"Fixed."},{"type":"text","text":"Tests pass."},{"type":"tool_use","name":"Write","text":"raw dump"}]}}""",
+        """{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ship it"}]}}""",
+    ]);
+    AssertEqual(4, entries.Count);
+    Assert(entries[0].IsUser, "First entry is the user's prompt.");
+    AssertEqual("Fix the login bug", entries[0].Text);
+    Assert(!entries[1].IsUser, "Second entry is the assistant.");
+    AssertEqual("Found it — the token check.", entries[1].Text);
+    AssertEqual("Fixed.\n\nTests pass.", entries[2].Text);
+    AssertEqual("Ship it", entries[3].Text);
+
+    // The cap keeps the newest messages, not the oldest.
+    var capped = ClaudeSessionCatalog.ParseTranscript(
+    [
+        """{"type":"user","message":{"role":"user","content":"first"}}""",
+        """{"type":"user","message":{"role":"user","content":"second"}}""",
+        """{"type":"user","message":{"role":"user","content":"third"}}""",
+    ], maxEntries: 2);
+    AssertEqual(2, capped.Count);
+    AssertEqual("second", capped[0].Text);
+    AssertEqual("third", capped[1].Text);
+
+    // End to end through a temp store: the file path, sharing mode, and a
+    // missing session are the parts ParseTranscript cannot cover.
+    var home = Path.Combine(Path.GetTempPath(), $"ctrlagent-hist-{Guid.NewGuid():N}");
+    var workspace = @"C:\repos\demo";
+    var store = Path.Combine(home, "projects", ClaudeSessionCatalog.EncodeProjectDirectoryName(workspace));
+    Directory.CreateDirectory(store);
+    try
+    {
+        File.WriteAllLines(
+            Path.Combine(store, "abc.jsonl"),
+            [
+                """{"type":"user","message":{"role":"user","content":"Hello"}}""",
+                """{"type":"assistant","message":{"content":[{"type":"text","text":"Hi."}]}}""",
+            ]);
+
+        var loaded = ClaudeSessionCatalog.LoadTranscript(workspace, "abc", home);
+        AssertEqual(2, loaded.Count);
+        AssertEqual("Hi.", loaded[1].Text);
+        AssertEqual(0, ClaudeSessionCatalog.LoadTranscript(workspace, "missing", home).Count);
+    }
+    finally
+    {
+        Directory.Delete(home, recursive: true);
+    }
+
+    return Task.CompletedTask;
 }
 
 static Task TestStartupPreflightAsync()

@@ -974,8 +974,45 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        AddChat(isUser: false, isActivity: true, $"↩ Resuming session {sessionId}…");
         Fire(e => e.ResumeSessionAsync(sessionId));
+
+        // Show what was already said in that session. The CLI reloads its
+        // context from the same on-disk transcript, so without this the agent
+        // remembered a conversation the user could not see — a resumed session
+        // looked brand new while quietly knowing everything.
+        var workspace = WorkspacePath;
+        _ = Task.Run(() =>
+        {
+            IReadOnlyList<ClaudeTranscriptEntry> history;
+            try
+            {
+                history = ClaudeSessionCatalog.LoadTranscript(workspace, sessionId);
+            }
+            catch (Exception)
+            {
+                history = [];
+            }
+
+            Post(() =>
+            {
+                if (WorkspacePath != workspace)
+                {
+                    return;
+                }
+
+                Transcript.Clear();
+                _folder.Reset();
+                _streamingBubble = null;
+                foreach (var entry in history)
+                {
+                    AddChat(entry.IsUser, isActivity: false, entry.Text);
+                }
+
+                AddChat(isUser: false, isActivity: true, history.Count > 0
+                    ? $"↩ Resumed session — {history.Count} earlier messages restored from disk."
+                    : $"↩ Resuming session {sessionId}…");
+            });
+        });
     }
 
     /// <summary>

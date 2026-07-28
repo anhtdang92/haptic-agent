@@ -299,6 +299,21 @@ internal static class Harness
         var setup = new MainViewModel(null, options) { IsSetupVisible = true };
         Render(new MainWindow { DataContext = setup }, "07-first-run.png");
 
+        // Setup after a failed preflight: the screen a fresh machine actually
+        // sees when the CLI is not installed or a saved workspace was deleted.
+        // The message must read as instructions, not as a stack trace.
+        var blocked = new MainViewModel(null, options)
+        {
+            IsSetupVisible = true,
+            SetupAgent = "claude",
+            SetupError =
+                "The claude CLI was not found on PATH. Install it with: npm install -g @anthropic-ai/claude-code — " +
+                "then run 'claude' once in a terminal to sign in before using CtrlAgent.\n" +
+                "The workspace folder does not exist: C:\\repos\\old-project. " +
+                "Pick another folder — it may have been moved or deleted since last time.",
+        };
+        Render(new MainWindow { DataContext = blocked }, "25-setup-preflight.png");
+
         // Guide-button confirmation before Mainframe takes the screen.
         var mainframePrompt = new MainViewModel(null, options) { IsMainframePromptVisible = true };
         Render(

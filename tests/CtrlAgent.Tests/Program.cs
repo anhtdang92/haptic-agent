@@ -58,6 +58,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
     ("Unified diff parses edits, adds, renames, binaries", TestUnifiedDiffParserAsync),
     ("Workspace diff folds tracked and untracked changes", TestWorkspaceDiffAsync),
+    ("Startup preflight names every missing prerequisite", TestStartupPreflightAsync),
 };
 
 var failures = 0;
@@ -1898,6 +1899,70 @@ static async Task TestWorkspaceDiffAsync()
         await process.WaitForExitAsync();
         Assert(process.ExitCode == 0, $"{fileName} {string.Join(' ', arguments)} exited {process.ExitCode}.");
     }
+}
+
+static Task TestStartupPreflightAsync()
+{
+    var repo = "repo";
+    var shim = Path.Combine("npm", "claude.cmd");
+    var pathExt = ".COM;.EXE;.BAT;.CMD";
+
+    // Everything present: no problems, in both PATH styles.
+    AssertEqual(0, StartupPreflight.Check(
+        "claude", repo, null, null,
+        directory => directory == repo, file => file == shim, "npm", pathExt).Count);
+    var unixBinary = Path.Combine("bin", "claude");
+    AssertEqual(0, StartupPreflight.Check(
+        "claude", repo, null, null,
+        directory => directory == repo, file => file == unixBinary, "bin", null).Count);
+
+    // A deleted workspace names the path and says what to do.
+    var problems = StartupPreflight.Check(
+        "claude", @"C:\gone", null, null,
+        _ => false, file => file == shim, "npm", pathExt);
+    AssertEqual(1, problems.Count);
+    Assert(problems[0].Contains(@"C:\gone"), "The workspace problem must name the path.");
+    Assert(problems[0].Contains("Pick another folder"), "The workspace problem must say what to do.");
+
+    // A missing CLI says how to install it — the whole point of preflighting.
+    problems = StartupPreflight.Check(
+        "claude", repo, null, null,
+        directory => directory == repo, _ => false, "npm", pathExt);
+    AssertEqual(1, problems.Count);
+    Assert(problems[0].Contains("npm install -g @anthropic-ai/claude-code"),
+        "The claude problem must carry the install command.");
+    problems = StartupPreflight.Check(
+        "codex", repo, null, null,
+        directory => directory == repo, _ => false, "npm", pathExt);
+    Assert(problems.Single().Contains("npm install -g @openai/codex"),
+        "The codex problem must carry its own install command.");
+
+    // An explicit executable path is checked directly, not through PATH.
+    var explicitPath = Path.Combine("tools", "claude.cmd");
+    problems = StartupPreflight.Check(
+        "claude", repo, explicitPath, null,
+        directory => directory == repo, _ => false, "npm", pathExt);
+    Assert(problems.Single().Contains(explicitPath), "A missing explicit executable must be named.");
+    AssertEqual(0, StartupPreflight.Check(
+        "claude", repo, explicitPath, null,
+        directory => directory == repo, file => file == explicitPath, "npm", pathExt).Count);
+
+    // The mock agent spawns nothing, so an empty PATH is fine.
+    AssertEqual(0, StartupPreflight.Check(
+        "mock", repo, null, null,
+        directory => directory == repo, _ => false, null, null).Count);
+
+    // A missing profile file is its own problem, reported alongside others.
+    problems = StartupPreflight.Check(
+        "claude", repo, null, "missing.json",
+        directory => directory == repo, file => file == shim, "npm", pathExt);
+    Assert(problems.Single().Contains("missing.json"), "A missing profile must be named.");
+    problems = StartupPreflight.Check(
+        "claude", @"C:\gone", null, "missing.json",
+        _ => false, _ => false, "npm", pathExt);
+    AssertEqual(3, problems.Count);
+
+    return Task.CompletedTask;
 }
 
 static void Assert(bool condition, string message)

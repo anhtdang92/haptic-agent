@@ -33,6 +33,29 @@ internal static class Program
             return 0;
         }
 
+        // Same preflight as the GUI: name what is missing before anything
+        // spawns, instead of dying with the raw exception of the first thing
+        // that broke.
+        var problems = StartupPreflight.Check(
+            options.Agent,
+            options.WorkingDirectory,
+            options.Agent switch
+            {
+                "claude" => options.ClaudeExecutable,
+                "codex" => options.CodexExecutable,
+                _ => null,
+            },
+            options.ProfilePath);
+        if (problems.Count > 0)
+        {
+            foreach (var problem in problems)
+            {
+                Console.Error.WriteLine($"CtrlAgent cannot start: {problem}");
+            }
+
+            return 1;
+        }
+
         var profile = ControllerProfile.Default;
         if (options.ProfilePath is not null)
         {

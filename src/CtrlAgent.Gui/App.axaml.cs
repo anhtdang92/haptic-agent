@@ -148,6 +148,34 @@ public sealed class App : Application
             return;
         }
 
+        // Say what is missing before anything spawns. Without this the first
+        // launch on a fresh machine died with whatever raw exception broke
+        // first ("The system cannot find the file specified" — which file?),
+        // and a saved workspace deleted since last run looked like a crash.
+        // Setup is the right screen for these: every problem it reports is
+        // fixed by changing something setup can change.
+        var problems = StartupPreflight.Check(
+            options.Agent,
+            options.WorkingDirectory,
+            options.Agent switch
+            {
+                "claude" => options.ClaudeExecutable,
+                "codex" => options.CodexExecutable,
+                _ => null,
+            },
+            options.ProfilePath);
+        if (problems.Count > 0)
+        {
+            foreach (var problem in problems)
+            {
+                _viewModel.AppendLog($"Startup blocked: {problem}");
+            }
+
+            _viewModel.SetupError = string.Join(Environment.NewLine, problems);
+            _viewModel.IsSetupVisible = true;
+            return;
+        }
+
         try
         {
             var profile = options.ProfilePath is null

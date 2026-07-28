@@ -348,7 +348,13 @@ public static class ClaudeStreamParser
 
         if (root.TryGetProperty("total_cost_usd", out var cost) && cost.TryGetDouble(out var costUsd))
         {
-            stats.Add($"${costUsd:0.00##}");
+            // The CLI reports what the turn's tokens would cost at API list
+            // prices regardless of how the user is authenticated. On a
+            // subscription login nothing is actually charged, and a bare
+            // "$0.33" reads as a bill. The wire format does not say which
+            // billing mode is active, so use a label that is true in both:
+            // this is the API-rate value of the tokens used.
+            stats.Add($"~${costUsd:0.00##} API rate");
         }
 
         if (stats.Count > 0)

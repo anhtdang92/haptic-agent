@@ -46,4 +46,7 @@ public static class TileIcons
 
     public static readonly Geometry Eject = Geometry.Parse(
         "M4.5,10.5 L9,5.5 L13.5,10.5 Z M4.5,13.5 H13.5");
+
+    public static readonly Geometry Diff = Geometry.Parse(
+        "M5,3.5 H3 V14.5 H5 M13,3.5 H15 V14.5 H13 M9,5.5 V9.5 M7,7.5 H11 M7,12 H11");
 }

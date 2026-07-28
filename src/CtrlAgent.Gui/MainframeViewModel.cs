@@ -248,7 +248,8 @@ public sealed class MainframeViewModel : ViewModelBase
     }
 
     /// <summary>The action HUD hides behind any overlay.</summary>
-    public bool IsHudVisible => !_isSettingsVisible && !_isShortcutsVisible && !_isVoiceVisible;
+    public bool IsHudVisible =>
+        !_isSettingsVisible && !_isShortcutsVisible && !_isVoiceVisible && !Main.IsDiffVisible;
 
     /// <summary>
     /// The trailing legend line. It has to change with the mode: claiming
@@ -320,6 +321,7 @@ public sealed class MainframeViewModel : ViewModelBase
             case "Tab": ToggleSettings(); break;
             case "F1": ToggleShortcuts(); break;
             case "F2": StartVoice(); break;
+            case "F3": ShowDiff(); break;
             case "F11": CloseRequested?.Invoke(); break;
         }
     }
@@ -346,6 +348,16 @@ public sealed class MainframeViewModel : ViewModelBase
         // is only ours while an overlay owns the screen — with no overlay up,
         // A/B/X and the paddles belong to the profile, and intercepting them
         // here would shadow the user's own bindings.
+        if (Main.IsDiffVisible)
+        {
+            if (inputEvent.Control == ControllerControl.B)
+            {
+                Back();
+            }
+
+            return;
+        }
+
         if (inputEvent.Control == ControllerControl.View)
         {
             ToggleSettings();
@@ -446,6 +458,7 @@ public sealed class MainframeViewModel : ViewModelBase
             case "model": Main.CycleModelCommand.Execute(null); break;
             case "effort": Main.CycleEffortCommand.Execute(null); break;
             case "compact": Main.CompactCommand.Execute(null); break;
+            case "diff": IsSettingsVisible = false; ShowDiff(); break;
             case "attach": AttachFileRequested?.Invoke(); break;
             case "voice": StartVoice(); break;
             case "workspace": WorkspacePickerRequested?.Invoke(); break;
@@ -457,6 +470,12 @@ public sealed class MainframeViewModel : ViewModelBase
 
     private void Back()
     {
+        if (Main.IsDiffVisible)
+        {
+            Main.IsDiffVisible = false;
+            return;
+        }
+
         if (IsVoiceVisible)
         {
             DismissVoice();
@@ -526,7 +545,8 @@ public sealed class MainframeViewModel : ViewModelBase
             return;
         }
 
-        _engine.SetInputCapture(_isSettingsVisible || _isShortcutsVisible || _isVoiceVisible);
+        _engine.SetInputCapture(
+            _isSettingsVisible || _isShortcutsVisible || _isVoiceVisible || Main.IsDiffVisible);
     }
 
     private void ToggleShortcuts()
@@ -632,8 +652,30 @@ public sealed class MainframeViewModel : ViewModelBase
     private void OnPendingApprovalChanged(string? message) =>
         Dispatcher.UIThread.Post(RebuildHints);
 
+    /// <summary>
+    /// Opens the workspace diff over the mode — what is being approved,
+    /// visible before more of it is approved, without leaving the couch.
+    /// Reuses the main window's rows wholesale; this is a second projection
+    /// of the same panel, not a second panel.
+    /// </summary>
+    public void ShowDiff()
+    {
+        if (IsVoiceVisible || IsShortcutsVisible)
+        {
+            return;
+        }
+
+        Main.ShowDiffCommand.Execute(null);
+    }
+
     private void OnMainPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
+        if (eventArgs.PropertyName == nameof(MainViewModel.IsDiffVisible))
+        {
+            SyncCapture();
+            Raise(nameof(IsHudVisible));
+        }
+
         // Busy drives Interrupt's availability; the approval flag drives the
         // whole set. Both arrive on the UI thread already.
         if (eventArgs.PropertyName is nameof(MainViewModel.IsAgentActive)
@@ -728,6 +770,7 @@ public sealed class MainframeViewModel : ViewModelBase
         Tiles.Add(new MainframeTile { Id = "model", IconData = TileIcons.Chip, Label = "Model" });
         Tiles.Add(new MainframeTile { Id = "effort", IconData = TileIcons.Bolt, Label = "Effort" });
         Tiles.Add(new MainframeTile { Id = "compact", IconData = TileIcons.Compress, Label = "Compact context" });
+        Tiles.Add(new MainframeTile { Id = "diff", IconData = TileIcons.Diff, Label = "Workspace changes" });
         Tiles.Add(new MainframeTile { Id = "attach", IconData = TileIcons.Paperclip, Label = "Attach files" });
         Tiles.Add(new MainframeTile { Id = "voice", IconData = TileIcons.Microphone, Label = "Speak a prompt" });
         Tiles.Add(new MainframeTile { Id = "workspace", IconData = TileIcons.Folder, Label = "Workspace" });

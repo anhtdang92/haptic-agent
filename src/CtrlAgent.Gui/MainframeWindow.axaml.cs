@@ -74,7 +74,12 @@ public sealed partial class MainframeWindow : Window
     /// </summary>
     private void OnFeedScroll(int direction)
     {
-        if (FeedScroller is not { } scroller)
+        // The surface on top gets the stick: the diff overlay while it is
+        // open, the conversation feed otherwise.
+        var scroller = DataContext is MainframeViewModel { Main.IsDiffVisible: true }
+            ? MainframeDiffScroller
+            : FeedScroller;
+        if (scroller is null)
         {
             return;
         }
@@ -179,6 +184,7 @@ public sealed partial class MainframeWindow : Window
             Key.Tab => "Tab",
             Key.F1 => "F1",
             Key.F2 => "F2",
+            Key.F3 => "F3",
             Key.F11 => "F11",
             _ => null,
         };

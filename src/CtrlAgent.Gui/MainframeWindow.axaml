@@ -762,6 +762,79 @@
       </Panel>
     </Border>
 
+    <!-- ===================== DIFF REVIEW =====================
+         The same panel as the main window — literally the same rows, a second
+         projection of Main's diff state — so what is being approved is
+         readable from the couch before more of it is approved. B or Esc
+         closes; the right stick pages it while open. -->
+    <Border IsVisible="{Binding Main.IsDiffVisible}" Background="#D905080F">
+      <Border Classes="card"
+              Background="#F70B1424"
+              Margin="110,64"
+              Padding="22,18">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="4,0,0,12">
+            <TextBlock DockPanel.Dock="Right"
+                       Text="B closes · right stick scrolls"
+                       FontSize="13"
+                       Foreground="#5A7099"
+                       VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+              <TextBlock Text="CHANGES" Classes="label" FontSize="13" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Main.DiffSummary}"
+                         FontSize="15"
+                         Foreground="#7DD3FC"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </DockPanel>
+
+          <TextBlock DockPanel.Dock="Top"
+                     Text="{Binding Main.DiffError}"
+                     Foreground="#FF7A8C"
+                     FontSize="14"
+                     TextWrapping="Wrap"
+                     Margin="4,0,0,10"
+                     IsVisible="{Binding Main.HasDiffError}" />
+
+          <Panel>
+            <StackPanel Spacing="8"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding Main.IsDiffClean}">
+              <Ellipse Width="40" Height="40" HorizontalAlignment="Center"
+                       Fill="#1234F5A4" Stroke="#3334F5A4" StrokeThickness="1" />
+              <TextBlock Text="Nothing to review"
+                         FontSize="16"
+                         Foreground="#7B93BC"
+                         HorizontalAlignment="Center" />
+              <TextBlock Text="The working tree matches the last commit"
+                         FontSize="13.5"
+                         Foreground="#4C6A93"
+                         HorizontalAlignment="Center" />
+            </StackPanel>
+            <ScrollViewer x:Name="MainframeDiffScroller" HorizontalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="gui:DiffRow">
+                    <Border Background="{Binding Background}"
+                            Margin="{Binding Margin}"
+                            Padding="10,2"
+                            CornerRadius="3">
+                      <TextBlock Text="{Binding Text}"
+                                 FontFamily="Cascadia Mono,Consolas,monospace"
+                                 FontSize="14"
+                                 FontWeight="{Binding Weight}"
+                                 Foreground="{Binding Foreground}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Panel>
+        </DockPanel>
+      </Border>
+    </Border>
+
     <!-- Boot intro overlay: plays once on open, then dissolves to the UI.
          The timeline and the reasoning are in Window.Styles above. -->
     <Border Name="IntroOverlay" Classes="introFade" Background="#04060B"

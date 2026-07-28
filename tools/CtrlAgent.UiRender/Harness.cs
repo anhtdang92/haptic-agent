@@ -184,12 +184,7 @@ internal static class Harness
         // The diff review panel: what you are about to approve, before you
         // approve more of it. Populated through PresentDiff so the shot needs
         // no git repository — the collection path is unit-tested separately.
-        var reviewing = new MainViewModel(engine, options);
-        reviewing.AttachEngine(engine);
-        reviewing.ControllerStatus = "Xbox Elite Series 2 (paddles)";
-        reviewing.AgentStatus = "claude";
-        reviewing.IsDiffVisible = true;
-        reviewing.PresentDiff(new WorkspaceChanges(
+        var sampleChanges = new WorkspaceChanges(
         [
             new DiffFile("src/CtrlAgent.Core/Mapping.cs", DiffFileChange.Modified, false, 3, 1,
             [
@@ -214,7 +209,14 @@ internal static class Harness
                 new DiffLine(DiffLineKind.Added, "+using CtrlAgent.Presentation;"),
             ]),
             new DiffFile("assets/logo.png", DiffFileChange.Modified, true, 0, 0, []),
-        ]));
+        ]);
+
+        var reviewing = new MainViewModel(engine, options);
+        reviewing.AttachEngine(engine);
+        reviewing.ControllerStatus = "Xbox Elite Series 2 (paddles)";
+        reviewing.AgentStatus = "claude";
+        reviewing.IsDiffVisible = true;
+        reviewing.PresentDiff(sampleChanges);
         Render(new MainWindow { DataContext = reviewing }, "18-diff-review.png",
             afterSettle: w =>
             {
@@ -297,6 +299,23 @@ internal static class Harness
         // chats in from the couch, so it gets its own populated shot.
         Render(new MainframeWindow { DataContext = mainframeChat }, "26-mainframe-chat.png", 1600, 900,
             afterShow: HideIntro);
+
+        // The same diff panel, projected into Mainframe: readable from the
+        // couch before approving more of it. State is reset afterwards —
+        // later shots reuse this view model.
+        chat.IsDiffVisible = true;
+        chat.PresentDiff(sampleChanges);
+        Render(new MainframeWindow { DataContext = mainframeChat }, "27-mainframe-diff.png", 1600, 900,
+            afterShow: HideIntro,
+            afterSettle: w =>
+            {
+                if (w.FindControl<ScrollViewer>("MainframeDiffScroller") is not { } scroller ||
+                    scroller.Extent.Height < 40)
+                {
+                    Faults.Add("27-mainframe-diff: the diff rows did not lay out.");
+                }
+            });
+        chat.IsDiffVisible = false;
 
         // A markdown-rich agent reply, injected directly: the mock agent
         // speaks plain prose, and this shot is what proves bold, inline code,

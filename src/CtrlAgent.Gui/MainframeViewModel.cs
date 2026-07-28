@@ -13,7 +13,10 @@ public sealed class MainframeTile : ViewModelBase
 
     public required string Id { get; init; }
 
-    public required string Glyph { get; init; }
+    /// <summary>Stroked icon geometry. Path data, not a character: the tiles
+    /// used emoji, which Inter lacks — Windows font fallback drew them as
+    /// monochrome blobs (verified on the first real launch).</summary>
+    public required Geometry IconData { get; init; }
 
     public required string Label { get; init; }
 
@@ -686,16 +689,16 @@ public sealed class MainframeViewModel : ViewModelBase
         // Settings only. Agent actions deliberately have no tiles: they are
         // shortcuts, shown in the HUD, so nothing destructive is ever one
         // wandering d-pad press away.
-        Tiles.Add(new MainframeTile { Id = "mode", Glyph = "🛡", Label = "Permission mode" });
-        Tiles.Add(new MainframeTile { Id = "model", Glyph = "🧠", Label = "Model" });
-        Tiles.Add(new MainframeTile { Id = "effort", Glyph = "⚡", Label = "Effort" });
-        Tiles.Add(new MainframeTile { Id = "compact", Glyph = "🗜", Label = "Compact context" });
-        Tiles.Add(new MainframeTile { Id = "attach", Glyph = "📎", Label = "Attach files" });
-        Tiles.Add(new MainframeTile { Id = "voice", Glyph = "🎙", Label = "Speak a prompt" });
-        Tiles.Add(new MainframeTile { Id = "workspace", Glyph = "🗂", Label = "Workspace" });
-        Tiles.Add(new MainframeTile { Id = "profile", Glyph = "⚙", Label = "Controller profile" });
-        Tiles.Add(new MainframeTile { Id = "shortcuts", Glyph = "🎮", Label = "All shortcuts" });
-        Tiles.Add(new MainframeTile { Id = "exit", Glyph = "⏏", Label = "Exit Mainframe" });
+        Tiles.Add(new MainframeTile { Id = "mode", IconData = TileIcons.Shield, Label = "Permission mode" });
+        Tiles.Add(new MainframeTile { Id = "model", IconData = TileIcons.Chip, Label = "Model" });
+        Tiles.Add(new MainframeTile { Id = "effort", IconData = TileIcons.Bolt, Label = "Effort" });
+        Tiles.Add(new MainframeTile { Id = "compact", IconData = TileIcons.Compress, Label = "Compact context" });
+        Tiles.Add(new MainframeTile { Id = "attach", IconData = TileIcons.Paperclip, Label = "Attach files" });
+        Tiles.Add(new MainframeTile { Id = "voice", IconData = TileIcons.Microphone, Label = "Speak a prompt" });
+        Tiles.Add(new MainframeTile { Id = "workspace", IconData = TileIcons.Folder, Label = "Workspace" });
+        Tiles.Add(new MainframeTile { Id = "profile", IconData = TileIcons.Gear, Label = "Controller profile" });
+        Tiles.Add(new MainframeTile { Id = "shortcuts", IconData = TileIcons.Gamepad, Label = "All shortcuts" });
+        Tiles.Add(new MainframeTile { Id = "exit", IconData = TileIcons.Eject, Label = "Exit Mainframe" });
 
         _focusIndex = 0;
         if (focusedId is not null)

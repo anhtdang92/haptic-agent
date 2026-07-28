@@ -161,7 +161,7 @@ public sealed class ControllerVisualViewModel : ViewModelBase
     /// <summary>Switches face-button labels between ABXY and PlayStation shapes.</summary>
     public void SetPlayStationFlavor(bool isPlayStation)
     {
-        SouthLabel = isPlayStation ? "✕" : "A";
+        SouthLabel = isPlayStation ? "×" : "A";
         EastLabel = isPlayStation ? "◯" : "B";
         WestLabel = isPlayStation ? "▢" : "X";
         NorthLabel = isPlayStation ? "△" : "Y";

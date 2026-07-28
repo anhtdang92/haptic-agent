@@ -89,6 +89,7 @@ public sealed partial class MainWindow : Window
         _observedViewModel = viewModel;
         viewModel.Log.CollectionChanged += OnLogChanged;
         viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
+        viewModel.TranscriptStreamed += FollowChatIfAtBottom;
         viewModel.OutputScrollRequested += OnOutputScroll;
         viewModel.ModelPickerRequested += OnModelPickerRequested;
     }
@@ -100,8 +101,43 @@ public sealed partial class MainWindow : Window
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
         StickToBottom(EventStream, eventArgs);
 
-    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
-        StickToBottom(ChatList, eventArgs);
+    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Action == NotifyCollectionChangedAction.Add)
+        {
+            FollowChatIfAtBottom();
+        }
+    }
+
+    /// <summary>
+    /// Keeps the conversation pinned to the newest words — including while a
+    /// streaming reply grows its bubble <em>in place</em>. ScrollIntoView is
+    /// the wrong tool for that: a growing last bubble is always partially
+    /// visible, so "into view" is already satisfied and it never moves, while
+    /// the newest text streams in below the fold. Stickiness is decided here,
+    /// before layout absorbs the growth (the extent still reflects the state
+    /// the user actually saw); the scroll itself is posted for after layout,
+    /// when ScrollToEnd knows the new bottom.
+    /// </summary>
+    private void FollowChatIfAtBottom()
+    {
+        if (ChatList.Scroll is not ScrollViewer scroll)
+        {
+            return;
+        }
+
+        // Reading history must not be undone by the next chunk; scrolling
+        // back down re-arms following. The tolerance covers a partially
+        // visible last row.
+        if (scroll.Offset.Y < scroll.Extent.Height - scroll.Viewport.Height - 48)
+        {
+            return;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            scroll.ScrollToEnd,
+            Avalonia.Threading.DispatcherPriority.Background);
+    }
 
     /// <summary>
     /// Follows new items only while the view is already at the bottom. It used

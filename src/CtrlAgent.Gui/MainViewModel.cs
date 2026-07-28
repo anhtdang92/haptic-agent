@@ -196,6 +196,15 @@ public sealed class MainViewModel : ViewModelBase
     /// on top — the diff panel when open, the conversation otherwise.</summary>
     public event Action<int>? OutputScrollRequested;
 
+    /// <summary>
+    /// Raised when a streaming reply grows its bubble in place. The window
+    /// needs this as well as the collection events: growth adds no row, so
+    /// collection-driven auto-scroll never fires and the newest words stream
+    /// in below the fold — precisely while the user is watching the answer
+    /// arrive.
+    /// </summary>
+    public event Action? TranscriptStreamed;
+
     /// <summary>Typed "/model" with no argument: the window opens the model
     /// chip's flyout, so the command lands on the picker it means.</summary>
     public event Action? ModelPickerRequested;
@@ -449,7 +458,7 @@ public sealed class MainViewModel : ViewModelBase
             if (count > QueuedPromptCount)
             {
                 AddChat(isUser: false, isActivity: true,
-                    $"⏳ Prompt queued ({count} waiting) — sends when the current turn ends.");
+                    $"Prompt queued ({count} waiting) — sends when the current turn ends.");
             }
 
             QueuedPromptCount = count;
@@ -1024,8 +1033,8 @@ public sealed class MainViewModel : ViewModelBase
                 }
 
                 AddChat(isUser: false, isActivity: true, history.Count > 0
-                    ? $"↩ Resumed session — {history.Count} earlier messages restored from disk."
-                    : $"↩ Resuming session {sessionId}…");
+                    ? $"Resumed session — {history.Count} earlier messages restored from disk."
+                    : $"Resuming session {sessionId}…");
             });
         });
     }
@@ -1142,6 +1151,7 @@ public sealed class MainViewModel : ViewModelBase
                 if (_streamingBubble is { } bubble)
                 {
                     bubble.Text = update.Text;
+                    TranscriptStreamed?.Invoke();
                 }
                 else
                 {

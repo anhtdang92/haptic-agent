@@ -418,7 +418,8 @@
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                       ToolTip.Tip="{Binding Main.WorkspacePath}">
-            <TextBlock Text="🗂" FontSize="13" Foreground="#5A7099" VerticalAlignment="Center" />
+            <Path Classes="icon" Width="14" Height="14" Stroke="#5A7099" VerticalAlignment="Center"
+                  Data="M2.5,14.5 V4.5 H7 L8.6,6.4 H15.5 V14.5 Z" />
             <TextBlock Text="{Binding Main.WorkspaceName}" FontSize="15" Foreground="#B9CCEF" VerticalAlignment="Center" />
           </StackPanel>
           <TextBlock Text="{Binding Main.ProfileName}" FontSize="15" Foreground="#5A7099" VerticalAlignment="Center" />
@@ -433,7 +434,8 @@
                   FontSize="14"
                   ToolTip.Tip="Settings — permission mode, profile, shortcuts (View on the pad)">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBlock Text="⚙" FontSize="15" VerticalAlignment="Center" />
+              <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center"
+                    Data="M9,5.6 A3.4,3.4 0 1 1 8.99,5.6 M9,2.4 V4.4 M9,13.6 V15.6 M2.4,9 H4.4 M13.6,9 H15.6 M4.3,4.3 L5.7,5.7 M12.3,12.3 L13.7,13.7 M13.7,4.3 L12.3,5.7 M5.7,12.3 L4.3,13.7" />
               <TextBlock Text="Settings" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
@@ -584,10 +586,12 @@
                     PointerPressed="OnTilePointerPressed"
                     Cursor="Hand">
               <StackPanel VerticalAlignment="Center" Spacing="10">
-                <TextBlock Text="{Binding Glyph}"
-                           FontSize="36"
-                           HorizontalAlignment="Center"
-                           Foreground="{Binding AccentBrush}" />
+                <Path Classes="icon"
+                      Data="{Binding IconData}"
+                      Width="34" Height="34"
+                      StrokeThickness="1.4"
+                      HorizontalAlignment="Center"
+                      Stroke="{Binding AccentBrush}" />
                 <TextBlock Text="{Binding Label}"
                            FontSize="14"
                            HorizontalAlignment="Center"

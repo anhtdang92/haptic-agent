@@ -44,7 +44,7 @@
                   Padding="7,3"
                   Click="OnOpenMain"
                   ToolTip.Tip="Open CtrlAgent" />
-          <Button Content="✕"
+          <Button Content="×"
                   FontSize="11"
                   Padding="7,3"
                   Click="OnHide"

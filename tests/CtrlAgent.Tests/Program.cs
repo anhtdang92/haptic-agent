@@ -1235,19 +1235,21 @@ static Task TestTranscriptFoldingAsync()
     // agent will finish once answered.
     var locked = AssertIsAction<TranscriptAction.AddActivity>(
         folder.Fold(Event(AgentStateKind.ApprovalRequired, "wants: Write: a.cs")));
-    Assert(locked.Text.StartsWith("🔒", StringComparison.Ordinal), "Approvals are marked.");
+    // Word prefixes, not glyphs: Inter has no lock/check/cross characters,
+    // and the fallbacks rendered as blobs on a real Windows launch.
+    Assert(locked.Text.StartsWith("Needs approval — ", StringComparison.Ordinal), "Approvals are marked.");
     Assert(folder.IsStreaming, "An approval must not close the bubble.");
     AssertIsAction<TranscriptAction.UpdateBubble>(folder.Fold(Event(AgentStateKind.Working, "Tests pass, done")));
 
     // Results close it and are marked by outcome.
     Assert(
         AssertIsAction<TranscriptAction.AddActivity>(
-            folder.Fold(Event(AgentStateKind.Completed, "done"))).Text.StartsWith("✓", StringComparison.Ordinal),
-        "Completion is ticked.");
+            folder.Fold(Event(AgentStateKind.Completed, "done"))).Text.StartsWith("Done — ", StringComparison.Ordinal),
+        "Completion is marked.");
     Assert(
         AssertIsAction<TranscriptAction.AddActivity>(
-            folder.Fold(Event(AgentStateKind.Error, "boom"))).Text.StartsWith("✕", StringComparison.Ordinal),
-        "Errors are crossed.");
+            folder.Fold(Event(AgentStateKind.Error, "boom"))).Text.StartsWith("Error — ", StringComparison.Ordinal),
+        "Errors are marked.");
 
     // Empty messages contribute nothing and must not open a bubble.
     AssertIsAction<TranscriptAction.None>(folder.Fold(Event(AgentStateKind.Working, "   ")));

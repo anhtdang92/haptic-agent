@@ -55,6 +55,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Transcript folds streaming prose into one bubble", TestTranscriptFoldingAsync),
     ("Agent states read as English, not enum names", TestAgentStateTextAsync),
     ("Model names shorten to chip size", TestModelTextAsync),
+    ("Composer intercepts /model instead of burning a turn", TestComposerInterceptAsync),
     ("Log lines classify most-severe first", TestLogClassificationAsync),
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
     ("Unified diff parses edits, adds, renames, binaries", TestUnifiedDiffParserAsync),
@@ -1181,6 +1182,33 @@ static Task TestModelTextAsync()
     AssertEqual("default", ModelText.Short(null));
     AssertEqual("default", ModelText.Short("  "));
     AssertEqual("claude-", ModelText.Short("claude-"));
+    return Task.CompletedTask;
+}
+
+static Task TestComposerInterceptAsync()
+{
+    // Bare "/model" (any case, stray whitespace) opens the picker.
+    Assert(
+        ComposerIntercept.TryParse("/model") is ComposerAction.OpenModelPicker,
+        "Bare /model must open the picker.");
+    Assert(
+        ComposerIntercept.TryParse("  /Model  ") is ComposerAction.OpenModelPicker,
+        "Case and whitespace must not defeat the intercept.");
+
+    // An argument sets the model directly, passed through untouched.
+    Assert(
+        ComposerIntercept.TryParse("/model sonnet") is ComposerAction.SetModel { Model: "sonnet" },
+        "/model with an alias must set it.");
+    Assert(
+        ComposerIntercept.TryParse("/model claude-opus-5") is ComposerAction.SetModel { Model: "claude-opus-5" },
+        "Full ids pass through.");
+
+    // Other slash commands and ordinary prose are not ours to answer.
+    Assert(ComposerIntercept.TryParse("/models") is null, "/models is a different command.");
+    Assert(ComposerIntercept.TryParse("/compact") is null, "Commands the CLI handles pass through.");
+    Assert(ComposerIntercept.TryParse("what /model should I use?") is null, "Prose is a prompt.");
+    Assert(ComposerIntercept.TryParse(null) is null, "Null is not intercepted.");
+    Assert(ComposerIntercept.TryParse("   ") is null, "Whitespace is not intercepted.");
     return Task.CompletedTask;
 }
 

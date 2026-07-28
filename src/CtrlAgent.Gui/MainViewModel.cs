@@ -196,6 +196,10 @@ public sealed class MainViewModel : ViewModelBase
     /// on top — the diff panel when open, the conversation otherwise.</summary>
     public event Action<int>? OutputScrollRequested;
 
+    /// <summary>Typed "/model" with no argument: the window opens the model
+    /// chip's flyout, so the command lands on the picker it means.</summary>
+    public event Action? ModelPickerRequested;
+
     /// <summary>Absolute path of the directory the agent is working in.</summary>
     public string WorkspacePath
     {
@@ -1033,6 +1037,20 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public void SubmitPromptText(string? text)
     {
+        // Commands the app can answer itself never reach the agent — sending
+        // "/model" to a headless CLI only buys a "not available here" turn.
+        switch (ComposerIntercept.TryParse(text))
+        {
+            case ComposerAction.OpenModelPicker:
+                ModelPickerRequested?.Invoke();
+                return;
+
+            case ComposerAction.SetModel picked:
+                AddChat(isUser: false, isActivity: true, $"Model → {picked.Model}");
+                Fire(e => e.SetModelAsync(picked.Model));
+                return;
+        }
+
         var composed = PromptComposer.Compose(text, [.. Attachments]);
         if (Attachments.Count > 0)
         {

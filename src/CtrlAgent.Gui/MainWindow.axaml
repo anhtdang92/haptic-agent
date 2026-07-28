@@ -170,7 +170,8 @@
                  the Claude app's model menu. The controller's CycleModel
                  binding still steps the same setting — both paths meet in
                  HostEngine.Settings, so the label follows either. -->
-            <Button Content="{Binding ModelLabel}"
+            <Button Name="ModelKnob"
+                    Content="{Binding ModelLabel}"
                     Classes="knob"
                     ToolTip.Tip="Choose the model for this session">
               <Button.Flyout>

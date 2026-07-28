@@ -6,6 +6,11 @@ using CtrlAgent.Hosting;
 
 namespace CtrlAgent.Gui;
 
+/// <summary>One row of the Mainframe conversation feed. A record, not a
+/// mutable cell: streaming updates replace the last row wholesale so the
+/// feed's CollectionChanged carries every change the follow logic needs.</summary>
+public sealed record FeedRow(string Text, bool IsUser);
+
 /// <summary>One focusable tile on the Mainframe action rail.</summary>
 public sealed class MainframeTile : ViewModelBase
 {
@@ -144,7 +149,7 @@ public sealed class MainframeViewModel : ViewModelBase
         {
             if (item is ChatMessage { IsUser: true, IsActivity: false } prompt)
             {
-                Responses.Add($"You — {prompt.Text}");
+                Responses.Add(new FeedRow(prompt.Text, IsUser: true));
                 while (Responses.Count > MaxResponses)
                 {
                     Responses.RemoveAt(0);
@@ -201,7 +206,7 @@ public sealed class MainframeViewModel : ViewModelBase
     }
 
     /// <summary>The agent's recent messages, oldest first.</summary>
-    public ObservableCollection<string> Responses { get; } = [];
+    public ObservableCollection<FeedRow> Responses { get; } = [];
 
     /// <summary>True until the agent says something, so the feed can explain
     /// itself instead of showing an empty panel.</summary>
@@ -607,11 +612,11 @@ public sealed class MainframeViewModel : ViewModelBase
             _lastResponseWasWorking &&
             Responses.Count > 0)
         {
-            Responses[^1] = agentEvent.Message;
+            Responses[^1] = new FeedRow(agentEvent.Message, IsUser: false);
         }
         else
         {
-            Responses.Add(agentEvent.Message);
+            Responses.Add(new FeedRow(agentEvent.Message, IsUser: false));
             while (Responses.Count > MaxResponses)
             {
                 Responses.RemoveAt(0);

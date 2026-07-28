@@ -281,11 +281,22 @@ internal static class Harness
         chat.AttachEngine(engine);
         chat.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         chat.AgentStatus = "claude";
+
+        // Subscribed before the turns run, so the Mainframe feed captures the
+        // same conversation — the populated-feed shot below depends on it.
+        var mainframeChat = new MainframeViewModel(chat);
+
         engine.StartAsync().GetAwaiter().GetResult();
         chat.SubmitPromptText("Add a session picker to Mainframe mode");
         Pump(3000);
         chat.SubmitPromptText("Now write tests for it");
         Pump(3000);
+
+        // The Mainframe conversation: user bubbles right, agent markdown
+        // left, composer under it. This is the surface the user actually
+        // chats in from the couch, so it gets its own populated shot.
+        Render(new MainframeWindow { DataContext = mainframeChat }, "26-mainframe-chat.png", 1600, 900,
+            afterShow: HideIntro);
 
         // A markdown-rich agent reply, injected directly: the mock agent
         // speaks plain prose, and this shot is what proves bold, inline code,

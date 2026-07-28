@@ -483,6 +483,18 @@
                       Margin="12,0,0,0"
                       VerticalAlignment="Bottom"
                       Command="{Binding Main.SubmitPromptCommand}" />
+              <Border DockPanel.Dock="Right"
+                      Background="#33FFB020"
+                      BorderBrush="#66FFB020"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="10,4"
+                      Margin="12,0,0,0"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding Main.HasQueuedPrompts}"
+                      ToolTip.Tip="Prompts waiting to send when the current turn ends">
+                <TextBlock Text="{Binding Main.QueuedPromptLabel}" FontSize="12" Foreground="#FFD9A0" />
+              </Border>
               <TextBox x:Name="MainframePromptBox"
                        Text="{Binding Main.PromptText}"
                        FontSize="16"
@@ -493,6 +505,30 @@
                        MaxHeight="120"
                        VerticalContentAlignment="Top"
                        Watermark="Type a prompt — Enter sends, Shift+Enter for a new line (Y to speak)" />
+            </DockPanel>
+
+            <!-- Attached files ride with the next Send; declared after the
+                 composer so this bottom-docked row sits directly above it.
+                 Invisible attachments are how a file gets sent to the agent
+                 by surprise. -->
+            <DockPanel DockPanel.Dock="Bottom"
+                       Margin="0,12,0,0"
+                       IsVisible="{Binding Main.HasAttachments}">
+              <Button DockPanel.Dock="Right"
+                      Classes="ghost"
+                      Content="Clear"
+                      FontSize="12"
+                      Command="{Binding Main.ClearAttachmentsCommand}" />
+              <Path DockPanel.Dock="Left"
+                    Classes="icon" Width="13" Height="13"
+                    VerticalAlignment="Center"
+                    Margin="0,0,8,0"
+                    Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
+                          A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
+              <TextBlock Text="{Binding Main.AttachmentLabel}"
+                         FontSize="12.5"
+                         Foreground="#B9CCEF"
+                         VerticalAlignment="Center" />
             </DockPanel>
             <!-- Empty state: a quiet mark and two short lines, not a
                  paragraph adrift in a large panel -->
@@ -512,12 +548,32 @@
                           IsVisible="{Binding !IsFeedEmpty}">
               <ItemsControl ItemsSource="{Binding Responses}">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="x:String">
-                    <TextBlock Text="{Binding}"
-                               TextWrapping="Wrap"
-                               FontSize="14"
-                               Foreground="#8FA8CF"
-                               Margin="0,3" />
+                  <DataTemplate x:DataType="gui:FeedRow">
+                    <Panel Margin="0,4">
+                      <!-- The user's side, unmistakably theirs: right-aligned
+                           accent bubble, same language as the main chat -->
+                      <Border IsVisible="{Binding IsUser}"
+                              HorizontalAlignment="Right"
+                              Background="#33194B66"
+                              BorderBrush="#5900D4FF"
+                              BorderThickness="1"
+                              CornerRadius="10"
+                              Padding="13,8"
+                              MaxWidth="560">
+                        <TextBlock Text="{Binding Text}"
+                                   TextWrapping="Wrap"
+                                   FontSize="14.5"
+                                   Foreground="#D8ECFF" />
+                      </Border>
+                      <!-- The agent's side renders markdown, not raw
+                           asterisks — same MarkdownLite pipeline as the
+                           main window's bubbles -->
+                      <Border IsVisible="{Binding !IsUser}"
+                              HorizontalAlignment="Left"
+                              MaxWidth="720">
+                        <gui:MarkdownView Markdown="{Binding Text}" />
+                      </Border>
+                    </Panel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>

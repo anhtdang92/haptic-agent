@@ -49,6 +49,12 @@ public sealed class ActionHint
     public required string Label { get; init; }
 
     public required bool IsApproval { get; init; }
+
+    /// <summary>Render the chord as a drawn d-pad with the arm lit. Only for
+    /// an unmerged plain d-pad press — a merged row ("P1 · RB+A") is text.</summary>
+    public bool IsDPad { get; init; }
+
+    public ControllerControl DPadControl { get; init; } = ControllerControl.DPadLeft;
 }
 
 /// <summary>
@@ -812,7 +818,7 @@ public sealed class MainframeViewModel : ViewModelBase
         HintHeading = pending ? "APPROVAL REQUIRED — ANSWER WITH" : "AVAILABLE NOW";
 
         // Merge bindings that drive the same command into one hint.
-        var merged = new List<(AgentCommandKind Command, string Label, bool IsApproval, List<string> Chords)>();
+        var merged = new List<(AgentCommandKind Command, string Label, bool IsApproval, List<string> Chords, BindingRow First)>();
         foreach (var binding in Main.Bindings)
         {
             if (!IsAvailable(binding, pending, busy))
@@ -831,17 +837,20 @@ public sealed class MainframeViewModel : ViewModelBase
             }
             else
             {
-                merged.Add((binding.Command, binding.Action, binding.IsApproval, [binding.Chord]));
+                merged.Add((binding.Command, binding.Action, binding.IsApproval, [binding.Chord], binding));
             }
         }
 
         foreach (var entry in merged)
         {
+            var singleDPad = entry.Chords.Count == 1 && entry.First.IsDPad;
             Hints.Add(new ActionHint
             {
                 Chord = string.Join("  ·  ", entry.Chords),
                 Label = entry.Label,
                 IsApproval = entry.IsApproval,
+                IsDPad = singleDPad,
+                DPadControl = entry.First.DPadControl,
             });
         }
     }

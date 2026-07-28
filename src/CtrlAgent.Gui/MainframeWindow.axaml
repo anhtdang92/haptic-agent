@@ -491,11 +491,18 @@
                     <DockPanel>
                       <Border DockPanel.Dock="Left" Classes="hudKey" Classes.armed="{Binding IsApproval}"
                               MinWidth="120" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Chord}"
-                                   FontFamily="Cascadia Mono,Consolas,monospace"
-                                   FontSize="14"
-                                   FontWeight="Bold"
-                                   HorizontalAlignment="Center" />
+                        <Panel>
+                          <TextBlock Text="{Binding Chord}"
+                                     FontFamily="Cascadia Mono,Consolas,monospace"
+                                     FontSize="14"
+                                     FontWeight="Bold"
+                                     HorizontalAlignment="Center"
+                                     IsVisible="{Binding !IsDPad}" />
+                          <gui:DPadIcon Width="20" Height="20"
+                                        HorizontalAlignment="Center"
+                                        Direction="{Binding DPadControl}"
+                                        IsVisible="{Binding IsDPad}" />
+                        </Panel>
                       </Border>
                       <TextBlock Text="{Binding Label}"
                                  FontSize="15"

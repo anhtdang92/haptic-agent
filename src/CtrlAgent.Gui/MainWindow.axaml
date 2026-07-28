@@ -662,11 +662,18 @@
                             Padding="6,2"
                             MinWidth="60"
                             VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Chord}"
-                                 FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="10.5"
-                                 Foreground="#7DD3FC"
-                                 HorizontalAlignment="Center" />
+                      <Panel>
+                        <TextBlock Text="{Binding Chord}"
+                                   FontFamily="Cascadia Mono,Consolas,monospace"
+                                   FontSize="10.5"
+                                   Foreground="#7DD3FC"
+                                   HorizontalAlignment="Center"
+                                   IsVisible="{Binding !IsDPad}" />
+                        <gui:DPadIcon Width="16" Height="16"
+                                      HorizontalAlignment="Center"
+                                      Direction="{Binding DPadControl}"
+                                      IsVisible="{Binding IsDPad}" />
+                      </Panel>
                     </Border>
                     <Border DockPanel.Dock="Right"
                             Background="#33FFB020"

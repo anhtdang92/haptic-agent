@@ -90,6 +90,8 @@ public sealed class MainframeViewModel : ViewModelBase
     private bool _stickLatched;
     private bool _isShortcutsVisible;
     private bool _isSettingsVisible;
+    private bool _isSessionsVisible;
+    private int _sessionFocusIndex;
     private string _hintHeading = "AVAILABLE NOW";
     private bool _isVoiceVisible;
     private bool _isListening;
@@ -124,6 +126,7 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine.SetInputCapture(false);
         Main.PropertyChanged += OnMainPropertyChanged;
         Main.Transcript.CollectionChanged += OnTranscriptMirrored;
+        Main.Sessions.CollectionChanged += OnSessionsChanged;
         RebuildTiles();
         RebuildHints();
     }
@@ -249,7 +252,7 @@ public sealed class MainframeViewModel : ViewModelBase
 
     /// <summary>The action HUD hides behind any overlay.</summary>
     public bool IsHudVisible =>
-        !_isSettingsVisible && !_isShortcutsVisible && !_isVoiceVisible && !Main.IsDiffVisible;
+        !_isSettingsVisible && !_isShortcutsVisible && !_isVoiceVisible && !_isSessionsVisible && !Main.IsDiffVisible;
 
     /// <summary>
     /// The trailing legend line. It has to change with the mode: claiming
@@ -304,6 +307,7 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine.PendingApprovalChanged -= OnPendingApprovalChanged;
         Main.PropertyChanged -= OnMainPropertyChanged;
         Main.Transcript.CollectionChanged -= OnTranscriptMirrored;
+        Main.Sessions.CollectionChanged -= OnSessionsChanged;
         _engine.SetInputCapture(false);
         _engine.OutputScrollRequested -= _scrollHandler;
         _speech.Dispose();
@@ -316,12 +320,15 @@ public sealed class MainframeViewModel : ViewModelBase
         {
             case "Left": MoveFocus(-1); break;
             case "Right": MoveFocus(+1); break;
-            case "Enter": Activate(); break;
+            case "Enter": if (IsSessionsVisible) { ActivateSession(); } else { Activate(); } break;
             case "Escape": Back(); break;
             case "Tab": ToggleSettings(); break;
             case "F1": ToggleShortcuts(); break;
             case "F2": StartVoice(); break;
             case "F3": ShowDiff(); break;
+            case "F4": ShowSessions(); break;
+            case "Up": if (IsSessionsVisible) { MoveSessionFocus(-1); } break;
+            case "Down": if (IsSessionsVisible) { MoveSessionFocus(+1); } break;
             case "F11": CloseRequested?.Invoke(); break;
         }
     }
@@ -353,6 +360,19 @@ public sealed class MainframeViewModel : ViewModelBase
             if (inputEvent.Control == ControllerControl.B)
             {
                 Back();
+            }
+
+            return;
+        }
+
+        if (IsSessionsVisible)
+        {
+            switch (inputEvent.Control)
+            {
+                case ControllerControl.DPadUp: MoveSessionFocus(-1); break;
+                case ControllerControl.DPadDown: MoveSessionFocus(+1); break;
+                case ControllerControl.A: ActivateSession(); break;
+                case ControllerControl.B: CloseSessions(); break;
             }
 
             return;
@@ -459,6 +479,7 @@ public sealed class MainframeViewModel : ViewModelBase
             case "effort": Main.CycleEffortCommand.Execute(null); break;
             case "compact": Main.CompactCommand.Execute(null); break;
             case "diff": IsSettingsVisible = false; ShowDiff(); break;
+            case "sessions": IsSettingsVisible = false; ShowSessions(); break;
             case "attach": AttachFileRequested?.Invoke(); break;
             case "voice": StartVoice(); break;
             case "workspace": WorkspacePickerRequested?.Invoke(); break;
@@ -473,6 +494,12 @@ public sealed class MainframeViewModel : ViewModelBase
         if (Main.IsDiffVisible)
         {
             Main.IsDiffVisible = false;
+            return;
+        }
+
+        if (IsSessionsVisible)
+        {
+            CloseSessions();
             return;
         }
 
@@ -546,7 +573,7 @@ public sealed class MainframeViewModel : ViewModelBase
         }
 
         _engine.SetInputCapture(
-            _isSettingsVisible || _isShortcutsVisible || _isVoiceVisible || Main.IsDiffVisible);
+            _isSettingsVisible || _isShortcutsVisible || _isVoiceVisible || _isSessionsVisible || Main.IsDiffVisible);
     }
 
     private void ToggleShortcuts()
@@ -651,6 +678,91 @@ public sealed class MainframeViewModel : ViewModelBase
     // pending request changes the HUD's emphasis rather than the rail.
     private void OnPendingApprovalChanged(string? message) =>
         Dispatcher.UIThread.Post(RebuildHints);
+
+    /// <summary>The couch session picker: the same rows the main window's
+    /// recents sidebar shows, navigated with the d-pad.</summary>
+    public bool IsSessionsVisible
+    {
+        get => _isSessionsVisible;
+        private set
+        {
+            if (Set(ref _isSessionsVisible, value))
+            {
+                Raise(nameof(IsHudVisible));
+                SyncCapture();
+            }
+        }
+    }
+
+    /// <summary>Index of the focused session row; the template highlights it.</summary>
+    public int SessionFocusIndex
+    {
+        get => _sessionFocusIndex;
+        private set => Set(ref _sessionFocusIndex, value);
+    }
+
+    public void ShowSessions()
+    {
+        if (IsVoiceVisible || IsShortcutsVisible || Main.IsDiffVisible)
+        {
+            return;
+        }
+
+        Main.RefreshSessionsCommand.Execute(null);
+        SessionFocusIndex = 0;
+        SyncSessionFocus();
+        IsSessionsVisible = true;
+    }
+
+    private void CloseSessions() => IsSessionsVisible = false;
+
+    /// <summary>
+    /// The list refreshes asynchronously (disk work off the UI thread), so
+    /// the rows are usually replaced moments after the screen opens — and the
+    /// replacements arrive unfocused. Re-clamp and re-mark, or the d-pad
+    /// walks an invisible cursor.
+    /// </summary>
+    private void OnSessionsChanged(
+        object? sender,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (_detached || !IsSessionsVisible || Main.Sessions.Count == 0)
+        {
+            return;
+        }
+
+        SessionFocusIndex = Math.Clamp(SessionFocusIndex, 0, Main.Sessions.Count - 1);
+        SyncSessionFocus();
+    }
+
+    private void MoveSessionFocus(int delta)
+    {
+        if (Main.Sessions.Count == 0)
+        {
+            return;
+        }
+
+        SessionFocusIndex = Math.Clamp(SessionFocusIndex + delta, 0, Main.Sessions.Count - 1);
+        SyncSessionFocus();
+    }
+
+    private void SyncSessionFocus()
+    {
+        for (var index = 0; index < Main.Sessions.Count; index++)
+        {
+            Main.Sessions[index].IsFocused = index == SessionFocusIndex;
+        }
+    }
+
+    private void ActivateSession()
+    {
+        if (SessionFocusIndex >= 0 && SessionFocusIndex < Main.Sessions.Count)
+        {
+            Main.Sessions[SessionFocusIndex].ResumeCommand.Execute(null);
+        }
+
+        CloseSessions();
+    }
 
     /// <summary>
     /// Opens the workspace diff over the mode — what is being approved,
@@ -771,6 +883,12 @@ public sealed class MainframeViewModel : ViewModelBase
         Tiles.Add(new MainframeTile { Id = "effort", IconData = TileIcons.Bolt, Label = "Effort" });
         Tiles.Add(new MainframeTile { Id = "compact", IconData = TileIcons.Compress, Label = "Compact context" });
         Tiles.Add(new MainframeTile { Id = "diff", IconData = TileIcons.Diff, Label = "Workspace changes" });
+        if (Main.IsSessionListVisible)
+        {
+            // Only for adapters whose on-disk store we can read — same rule
+            // as the main window's recents sidebar.
+            Tiles.Add(new MainframeTile { Id = "sessions", IconData = TileIcons.Clock, Label = "Sessions" });
+        }
         Tiles.Add(new MainframeTile { Id = "attach", IconData = TileIcons.Paperclip, Label = "Attach files" });
         Tiles.Add(new MainframeTile { Id = "voice", IconData = TileIcons.Microphone, Label = "Speak a prompt" });
         Tiles.Add(new MainframeTile { Id = "workspace", IconData = TileIcons.Folder, Label = "Workspace" });

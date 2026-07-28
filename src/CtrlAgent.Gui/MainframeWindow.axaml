@@ -762,6 +762,92 @@
       </Panel>
     </Border>
 
+    <!-- ===================== SESSIONS =====================
+         The recents list at couch scale: the same rows the main window's
+         sidebar shows, walked with the d-pad. A resumes (the conversation
+         reloads from the on-disk store), B backs out. -->
+    <Border IsVisible="{Binding IsSessionsVisible}" Background="#05080F">
+      <Panel>
+        <gui:AmbientBackdrop />
+        <StackPanel Spacing="24" Margin="72,48"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="920">
+          <StackPanel Spacing="10">
+            <TextBlock Text="SESSIONS"
+                       Classes="label"
+                       FontSize="18"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Every session in this workspace, newest first. A resumes with its conversation restored; B goes back."
+                       FontSize="15"
+                       Foreground="#8FA8CF"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <TextBlock Text="No sessions yet"
+                     FontSize="15"
+                     Foreground="#5A7099"
+                     HorizontalAlignment="Center"
+                     IsVisible="{Binding Main.IsSessionsEmpty}" />
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="560">
+            <ItemsControl ItemsSource="{Binding Main.Sessions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="gui:SessionListItem">
+                  <!-- Base colors live in a style, not local properties:
+                       local values outrank style setters, so a locally-set
+                       Background would make the focused style unwinnable. -->
+                  <Border Margin="0,5"
+                          Padding="18,12"
+                          CornerRadius="12"
+                          BorderThickness="1.5"
+                          MinWidth="640"
+                          Classes="sessionRow"
+                          Classes.sessionFocused="{Binding IsFocused}">
+                    <Border.Styles>
+                      <Style Selector="Border.sessionRow">
+                        <Setter Property="Background" Value="#33101B30" />
+                        <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+                      </Style>
+                      <Style Selector="Border.sessionRow.sessionFocused">
+                        <Setter Property="BorderBrush" Value="#FF00D4FF" />
+                        <Setter Property="Background" Value="#2600D4FF" />
+                      </Style>
+                    </Border.Styles>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Right"
+                                 Text="{Binding WhenLabel}"
+                                 FontSize="13.5"
+                                 Foreground="#5A7099"
+                                 VerticalAlignment="Center"
+                                 Margin="18,0,0,0" />
+                      <Border DockPanel.Dock="Right"
+                              Background="#1400D4FF"
+                              BorderBrush="#5900D4FF"
+                              BorderThickness="1"
+                              CornerRadius="6"
+                              Padding="8,2"
+                              VerticalAlignment="Center"
+                              Margin="14,0,0,0"
+                              IsVisible="{Binding IsCurrent}">
+                        <TextBlock Text="current" FontSize="11" Foreground="#7DD3FC" />
+                      </Border>
+                      <TextBlock Text="{Binding Title}"
+                                 FontSize="16"
+                                 Foreground="#E6EFFB"
+                                 TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" />
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </StackPanel>
+      </Panel>
+    </Border>
+
     <!-- ===================== DIFF REVIEW =====================
          The same panel as the main window — literally the same rows, a second
          projection of Main's diff state — so what is being approved is

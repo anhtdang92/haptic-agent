@@ -284,6 +284,15 @@ internal static class Harness
         chat.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         chat.AgentStatus = "claude";
 
+        // Sessions before the Mainframe view model exists: the Sessions tile
+        // is added at construction only when the adapter's store is readable.
+        chat.ShowSessionList(
+        [
+            new SessionListItem("8f21c0a4", "Refactor the mapping engine tests", DateTimeOffset.UtcNow.AddMinutes(-3), isCurrent: true, noop),
+            new SessionListItem("2b77d1ee", "Add a session picker to Mainframe mode and wire it to the d-pad", DateTimeOffset.UtcNow.AddHours(-5), isCurrent: false, noop),
+            new SessionListItem("77aa19c2", "Fix the DualSense trigger effect", DateTimeOffset.UtcNow.AddDays(-2), isCurrent: false, noop),
+        ]);
+
         // Subscribed before the turns run, so the Mainframe feed captures the
         // same conversation — the populated-feed shot below depends on it.
         var mainframeChat = new MainframeViewModel(chat);
@@ -316,6 +325,16 @@ internal static class Harness
                 }
             });
         chat.IsDiffVisible = false;
+
+        // The couch session picker, with the middle row focused.
+        Render(new MainframeWindow { DataContext = mainframeChat }, "28-mainframe-sessions.png", 1600, 900,
+            afterShow: HideIntro,
+            afterSettle: _ =>
+            {
+                mainframeChat.ShowSessions();
+                mainframeChat.OnKey("Down");
+            });
+        mainframeChat.OnKey("Escape");
 
         // A markdown-rich agent reply, injected directly: the mock agent
         // speaks plain prose, and this shot is what proves bold, inline code,

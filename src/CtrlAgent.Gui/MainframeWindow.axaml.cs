@@ -179,6 +179,8 @@ public sealed partial class MainframeWindow : Window
         {
             Key.Left => "Left",
             Key.Right => "Right",
+            Key.Up => "Up",
+            Key.Down => "Down",
             Key.Enter => "Enter",
             Key.Escape => "Escape",
             Key.Tab => "Tab",

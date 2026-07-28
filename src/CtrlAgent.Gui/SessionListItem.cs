@@ -4,13 +4,22 @@ namespace CtrlAgent.Gui;
 
 /// <summary>
 /// One row of the recents sidebar: a session found in the agent's on-disk
-/// store. Rows are immutable snapshots — the list is rebuilt on refresh, so
-/// nothing here needs change notification. Each row carries its own resume
-/// command so the item template binds locally instead of reaching for the
-/// window's DataContext.
+/// store. Rows are immutable snapshots except <see cref="IsFocused"/> — the
+/// list is rebuilt on refresh, but Mainframe's d-pad walks focus across the
+/// live rows. Each row carries its own resume command so the item template
+/// binds locally instead of reaching for the window's DataContext.
 /// </summary>
-public sealed class SessionListItem
+public sealed class SessionListItem : ViewModelBase
 {
+    private bool _isFocused;
+
+    /// <summary>Highlighted by Mainframe's session picker.</summary>
+    public bool IsFocused
+    {
+        get => _isFocused;
+        set => Set(ref _isFocused, value);
+    }
+
     public SessionListItem(string sessionId, string title, DateTimeOffset lastActivity, bool isCurrent, ICommand resume)
     {
         SessionId = sessionId;

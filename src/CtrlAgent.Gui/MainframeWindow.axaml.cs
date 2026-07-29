@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
@@ -44,17 +45,25 @@ public sealed partial class MainframeWindow : Window
                 {
                     _observed.FeedScrollRequested -= OnFeedScroll;
                     _observed.FocusMoved -= OnFocusMoved;
+                    _observed.ControllerPressed -= SkipIntro;
                     _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
                     _observed.Main.TranscriptStreamed -= OnFeedStreamed;
+                    _observed.Main.DiffJumpRequested -= OnDiffJump;
                 }
 
                 _observed = viewModel;
                 viewModel.FocusMoved += OnFocusMoved;
                 viewModel.FeedScrollRequested += OnFeedScroll;
+                viewModel.ControllerPressed += SkipIntro;
                 viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
                 viewModel.Main.TranscriptStreamed += OnFeedStreamed;
+                viewModel.Main.DiffJumpRequested += OnDiffJump;
             }
         };
+        // Any input dismisses the boot intro: it is a moment, not a gate, and
+        // the second visit's 2.6 seconds is friction. Tunnel the pointer so a
+        // click lands even when the overlay sits over an interactive control.
+        AddHandler(PointerPressedEvent, (_, _) => SkipIntro(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         Opened += async (_, _) =>
         {
             // Steam-style boot moment: chime + badge/ring animation, then the
@@ -63,6 +72,16 @@ public sealed partial class MainframeWindow : Window
             await Task.Delay(TimeSpan.FromSeconds(2.6));
             IntroOverlay.IsVisible = false;
         };
+    }
+
+    /// <summary>Collapses the boot intro early — a keypress, click, or any
+    /// controller button is a person saying "I'm here to work".</summary>
+    private void SkipIntro()
+    {
+        if (IntroOverlay.IsVisible)
+        {
+            IntroOverlay.IsVisible = false;
+        }
     }
 
     /// <summary>
@@ -90,6 +109,24 @@ public sealed partial class MainframeWindow : Window
         var target = scroller.Offset.Y + (direction * page);
         var highest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
         scroller.Offset = scroller.Offset.WithY(Math.Clamp(target, 0, highest));
+    }
+
+    /// <summary>
+    /// Scrolls the diff overlay to a file's header row when the d-pad steps
+    /// between files. Same measured-position approach as the main window:
+    /// rows vary in height, so estimating from the index would drift.
+    /// </summary>
+    private void OnDiffJump(int rowIndex)
+    {
+        if (MainframeDiffList.ContainerFromIndex(rowIndex) is not Control container ||
+            container.TranslatePoint(new Avalonia.Point(0, 0), MainframeDiffList) is not { } point)
+        {
+            return;
+        }
+
+        var highest = Math.Max(
+            0, MainframeDiffScroller.Extent.Height - MainframeDiffScroller.Viewport.Height);
+        MainframeDiffScroller.Offset = MainframeDiffScroller.Offset.WithY(Math.Clamp(point.Y, 0, highest));
     }
 
     /// <summary>
@@ -177,8 +214,33 @@ public sealed partial class MainframeWindow : Window
     private void OnToggleSettings(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
         (DataContext as MainframeViewModel)?.ToggleSettings();
 
+    private void OnMinimize(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
+        WindowState = WindowState.Minimized;
+
+    /// <summary>
+    /// Fullscreen is Mainframe's home, not its cage: windowed mode gets real
+    /// system decorations so the OS provides move/resize/minimize, and going
+    /// back to fullscreen drops them again for the clean couch look.
+    /// </summary>
+    private void OnToggleFullscreen(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs)
+    {
+        if (WindowState == WindowState.FullScreen)
+        {
+            SystemDecorations = SystemDecorations.Full;
+            WindowState = WindowState.Normal;
+            Width = 1440;
+            Height = 860;
+        }
+        else
+        {
+            SystemDecorations = SystemDecorations.None;
+            WindowState = WindowState.FullScreen;
+        }
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
     {
+        SkipIntro();
         if (DataContext is not MainframeViewModel viewModel)
         {
             return;
@@ -196,6 +258,7 @@ public sealed partial class MainframeWindow : Window
             Key.F1 => "F1",
             Key.F2 => "F2",
             Key.F3 => "F3",
+            Key.F4 => "F4",
             Key.F11 => "F11",
             _ => null,
         };

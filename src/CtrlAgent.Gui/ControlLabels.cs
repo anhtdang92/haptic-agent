@@ -49,10 +49,14 @@ internal static class ControlLabels
 
     public static string Label(ControllerControl control) => control switch
     {
-        ControllerControl.A => "A",
-        ControllerControl.B => "B",
-        ControllerControl.X => "X",
-        ControllerControl.Y => "Y",
+        // On a DualSense the face buttons ARE the shapes — telling a Sony
+        // player to "press Y" describes a button their pad does not have.
+        // Words, not glyphs: the bundled font has no ✕○□△, so prose says
+        // "Triangle" while the chip language draws the shape.
+        ControllerControl.A => ChordToken.PlayStation ? "Cross" : "A",
+        ControllerControl.B => ChordToken.PlayStation ? "Circle" : "B",
+        ControllerControl.X => ChordToken.PlayStation ? "Square" : "X",
+        ControllerControl.Y => ChordToken.PlayStation ? "Triangle" : "Y",
         ControllerControl.Menu => "Menu",
         ControllerControl.View => "View",
         ControllerControl.Guide => "Xbox/PS",
@@ -112,9 +116,12 @@ internal static class ControlLabels
         return single.Length <= limit ? single : single[..limit].TrimEnd() + "\u2026";
     }
 
-    public static string Humanize(AgentCommandKind command)
+    public static string Humanize(AgentCommandKind command) => Humanize(command.ToString());
+
+    /// <summary>"DoublePress" → "Double press" — for any enum name shown to
+    /// a person.</summary>
+    public static string Humanize(string name)
     {
-        var name = command.ToString();
         var builder = new System.Text.StringBuilder(name.Length + 4);
         for (var index = 0; index < name.Length; index++)
         {

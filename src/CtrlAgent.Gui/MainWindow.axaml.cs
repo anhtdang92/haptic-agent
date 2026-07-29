@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -17,14 +18,9 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         DataContextChanged += (_, _) => ObserveLog();
 
-        // Tunnel, not bubble: with AcceptsReturn the TextBox handles Enter
-        // itself and marks the event handled, so a bubbling handler (or a
-        // KeyBinding) never sees the key we want to intercept.
-        PromptBox.AddHandler(KeyDownEvent, OnPromptKeyDown, RoutingStrategies.Tunnel);
-
-        // Desktop-first: the keyboard reaches everything the mouse can.
-        // F1 shortcuts map, F3 diff review, Ctrl+N new session, F11
-        // Mainframe, Esc closes whichever overlay is on top.
+        // Mission control's keyboard: F1 shortcuts map, Ctrl+N new session,
+        // F11 Mainframe, Esc closes the shortcuts overlay. Everything about
+        // coding — prompts, diff review, approvals — lives in Mainframe.
         KeyDown += (_, eventArgs) =>
         {
             if (DataContext is not MainViewModel viewModel)
@@ -44,11 +40,6 @@ public sealed partial class MainWindow : Window
                     viewModel.IsShortcutsVisible = !viewModel.IsShortcutsVisible;
                     break;
 
-                case Key.F3:
-                    eventArgs.Handled = true;
-                    viewModel.ShowDiffCommand.Execute(null);
-                    break;
-
                 case Key.N when eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control):
                     eventArgs.Handled = true;
                     viewModel.NewSessionCommand.Execute(null);
@@ -58,26 +49,18 @@ public sealed partial class MainWindow : Window
                     eventArgs.Handled = true;
                     viewModel.CloseShortcutsCommand.Execute(null);
                     break;
-
-                case Key.Escape when viewModel.IsDiffVisible:
-                    eventArgs.Handled = true;
-                    viewModel.CloseDiffCommand.Execute(null);
-                    break;
             }
         };
     }
 
     /// <summary>
-    /// Pages the surface on top when a binding scrolls the output: the diff
-    /// panel while it is open, the conversation otherwise. 80% of a viewport
-    /// per flick, matching the Mainframe feed.
+    /// Pages the event stream when a binding scrolls the output while this
+    /// window has the screen — the conversation the scroll bindings usually
+    /// page lives in Mainframe.
     /// </summary>
     private void OnOutputScroll(int direction)
     {
-        var scroll = DataContext is MainViewModel { IsDiffVisible: true }
-            ? DiffScroller
-            : ChatList.Scroll as ScrollViewer;
-        if (scroll is null)
+        if (EventStream.Scroll is not ScrollViewer scroll)
         {
             return;
         }
@@ -90,23 +73,6 @@ public sealed partial class MainWindow : Window
         scroll.Offset = scroll.Offset.WithY(target);
     }
 
-    // Enter sends; Shift+Enter falls through to the TextBox and becomes a
-    // newline. Sending on plain Enter is the habit every chat client teaches,
-    // and a prompt is far more often one line than several.
-    private void OnPromptKeyDown(object? sender, KeyEventArgs eventArgs)
-    {
-        if (eventArgs.Key != Key.Enter || eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
-        {
-            return;
-        }
-
-        eventArgs.Handled = true;
-        if (DataContext is MainViewModel viewModel)
-        {
-            viewModel.SubmitPromptCommand.Execute(null);
-        }
-    }
-
     // Keeps the event stream pinned to the newest entry.
     private void ObserveLog()
     {
@@ -117,8 +83,6 @@ public sealed partial class MainWindow : Window
 
         _observedViewModel = viewModel;
         viewModel.Log.CollectionChanged += OnLogChanged;
-        viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
-        viewModel.TranscriptStreamed += FollowChatIfAtBottom;
         viewModel.OutputScrollRequested += OnOutputScroll;
         viewModel.ModelPickerRequested += OnModelPickerRequested;
     }
@@ -141,44 +105,6 @@ public sealed partial class MainWindow : Window
 
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
         StickToBottom(EventStream, eventArgs);
-
-    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
-    {
-        if (eventArgs.Action == NotifyCollectionChangedAction.Add)
-        {
-            FollowChatIfAtBottom();
-        }
-    }
-
-    /// <summary>
-    /// Keeps the conversation pinned to the newest words — including while a
-    /// streaming reply grows its bubble <em>in place</em>. ScrollIntoView is
-    /// the wrong tool for that: a growing last bubble is always partially
-    /// visible, so "into view" is already satisfied and it never moves, while
-    /// the newest text streams in below the fold. Stickiness is decided here,
-    /// before layout absorbs the growth (the extent still reflects the state
-    /// the user actually saw); the scroll itself is posted for after layout,
-    /// when ScrollToEnd knows the new bottom.
-    /// </summary>
-    private void FollowChatIfAtBottom()
-    {
-        if (ChatList.Scroll is not ScrollViewer scroll)
-        {
-            return;
-        }
-
-        // Reading history must not be undone by the next chunk; scrolling
-        // back down re-arms following. The tolerance covers a partially
-        // visible last row.
-        if (scroll.Offset.Y < scroll.Extent.Height - scroll.Viewport.Height - 48)
-        {
-            return;
-        }
-
-        Avalonia.Threading.Dispatcher.UIThread.Post(
-            scroll.ScrollToEnd,
-            Avalonia.Threading.DispatcherPriority.Background);
-    }
 
     /// <summary>
     /// Follows new items only while the view is already at the bottom. It used

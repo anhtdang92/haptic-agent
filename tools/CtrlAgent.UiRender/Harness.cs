@@ -222,21 +222,45 @@ internal static class Harness
             new DiffFile("assets/logo.png", DiffFileChange.Modified, true, 0, 0, []),
         ]);
 
+        // The diff overlay is Mainframe's — the main window is mission
+        // control and no longer reviews code.
         var reviewing = new MainViewModel(engine, options);
         reviewing.AttachEngine(engine);
         reviewing.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         reviewing.AgentStatus = "claude";
         reviewing.IsDiffVisible = true;
         reviewing.PresentDiff(sampleChanges);
-        Render(new MainWindow { DataContext = reviewing }, "18-diff-review.png",
+        Render(new MainframeWindow { DataContext = new MainframeViewModel(reviewing) },
+            "18-diff-review.png", 1600, 900,
+            afterShow: HideIntro,
             afterSettle: w =>
             {
-                if (w.FindControl<ScrollViewer>("DiffScroller") is not { } scroller ||
+                if (w.FindControl<ScrollViewer>("MainframeDiffScroller") is not { } scroller ||
                     scroller.Bounds.Height < 40 ||
                     scroller.Extent.Height < 40)
                 {
                     Faults.Add("18-diff-review: the diff rows did not lay out.");
                 }
+
+                // The file rail: one link per file, and jumping marks the
+                // target current. (The scroll itself can't move here — the
+                // sample diff is shorter than the viewport — so the anchor
+                // arithmetic is proven in the unit tests instead.)
+                var links = w.GetVisualDescendants()
+                    .OfType<Button>()
+                    .Count(button => button.Classes.Contains("filelink") && button.IsEffectivelyVisible);
+                if (links != 4)
+                {
+                    Faults.Add($"18-diff-review: expected 4 file-rail links, found {links}.");
+                }
+
+                reviewing.JumpToDiffFile(3);
+                if (!reviewing.DiffFiles[3].IsCurrent || reviewing.DiffFiles[0].IsCurrent)
+                {
+                    Faults.Add("18-diff-review: jumping to a file did not mark it current.");
+                }
+
+                reviewing.JumpToDiffFile(0);
             });
 
         // The same panel over a clean tree: the empty state has to explain
@@ -246,7 +270,9 @@ internal static class Harness
         cleanTree.AgentStatus = "claude";
         cleanTree.IsDiffVisible = true;
         cleanTree.PresentDiff(new WorkspaceChanges([]));
-        Render(new MainWindow { DataContext = cleanTree }, "19-diff-clean.png");
+        Render(new MainframeWindow { DataContext = new MainframeViewModel(cleanTree) },
+            "19-diff-clean.png", 1600, 900,
+            afterShow: HideIntro);
 
         // The boot sequence, sampled across its timeline. The animation clock
         // DOES advance here — Pump sleeps in real time between render ticks —
@@ -349,14 +375,17 @@ internal static class Harness
 
         // A markdown-rich agent reply, injected directly: the mock agent
         // speaks plain prose, and this shot is what proves bold, inline code,
-        // bullets, and a fenced block actually render as styled blocks.
+        // bullets, and a fenced block actually render as styled blocks. The
+        // conversation renders only in Mainframe now — the main window is
+        // mission control and has no chat surface.
         chat.Transcript.Add(new ChatMessage
         {
             IsUser = false,
             IsActivity = false,
             Text = "Here is the plan:\n\n## Mapping fix\n- Prefer **chords** over plain buttons in `MappingEngine.Process`\n- Keep *eligibility* filtering last\n\n```csharp\nvar commands = engine.Process(input);\n```",
         });
-        Render(new MainWindow { DataContext = chat }, "06-conversation.png");
+        Render(new MainframeWindow { DataContext = mainframeChat }, "06-conversation.png", 1600, 900,
+            afterShow: HideIntro);
 
         // First-run setup overlay.
         var setup = new MainViewModel(null, options) { IsSetupVisible = true };
@@ -376,13 +405,6 @@ internal static class Harness
                 "Pick another folder — it may have been moved or deleted since last time.",
         };
         Render(new MainWindow { DataContext = blocked }, "25-setup-preflight.png");
-
-        // Guide-button confirmation before Mainframe takes the screen.
-        var mainframePrompt = new MainViewModel(null, options) { IsMainframePromptVisible = true };
-        Render(
-            new MainWindow { DataContext = mainframePrompt },
-            "15-mainframe-prompt.png",
-            expectVisibleText: "ENTER MAINFRAME?");
 
         // Startup failure. A dead host used to be indistinguishable from a
         // disconnected one, so this surface is worth a render check.
@@ -454,6 +476,21 @@ internal static class Harness
                 settings.ToggleSettings();
                 settings.OnKey("Right");
             });
+
+        // Sony flavor: the same hub with a DualSense attached — face chips
+        // render Sony's shapes in Sony's colors and the mirror flips its
+        // legend. The flag is app-global (set by ControllerConnected live), so
+        // mint this view model's rows while it is up and restore the Xbox
+        // flavor before any later shot.
+        ChordToken.PlayStation = true;
+        var sony = new MainViewModel(null, options) { AgentStatus = "claude" };
+        sony.AttachEngine(engine);
+        sony.ControllerStatus = "DualSense Edge";
+        sony.ControllerVisual.SetPlayStationFlavor(true);
+        Render(new MainframeWindow { DataContext = new MainframeViewModel(sony) },
+            "30-mainframe-ps.png", 1600, 900,
+            afterShow: HideIntro);
+        ChordToken.PlayStation = false;
 
         // The workspace picker, with a couple of remembered directories.
         Render(
@@ -823,7 +860,7 @@ internal static class Harness
         // surface is deleted (say, in a merge), the shot quietly becomes a
         // picture of the window behind it and proves nothing. Pinning one
         // expected string makes the disappearance a failure. This is exactly
-        // how the Mainframe confirmation vanished unnoticed.
+        // how a since-deleted overlay's disappearance once went unnoticed.
         if (expectVisibleText is not null)
         {
             var found = window.GetVisualDescendants()

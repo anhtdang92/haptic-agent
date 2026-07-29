@@ -85,7 +85,6 @@ public sealed class MainViewModel : ViewModelBase
     private SessionSettings _settings = new(null, null, null);
     private ChatMessage? _streamingBubble;
     private readonly TranscriptFolder _folder = new();
-    private bool _isChatView = true;
     private bool _isTranscriptEmpty = true;
     private int _queuedPromptCount;
     private bool _isSetupVisible;
@@ -95,7 +94,6 @@ public sealed class MainViewModel : ViewModelBase
     private string _startupError = string.Empty;
     private ControllerProfile? _profile;
     private ControllerCapabilities? _capabilities;
-    private bool _isMainframePromptVisible;
     private GuiOptions _options;
     private string _workspacePath = string.Empty;
     private bool _isSessionListVisible;
@@ -160,8 +158,6 @@ public sealed class MainViewModel : ViewModelBase
             StartupError = string.Empty;
             IsSetupVisible = true;
         });
-        ConfirmMainframeCommand = new RelayCommand(_ => ConfirmMainframe());
-        DismissMainframePromptCommand = new RelayCommand(_ => DismissMainframePrompt());
         RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
         ShowDiffCommand = new RelayCommand(_ =>
         {
@@ -221,9 +217,14 @@ public sealed class MainViewModel : ViewModelBase
             if (Set(ref _workspacePath, value))
             {
                 Raise(nameof(WorkspaceName));
+                Raise(nameof(WindowTitle));
             }
         }
     }
+
+    /// <summary>Taskbar/Alt-Tab identity: which workspace this window drives.</summary>
+    public string WindowTitle =>
+        string.IsNullOrWhiteSpace(_workspacePath) ? "CtrlAgent" : $"CtrlAgent — {WorkspaceName}";
 
     /// <summary>Just the folder name — the full path is a tooltip, not a label.</summary>
     public string WorkspaceName
@@ -273,8 +274,12 @@ public sealed class MainViewModel : ViewModelBase
         IsDiffVisible = false;
         _isDiffLoading = false;
         DiffRows.Clear();
+        DiffFiles.Clear();
+        _diffAnchors = [];
+        _diffFileFocus = -1;
         DiffSummary = string.Empty;
         DiffError = string.Empty;
+        Raise(nameof(HasDiffFiles));
         Raise(nameof(IsDiffClean));
 
         // A new engine means a new session, which starts on the agent's own
@@ -351,47 +356,30 @@ public sealed class MainViewModel : ViewModelBase
             IsControllerSearching = false;
 
             // Re-coach against what this pad can actually send, and show only
-            // the bindings it can reach.
+            // the bindings it can reach. The chip language follows the pad:
+            // Sony shapes on a DualSense, Xbox letters otherwise — set before
+            // the rows rebuild so their tokens are minted in the right flavor.
             _capabilities = snapshot.Capabilities;
+            ChordToken.PlayStation = snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal);
             Buddy.SetCapabilities(snapshot.Capabilities);
             RefreshBindingRows();
-            ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
+            ControllerVisual.SetPlayStationFlavor(ChordToken.PlayStation);
         });
         engine.ControllerInputReceived += inputEvent => Post(() =>
         {
             ControllerVisual.Apply(inputEvent);
 
-            // While the Mainframe prompt is up the pad answers it and nothing
-            // else. Input is captured at the engine, so mapped commands are
-            // already suppressed; this just routes the answer.
-            if (IsMainframePromptVisible)
-            {
-                if (inputEvent.Kind == ControllerInputEventKind.Pressed)
-                {
-                    switch (inputEvent.Control)
-                    {
-                        case ControllerControl.A:
-                            ConfirmMainframe();
-                            break;
-                        case ControllerControl.B:
-                        case ControllerControl.Guide:
-                            DismissMainframePrompt();
-                            break;
-                    }
-                }
-
-                return;
-            }
-
-            // Xbox/PS button = ask before entering Mainframe, on the transports
-            // that report it at all (see MainframeRequested). It confirms
-            // because the guide button is easy to catch with a palm and
-            // Mainframe takes over the whole screen; the deliberate paths
-            // (double-press View, the header button, F11) go straight in.
+            // Xbox/PS button = enter Mainframe, on the transports that report
+            // it at all (see MainframeRequested). It used to raise an "enter?"
+            // confirmation, from the era when Mainframe was a side mode a palm
+            // could stumble into; now Mainframe is the coding surface, and the
+            // console-standard behavior — Guide opens the fullscreen UI — is
+            // the simpler contract. ShowMainframe is idempotent, so a repeat
+            // press just refocuses it.
             if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
                 inputEvent.Control == ControllerControl.Guide)
             {
-                ShowMainframePrompt();
+                MainframeRequested?.Invoke();
             }
 
             // Double-press View = the same thing, on every transport.
@@ -611,55 +599,6 @@ public sealed class MainViewModel : ViewModelBase
 
     public ICommand DismissStartupErrorCommand { get; }
 
-    public ICommand ConfirmMainframeCommand { get; }
-
-    public ICommand DismissMainframePromptCommand { get; }
-
-    /// <summary>The "enter Mainframe?" confirmation raised by the guide button.</summary>
-    public bool IsMainframePromptVisible
-    {
-        get => _isMainframePromptVisible;
-        set => Set(ref _isMainframePromptVisible, value);
-    }
-
-    private void ShowMainframePrompt()
-    {
-        if (IsMainframePromptVisible)
-        {
-            return;
-        }
-
-        IsMainframePromptVisible = true;
-
-        // Capture so a stray A press answers the prompt instead of firing a
-        // prompt submit behind it.
-        _engine?.SetInputCapture(true);
-    }
-
-    private void DismissMainframePrompt()
-    {
-        if (!IsMainframePromptVisible)
-        {
-            return;
-        }
-
-        IsMainframePromptVisible = false;
-        _engine?.SetInputCapture(false);
-    }
-
-    private void ConfirmMainframe()
-    {
-        if (!IsMainframePromptVisible)
-        {
-            return;
-        }
-
-        // Release capture before handing over: Mainframe takes its own.
-        IsMainframePromptVisible = false;
-        _engine?.SetInputCapture(false);
-        MainframeRequested?.Invoke();
-    }
-
     public static string[] SetupAgents { get; } = ["mock", "codex", "claude"];
 
     /// <summary>
@@ -809,13 +748,6 @@ public sealed class MainViewModel : ViewModelBase
         set => Set(ref _isBindingsEmpty, value);
     }
 
-    /// <summary>Conversation view vs raw event stream in the activity card.</summary>
-    public bool IsChatView
-    {
-        get => _isChatView;
-        set => Set(ref _isChatView, value);
-    }
-
     /// <summary>True until the first message, so the conversation can explain
     /// itself instead of showing an empty panel.</summary>
     public bool IsTranscriptEmpty
@@ -879,6 +811,50 @@ public sealed class MainViewModel : ViewModelBase
     /// editor.
     /// </summary>
     public ObservableCollection<DiffRow> DiffRows { get; } = [];
+
+    /// <summary>The panel's file rail: one clickable link per file, jumping
+    /// the row list to that file's header.</summary>
+    public ObservableCollection<DiffFileLink> DiffFiles { get; } = [];
+
+    /// <summary>The rail earns its width only when there is something to
+    /// navigate between — a rail for a single file is furniture.</summary>
+    public bool HasDiffFiles => DiffFiles.Count > 1;
+
+    /// <summary>A jump to the given row index in <see cref="DiffRows"/> —
+    /// whichever window is showing the diff scrolls its own viewer.</summary>
+    public event Action<int>? DiffJumpRequested;
+
+    private IReadOnlyList<DiffAnchor> _diffAnchors = [];
+    private int _diffFileFocus = -1;
+
+    /// <summary>Jumps the panel to a file by rail position.</summary>
+    public void JumpToDiffFile(int fileIndex)
+    {
+        if (fileIndex < 0 || fileIndex >= _diffAnchors.Count)
+        {
+            return;
+        }
+
+        _diffFileFocus = fileIndex;
+        for (var index = 0; index < DiffFiles.Count; index++)
+        {
+            DiffFiles[index].IsCurrent = index == fileIndex;
+        }
+
+        DiffJumpRequested?.Invoke(_diffAnchors[fileIndex].RowIndex);
+    }
+
+    /// <summary>Steps to the next/previous file — the Mainframe d-pad path.
+    /// The first step lands on the first file rather than skipping it.</summary>
+    public void StepDiffFile(int delta)
+    {
+        if (_diffAnchors.Count == 0)
+        {
+            return;
+        }
+
+        JumpToDiffFile(Math.Clamp(_diffFileFocus + delta, 0, _diffAnchors.Count - 1));
+    }
 
     public ICommand ShowDiffCommand { get; }
 
@@ -945,12 +921,26 @@ public sealed class MainViewModel : ViewModelBase
         _isDiffLoading = false;
         DiffError = changes.Error ?? string.Empty;
         DiffSummary = changes.Note is null ? changes.Summary : $"{changes.Summary} · {changes.Note}";
+
+        var (rows, anchors) = DiffPanel.Build(changes);
         DiffRows.Clear();
-        foreach (var row in DiffRow.Build(changes))
+        foreach (var row in rows)
         {
-            DiffRows.Add(row);
+            DiffRows.Add(DiffRow.From(row));
         }
 
+        _diffAnchors = anchors;
+        _diffFileFocus = -1;
+        DiffFiles.Clear();
+        for (var index = 0; index < anchors.Count; index++)
+        {
+            var target = index;
+            DiffFiles.Add(new DiffFileLink(
+                anchors[index].Headline,
+                new RelayCommand(_ => JumpToDiffFile(target))));
+        }
+
+        Raise(nameof(HasDiffFiles));
         Raise(nameof(IsDiffClean));
     }
 

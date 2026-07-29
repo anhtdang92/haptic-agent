@@ -97,8 +97,9 @@
                           CornerRadius="10" Padding="8,5">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                       <TextBox Text="{Binding Name}" Width="112" FontSize="12" />
-                      <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ActivationNames}"
-                                SelectedItem="{Binding Activation}"
+                      <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ActivationOptions}"
+                                SelectedValue="{Binding Activation}"
+                                SelectedValueBinding="{ReflectionBinding Value}"
                                 FontSize="12" />
                       <Button Content="×"
                               Classes="ghost"
@@ -194,21 +195,31 @@
           <ScrollViewer VerticalScrollBarVisibility="Auto"
                         IsVisible="{Binding SelectedBinding, Converter={x:Static ObjectConverters.IsNotNull}}">
             <StackPanel DataContext="{Binding SelectedBinding}" x:DataType="gui:BindingEditor" Spacing="5" Margin="0,0,6,0">
+              <!-- The combos store enum names (the JSON vocabulary) but read
+                   like the rest of the app: "Submit prompt", "LB ·
+                   LeftShoulder". ReflectionBinding because SelectedValueBinding
+                   evaluates against the item, where the compiler cannot see a
+                   data type. -->
               <TextBlock Text="CONTROL" Classes="field" />
-              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ControlNames}"
-                        SelectedItem="{Binding Control}"
+              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ControlOptions}"
+                        SelectedValue="{Binding Control}"
+                        SelectedValueBinding="{ReflectionBinding Value}"
                         HorizontalAlignment="Stretch" />
               <TextBlock Text="GESTURE" Classes="field" />
-              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.GestureNames}"
-                        SelectedItem="{Binding Gesture}"
+              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.GestureOptions}"
+                        SelectedValue="{Binding Gesture}"
+                        SelectedValueBinding="{ReflectionBinding Value}"
                         HorizontalAlignment="Stretch" />
               <TextBlock Text="COMMAND" Classes="field" />
-              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.CommandNames}"
-                        SelectedItem="{Binding Command}"
+              <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.CommandOptions}"
+                        SelectedValue="{Binding Command}"
+                        SelectedValueBinding="{ReflectionBinding Value}"
                         HorizontalAlignment="Stretch" />
 
               <TextBlock Text="MODIFIERS" Classes="field" />
-              <TextBox Text="{Binding ModifiersText}" Watermark="LeftShoulder+RightShoulder" />
+              <TextBox Text="{Binding ModifiersText}" Watermark="LB+RB" />
+              <TextBlock Text="Pad language works: LB, RB, LT, RT, LS, RS, P1–P4, face buttons, D-Up."
+                         Classes="hint" />
 
               <CheckBox Content="Requires pending approval"
                         IsChecked="{Binding RequiresPendingApproval}"
@@ -217,7 +228,8 @@
                          Classes="hint" Margin="0,0,0,4" />
 
               <TextBlock Text="PROMPT TEXT" Classes="field" />
-              <TextBox Text="{Binding Text}" AcceptsReturn="False" Watermark="SubmitPrompt only" />
+              <TextBox Text="{Binding Text}" AcceptsReturn="False"
+                       Watermark="Sent when this fires (Submit prompt only)" />
 
               <TextBlock Text="LAYER" Classes="field" />
               <TextBox Text="{Binding Layer}" Watermark="Must name a declared layer" />

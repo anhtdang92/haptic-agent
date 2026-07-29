@@ -439,6 +439,22 @@
               <TextBlock Text="Settings" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <!-- Window controls: Mainframe is a real window, not a kiosk. It
+               can drop to the taskbar mid-turn and come back, or run windowed
+               beside an editor — fullscreen is the default, not a cage. -->
+          <Button Classes="ghost" Padding="9,6" Cursor="Hand"
+                  Click="OnMinimize"
+                  ToolTip.Tip="Minimize to the taskbar">
+            <!-- A Rectangle, not a Path: Path.icon stretches uniformly, and a
+                 zero-height horizontal line collapses to a speck under it. -->
+            <Rectangle Width="13" Height="1.6" Fill="#E8F1FF" VerticalAlignment="Center" />
+          </Button>
+          <Button Classes="ghost" Padding="9,6" Cursor="Hand"
+                  Click="OnToggleFullscreen"
+                  ToolTip.Tip="Toggle fullscreen / windowed">
+            <Path Classes="icon" Width="13" Height="13"
+                  Data="M3,6.5 V3 H6.5 M11.5,3 H15 V6.5 M15,11.5 V15 H11.5 M6.5,15 H3 V11.5" />
+          </Button>
         </StackPanel>
         <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
                Height="44"
@@ -512,12 +528,25 @@
                                         BorderThickness="1.6"
                                         BorderBrush="{Binding FaceBrush}"
                                         IsVisible="{Binding IsFace}">
-                                  <TextBlock Text="{Binding Text}"
-                                             FontSize="11.5"
-                                             FontWeight="Bold"
-                                             Foreground="{Binding FaceBrush}"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center" />
+                                  <Panel>
+                                    <TextBlock Text="{Binding Text}"
+                                               FontSize="11.5"
+                                               FontWeight="Bold"
+                                               Foreground="{Binding FaceBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding IsLetter}" />
+                                    <!-- Sony shapes are drawn, not typed: the
+                                         bundled font has no ✕○□△ glyphs. -->
+                                    <Path Data="{Binding ShapeData}"
+                                          Stroke="{Binding FaceBrush}"
+                                          StrokeThickness="1.5"
+                                          Width="11" Height="11"
+                                          Stretch="Uniform"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          IsVisible="{Binding IsShape}" />
+                                  </Panel>
                                 </Border>
                                 <gui:DPadIcon Width="18" Height="18"
                                               Direction="{Binding Control}"
@@ -582,7 +611,7 @@
                        TextWrapping="Wrap"
                        MaxHeight="120"
                        VerticalContentAlignment="Top"
-                       Watermark="Type a prompt — Enter sends, Shift+Enter for a new line (Y to speak)" />
+                       Watermark="{Binding PromptWatermark}" />
             </DockPanel>
 
             <!-- Attached files ride with the next Send; declared after the
@@ -622,7 +651,7 @@
                           M5.5,8 H12.5 M5.5,10.5 H10" />
               <TextBlock Text="Nothing from the agent yet"
                          FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
-              <TextBlock Text="Type below, use a shortcut, or press Y to speak a prompt"
+              <TextBlock Text="{Binding EmptyFeedHint}"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
             <!-- The feed IS the transcript — the same folded rows the main
@@ -727,14 +756,26 @@
       </ItemsControl>
       </ScrollViewer>
 
-      <!-- Button legend -->
+      <!-- Button legend. Face chips come from the view model so they wear the
+           connected pad's flavor — an "A" in Xbox green under a DualSense
+           mirror told the Sony player to press a button they do not have. -->
       <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="26" HorizontalAlignment="Center" Margin="0,26,0,0">
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Classes="glyph" BorderBrush="#6EBE45"><TextBlock Text="A" FontSize="14" FontWeight="Bold" Foreground="#6EBE45" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <Border Classes="glyph" BorderBrush="{Binding LegendSelect.FaceBrush}">
+            <Panel>
+              <TextBlock Text="{Binding LegendSelect.Text}" FontSize="14" FontWeight="Bold" Foreground="{Binding LegendSelect.FaceBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendSelect.IsLetter}" />
+              <Path Data="{Binding LegendSelect.ShapeData}" Stroke="{Binding LegendSelect.FaceBrush}" StrokeThickness="1.5" Width="12" Height="12" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendSelect.IsShape}" />
+            </Panel>
+          </Border>
           <TextBlock Text="Select (in settings)" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Classes="glyph" BorderBrush="#E85555"><TextBlock Text="B" FontSize="14" FontWeight="Bold" Foreground="#E85555" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <Border Classes="glyph" BorderBrush="{Binding LegendBack.FaceBrush}">
+            <Panel>
+              <TextBlock Text="{Binding LegendBack.Text}" FontSize="14" FontWeight="Bold" Foreground="{Binding LegendBack.FaceBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendBack.IsLetter}" />
+              <Path Data="{Binding LegendBack.ShapeData}" Stroke="{Binding LegendBack.FaceBrush}" StrokeThickness="1.5" Width="12" Height="12" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendBack.IsShape}" />
+            </Panel>
+          </Border>
           <TextBlock Text="Back / Exit" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -742,7 +783,12 @@
           <TextBlock Text="View — Settings" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Classes="glyph" BorderBrush="#E8C531"><TextBlock Text="Y" FontSize="14" FontWeight="Bold" Foreground="#E8C531" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <Border Classes="glyph" BorderBrush="{Binding LegendVoice.FaceBrush}">
+            <Panel>
+              <TextBlock Text="{Binding LegendVoice.Text}" FontSize="14" FontWeight="Bold" Foreground="{Binding LegendVoice.FaceBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendVoice.IsLetter}" />
+              <Path Data="{Binding LegendVoice.ShapeData}" Stroke="{Binding LegendVoice.FaceBrush}" StrokeThickness="1.5" Width="12" Height="12" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendVoice.IsShape}" />
+            </Panel>
+          </Border>
           <TextBlock Text="Voice prompt" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <TextBlock Text="{Binding LegendHint}" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
@@ -815,12 +861,25 @@
                                         BorderThickness="1.6"
                                         BorderBrush="{Binding FaceBrush}"
                                         IsVisible="{Binding IsFace}">
-                                  <TextBlock Text="{Binding Text}"
-                                             FontSize="11.5"
-                                             FontWeight="Bold"
-                                             Foreground="{Binding FaceBrush}"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center" />
+                                  <Panel>
+                                    <TextBlock Text="{Binding Text}"
+                                               FontSize="11.5"
+                                               FontWeight="Bold"
+                                               Foreground="{Binding FaceBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding IsLetter}" />
+                                    <!-- Sony shapes are drawn, not typed: the
+                                         bundled font has no ✕○□△ glyphs. -->
+                                    <Path Data="{Binding ShapeData}"
+                                          Stroke="{Binding FaceBrush}"
+                                          StrokeThickness="1.5"
+                                          Width="11" Height="11"
+                                          Stretch="Uniform"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          IsVisible="{Binding IsShape}" />
+                                  </Panel>
                                 </Border>
                                 <gui:DPadIcon Width="18" Height="18"
                                               Direction="{Binding Control}"
@@ -947,7 +1006,7 @@
         <DockPanel>
           <DockPanel DockPanel.Dock="Top" Margin="4,0,0,12">
             <TextBlock DockPanel.Dock="Right"
-                       Text="B closes · right stick scrolls"
+                       Text="{Binding DiffLegend}"
                        FontSize="13"
                        Foreground="#5A7099"
                        VerticalAlignment="Center" />
@@ -984,24 +1043,56 @@
                          Foreground="#4C6A93"
                          HorizontalAlignment="Center" />
             </StackPanel>
-            <ScrollViewer x:Name="MainframeDiffScroller" HorizontalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="gui:DiffRow">
-                    <Border Background="{Binding Background}"
-                            Margin="{Binding Margin}"
-                            Padding="10,2"
-                            CornerRadius="3">
-                      <TextBlock Text="{Binding Text}"
-                                 FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="14"
-                                 FontWeight="{Binding Weight}"
-                                 Foreground="{Binding Foreground}" />
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
+            <Grid ColumnDefinitions="Auto,*">
+              <!-- File rail: the map of a many-file diff. The d-pad steps
+                   through it (down = next file), a mouse can click it, and
+                   the current file stays highlighted. Shown only when there
+                   is more than one file to jump between. -->
+              <Border Grid.Column="0"
+                      IsVisible="{Binding Main.HasDiffFiles}"
+                      BorderBrush="#1A7DD3FC"
+                      BorderThickness="0,0,1,0"
+                      Margin="0,0,14,0"
+                      Padding="0,0,12,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Width="270">
+                  <ItemsControl ItemsSource="{Binding Main.DiffFiles}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="gui:DiffFileLink">
+                        <Button Command="{Binding Jump}"
+                                Classes="filelink"
+                                Classes.current="{Binding IsCurrent}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                ToolTip.Tip="{Binding Headline}">
+                          <TextBlock Text="{Binding Headline}"
+                                     FontFamily="Cascadia Mono,Consolas,monospace"
+                                     FontSize="13"
+                                     TextTrimming="CharacterEllipsis" />
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </Border>
+              <ScrollViewer Grid.Column="1" x:Name="MainframeDiffScroller" HorizontalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="MainframeDiffList" ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="gui:DiffRow">
+                      <Border Background="{Binding Background}"
+                              Margin="{Binding Margin}"
+                              Padding="10,2"
+                              CornerRadius="3">
+                        <TextBlock Text="{Binding Text}"
+                                   FontFamily="Cascadia Mono,Consolas,monospace"
+                                   FontSize="14"
+                                   FontWeight="{Binding Weight}"
+                                   Foreground="{Binding Foreground}" />
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
           </Panel>
         </DockPanel>
       </Border>

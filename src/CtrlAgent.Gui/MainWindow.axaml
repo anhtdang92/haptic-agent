@@ -3,7 +3,7 @@
         xmlns:gui="using:CtrlAgent.Gui"
         x:Class="CtrlAgent.Gui.MainWindow"
         x:DataType="gui:MainViewModel"
-        Title="CtrlAgent"
+        Title="{Binding WindowTitle}"
         Icon="avares://CtrlAgent.Gui/Assets/icon.png"
         WindowStartupLocation="CenterScreen"
         ExtendClientAreaToDecorationsHint="True"

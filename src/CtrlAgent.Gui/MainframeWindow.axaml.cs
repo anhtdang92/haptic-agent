@@ -44,6 +44,7 @@ public sealed partial class MainframeWindow : Window
                 {
                     _observed.FeedScrollRequested -= OnFeedScroll;
                     _observed.FocusMoved -= OnFocusMoved;
+                    _observed.ControllerPressed -= SkipIntro;
                     _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
                     _observed.Main.TranscriptStreamed -= OnFeedStreamed;
                 }
@@ -51,10 +52,15 @@ public sealed partial class MainframeWindow : Window
                 _observed = viewModel;
                 viewModel.FocusMoved += OnFocusMoved;
                 viewModel.FeedScrollRequested += OnFeedScroll;
+                viewModel.ControllerPressed += SkipIntro;
                 viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
                 viewModel.Main.TranscriptStreamed += OnFeedStreamed;
             }
         };
+        // Any input dismisses the boot intro: it is a moment, not a gate, and
+        // the second visit's 2.6 seconds is friction. Tunnel the pointer so a
+        // click lands even when the overlay sits over an interactive control.
+        AddHandler(PointerPressedEvent, (_, _) => SkipIntro(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         Opened += async (_, _) =>
         {
             // Steam-style boot moment: chime + badge/ring animation, then the
@@ -63,6 +69,16 @@ public sealed partial class MainframeWindow : Window
             await Task.Delay(TimeSpan.FromSeconds(2.6));
             IntroOverlay.IsVisible = false;
         };
+    }
+
+    /// <summary>Collapses the boot intro early — a keypress, click, or any
+    /// controller button is a person saying "I'm here to work".</summary>
+    private void SkipIntro()
+    {
+        if (IntroOverlay.IsVisible)
+        {
+            IntroOverlay.IsVisible = false;
+        }
     }
 
     /// <summary>
@@ -179,6 +195,7 @@ public sealed partial class MainframeWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
     {
+        SkipIntro();
         if (DataContext is not MainframeViewModel viewModel)
         {
             return;
@@ -196,6 +213,7 @@ public sealed partial class MainframeWindow : Window
             Key.F1 => "F1",
             Key.F2 => "F2",
             Key.F3 => "F3",
+            Key.F4 => "F4",
             Key.F11 => "F11",
             _ => null,
         };

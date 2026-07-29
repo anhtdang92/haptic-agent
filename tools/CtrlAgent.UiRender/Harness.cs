@@ -455,6 +455,21 @@ internal static class Harness
                 settings.OnKey("Right");
             });
 
+        // Sony flavor: the same hub with a DualSense attached — face chips
+        // render Sony's shapes in Sony's colors and the mirror flips its
+        // legend. The flag is app-global (set by ControllerConnected live), so
+        // mint this view model's rows while it is up and restore the Xbox
+        // flavor before any later shot.
+        ChordToken.PlayStation = true;
+        var sony = new MainViewModel(null, options) { AgentStatus = "claude" };
+        sony.AttachEngine(engine);
+        sony.ControllerStatus = "DualSense Edge";
+        sony.ControllerVisual.SetPlayStationFlavor(true);
+        Render(new MainframeWindow { DataContext = new MainframeViewModel(sony) },
+            "30-mainframe-ps.png", 1600, 900,
+            afterShow: HideIntro);
+        ChordToken.PlayStation = false;
+
         // The workspace picker, with a couple of remembered directories.
         Render(
             new WorkspaceWindow(

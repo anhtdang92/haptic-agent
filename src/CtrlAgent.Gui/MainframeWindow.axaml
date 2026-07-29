@@ -512,12 +512,25 @@
                                         BorderThickness="1.6"
                                         BorderBrush="{Binding FaceBrush}"
                                         IsVisible="{Binding IsFace}">
-                                  <TextBlock Text="{Binding Text}"
-                                             FontSize="11.5"
-                                             FontWeight="Bold"
-                                             Foreground="{Binding FaceBrush}"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center" />
+                                  <Panel>
+                                    <TextBlock Text="{Binding Text}"
+                                               FontSize="11.5"
+                                               FontWeight="Bold"
+                                               Foreground="{Binding FaceBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding IsLetter}" />
+                                    <!-- Sony shapes are drawn, not typed: the
+                                         bundled font has no ✕○□△ glyphs. -->
+                                    <Path Data="{Binding ShapeData}"
+                                          Stroke="{Binding FaceBrush}"
+                                          StrokeThickness="1.5"
+                                          Width="11" Height="11"
+                                          Stretch="Uniform"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          IsVisible="{Binding IsShape}" />
+                                  </Panel>
                                 </Border>
                                 <gui:DPadIcon Width="18" Height="18"
                                               Direction="{Binding Control}"
@@ -582,7 +595,7 @@
                        TextWrapping="Wrap"
                        MaxHeight="120"
                        VerticalContentAlignment="Top"
-                       Watermark="Type a prompt — Enter sends, Shift+Enter for a new line (Y to speak)" />
+                       Watermark="{Binding PromptWatermark}" />
             </DockPanel>
 
             <!-- Attached files ride with the next Send; declared after the
@@ -622,7 +635,7 @@
                           M5.5,8 H12.5 M5.5,10.5 H10" />
               <TextBlock Text="Nothing from the agent yet"
                          FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
-              <TextBlock Text="Type below, use a shortcut, or press Y to speak a prompt"
+              <TextBlock Text="{Binding EmptyFeedHint}"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
             <!-- The feed IS the transcript — the same folded rows the main
@@ -727,14 +740,26 @@
       </ItemsControl>
       </ScrollViewer>
 
-      <!-- Button legend -->
+      <!-- Button legend. Face chips come from the view model so they wear the
+           connected pad's flavor — an "A" in Xbox green under a DualSense
+           mirror told the Sony player to press a button they do not have. -->
       <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="26" HorizontalAlignment="Center" Margin="0,26,0,0">
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Classes="glyph" BorderBrush="#6EBE45"><TextBlock Text="A" FontSize="14" FontWeight="Bold" Foreground="#6EBE45" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <Border Classes="glyph" BorderBrush="{Binding LegendSelect.FaceBrush}">
+            <Panel>
+              <TextBlock Text="{Binding LegendSelect.Text}" FontSize="14" FontWeight="Bold" Foreground="{Binding LegendSelect.FaceBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendSelect.IsLetter}" />
+              <Path Data="{Binding LegendSelect.ShapeData}" Stroke="{Binding LegendSelect.FaceBrush}" StrokeThickness="1.5" Width="12" Height="12" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendSelect.IsShape}" />
+            </Panel>
+          </Border>
           <TextBlock Text="Select (in settings)" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Classes="glyph" BorderBrush="#E85555"><TextBlock Text="B" FontSize="14" FontWeight="Bold" Foreground="#E85555" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <Border Classes="glyph" BorderBrush="{Binding LegendBack.FaceBrush}">
+            <Panel>
+              <TextBlock Text="{Binding LegendBack.Text}" FontSize="14" FontWeight="Bold" Foreground="{Binding LegendBack.FaceBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendBack.IsLetter}" />
+              <Path Data="{Binding LegendBack.ShapeData}" Stroke="{Binding LegendBack.FaceBrush}" StrokeThickness="1.5" Width="12" Height="12" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendBack.IsShape}" />
+            </Panel>
+          </Border>
           <TextBlock Text="Back / Exit" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -742,7 +767,12 @@
           <TextBlock Text="View — Settings" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Border Classes="glyph" BorderBrush="#E8C531"><TextBlock Text="Y" FontSize="14" FontWeight="Bold" Foreground="#E8C531" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <Border Classes="glyph" BorderBrush="{Binding LegendVoice.FaceBrush}">
+            <Panel>
+              <TextBlock Text="{Binding LegendVoice.Text}" FontSize="14" FontWeight="Bold" Foreground="{Binding LegendVoice.FaceBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendVoice.IsLetter}" />
+              <Path Data="{Binding LegendVoice.ShapeData}" Stroke="{Binding LegendVoice.FaceBrush}" StrokeThickness="1.5" Width="12" Height="12" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding LegendVoice.IsShape}" />
+            </Panel>
+          </Border>
           <TextBlock Text="Voice prompt" FontSize="14" Foreground="#B9CCEF" VerticalAlignment="Center" />
         </StackPanel>
         <TextBlock Text="{Binding LegendHint}" FontSize="14" Foreground="#5A7099" VerticalAlignment="Center" />
@@ -815,12 +845,25 @@
                                         BorderThickness="1.6"
                                         BorderBrush="{Binding FaceBrush}"
                                         IsVisible="{Binding IsFace}">
-                                  <TextBlock Text="{Binding Text}"
-                                             FontSize="11.5"
-                                             FontWeight="Bold"
-                                             Foreground="{Binding FaceBrush}"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center" />
+                                  <Panel>
+                                    <TextBlock Text="{Binding Text}"
+                                               FontSize="11.5"
+                                               FontWeight="Bold"
+                                               Foreground="{Binding FaceBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding IsLetter}" />
+                                    <!-- Sony shapes are drawn, not typed: the
+                                         bundled font has no ✕○□△ glyphs. -->
+                                    <Path Data="{Binding ShapeData}"
+                                          Stroke="{Binding FaceBrush}"
+                                          StrokeThickness="1.5"
+                                          Width="11" Height="11"
+                                          Stretch="Uniform"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          IsVisible="{Binding IsShape}" />
+                                  </Panel>
                                 </Border>
                                 <gui:DPadIcon Width="18" Height="18"
                                               Direction="{Binding Control}"

@@ -117,6 +117,7 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine.SetInputCapture(false);
         Main.PropertyChanged += OnMainPropertyChanged;
         Main.Sessions.CollectionChanged += OnSessionsChanged;
+        Main.Bindings.CollectionChanged += OnBindingsChanged;
         RebuildTiles();
         RebuildHints();
     }
@@ -203,8 +204,26 @@ public sealed class MainframeViewModel : ViewModelBase
     /// d-pad input is simply untrue.
     /// </summary>
     public string LegendHint => _isSettingsVisible
-        ? "Settings — d-pad moves, A selects, B closes"
+        ? $"Settings — d-pad moves, {Name(ControllerControl.A)} selects, {Name(ControllerControl.B)} closes"
         : "Every action above is a shortcut — nothing to navigate";
+
+    /// <summary>Face-button chips for the legend row, minted in the connected
+    /// pad's flavor (Sony shapes on a DualSense) like every other chip.</summary>
+    public ChordToken LegendSelect => ChordToken.Single(ControllerControl.A);
+
+    public ChordToken LegendBack => ChordToken.Single(ControllerControl.B);
+
+    public ChordToken LegendVoice => ChordToken.Single(ControllerControl.Y);
+
+    public string PromptWatermark =>
+        $"Type a prompt — Enter sends, Shift+Enter for a new line ({Name(ControllerControl.Y)} to speak)";
+
+    public string EmptyFeedHint =>
+        $"Type below, use a shortcut, or press {Name(ControllerControl.Y)} to speak a prompt";
+
+    /// <summary>How prose names a button on the connected pad ("Y" or
+    /// "Triangle") — the chip language draws shapes, sentences need words.</summary>
+    private static string Name(ControllerControl control) => ControlLabels.Label(control);
 
     public bool IsVoiceVisible
     {
@@ -249,6 +268,7 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine.PendingApprovalChanged -= OnPendingApprovalChanged;
         Main.PropertyChanged -= OnMainPropertyChanged;
         Main.Sessions.CollectionChanged -= OnSessionsChanged;
+        Main.Bindings.CollectionChanged -= OnBindingsChanged;
         _engine.SetInputCapture(false);
         _engine.OutputScrollRequested -= _scrollHandler;
         _speech.Dispose();
@@ -274,11 +294,43 @@ public sealed class MainframeViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Any button press, for the window's skip-the-intro hook.</summary>
+    public event Action? ControllerPressed;
+
+    /// <summary>
+    /// The HUD mirrors Main.Bindings, which is rebuilt when a pad connects or
+    /// a profile is applied — without this the hints kept the previous pad's
+    /// chip flavor and the previous profile's chords.
+    /// </summary>
+    private void OnBindingsChanged(
+        object? sender,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (!_detached)
+        {
+            RebuildHints();
+
+            // The rows rebuild when a pad connects, which is also when the
+            // chip flavor can flip — re-mint everything that names a button.
+            Raise(nameof(LegendSelect));
+            Raise(nameof(LegendBack));
+            Raise(nameof(LegendVoice));
+            Raise(nameof(LegendHint));
+            Raise(nameof(PromptWatermark));
+            Raise(nameof(EmptyFeedHint));
+        }
+    }
+
     private void OnControllerInput(ControllerInputEvent inputEvent)
     {
         if (_detached)
         {
             return;
+        }
+
+        if (inputEvent.Kind == ControllerInputEventKind.Pressed)
+        {
+            ControllerPressed?.Invoke();
         }
 
         if (inputEvent.Kind == ControllerInputEventKind.ValueChanged)
@@ -541,7 +593,7 @@ public sealed class MainframeViewModel : ViewModelBase
         if (!_speech.EnsureInitialized())
         {
             IsListening = false;
-            VoiceStatus = $"Voice input unavailable: {_speech.UnavailableReason ?? "unknown"} — press B to close.";
+            VoiceStatus = $"Voice input unavailable: {_speech.UnavailableReason ?? "unknown"} — press {Name(ControllerControl.B)} to close.";
             return;
         }
 
@@ -557,13 +609,13 @@ public sealed class MainframeViewModel : ViewModelBase
         IsListening = false;
         if (string.IsNullOrWhiteSpace(text))
         {
-            VoiceStatus = "Nothing recognized — press Y to try again, B to close.";
+            VoiceStatus = $"Nothing recognized — press {Name(ControllerControl.Y)} to try again, {Name(ControllerControl.B)} to close.";
             return;
         }
 
         _hasTranscript = true;
         Transcript = text;
-        VoiceStatus = "Press A to send · Y to retry · B to discard.";
+        VoiceStatus = $"Press {Name(ControllerControl.A)} to send · {Name(ControllerControl.Y)} to retry · {Name(ControllerControl.B)} to discard.";
     }
 
     private void ConfirmVoice()

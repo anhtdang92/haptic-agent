@@ -221,9 +221,14 @@ public sealed class MainViewModel : ViewModelBase
             if (Set(ref _workspacePath, value))
             {
                 Raise(nameof(WorkspaceName));
+                Raise(nameof(WindowTitle));
             }
         }
     }
+
+    /// <summary>Taskbar/Alt-Tab identity: which workspace this window drives.</summary>
+    public string WindowTitle =>
+        string.IsNullOrWhiteSpace(_workspacePath) ? "CtrlAgent" : $"CtrlAgent — {WorkspaceName}";
 
     /// <summary>Just the folder name — the full path is a tooltip, not a label.</summary>
     public string WorkspaceName
@@ -351,11 +356,14 @@ public sealed class MainViewModel : ViewModelBase
             IsControllerSearching = false;
 
             // Re-coach against what this pad can actually send, and show only
-            // the bindings it can reach.
+            // the bindings it can reach. The chip language follows the pad:
+            // Sony shapes on a DualSense, Xbox letters otherwise — set before
+            // the rows rebuild so their tokens are minted in the right flavor.
             _capabilities = snapshot.Capabilities;
+            ChordToken.PlayStation = snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal);
             Buddy.SetCapabilities(snapshot.Capabilities);
             RefreshBindingRows();
-            ControllerVisual.SetPlayStationFlavor(snapshot.Id.StartsWith("dualsense", StringComparison.Ordinal));
+            ControllerVisual.SetPlayStationFlavor(ChordToken.PlayStation);
         });
         engine.ControllerInputReceived += inputEvent => Post(() =>
         {

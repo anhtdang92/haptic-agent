@@ -1027,24 +1027,56 @@
                          Foreground="#4C6A93"
                          HorizontalAlignment="Center" />
             </StackPanel>
-            <ScrollViewer x:Name="MainframeDiffScroller" HorizontalScrollBarVisibility="Auto">
-              <ItemsControl x:Name="MainframeDiffList" ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="gui:DiffRow">
-                    <Border Background="{Binding Background}"
-                            Margin="{Binding Margin}"
-                            Padding="10,2"
-                            CornerRadius="3">
-                      <TextBlock Text="{Binding Text}"
-                                 FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="14"
-                                 FontWeight="{Binding Weight}"
-                                 Foreground="{Binding Foreground}" />
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
+            <Grid ColumnDefinitions="Auto,*">
+              <!-- File rail: the map of a many-file diff. The d-pad steps
+                   through it (down = next file), a mouse can click it, and
+                   the current file stays highlighted. Shown only when there
+                   is more than one file to jump between. -->
+              <Border Grid.Column="0"
+                      IsVisible="{Binding Main.HasDiffFiles}"
+                      BorderBrush="#1A7DD3FC"
+                      BorderThickness="0,0,1,0"
+                      Margin="0,0,14,0"
+                      Padding="0,0,12,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Width="270">
+                  <ItemsControl ItemsSource="{Binding Main.DiffFiles}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="gui:DiffFileLink">
+                        <Button Command="{Binding Jump}"
+                                Classes="filelink"
+                                Classes.current="{Binding IsCurrent}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                ToolTip.Tip="{Binding Headline}">
+                          <TextBlock Text="{Binding Headline}"
+                                     FontFamily="Cascadia Mono,Consolas,monospace"
+                                     FontSize="13"
+                                     TextTrimming="CharacterEllipsis" />
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </Border>
+              <ScrollViewer Grid.Column="1" x:Name="MainframeDiffScroller" HorizontalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="MainframeDiffList" ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="gui:DiffRow">
+                      <Border Background="{Binding Background}"
+                              Margin="{Binding Margin}"
+                              Padding="10,2"
+                              CornerRadius="3">
+                        <TextBlock Text="{Binding Text}"
+                                   FontFamily="Cascadia Mono,Consolas,monospace"
+                                   FontSize="14"
+                                   FontWeight="{Binding Weight}"
+                                   Foreground="{Binding Foreground}" />
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
           </Panel>
         </DockPanel>
       </Border>

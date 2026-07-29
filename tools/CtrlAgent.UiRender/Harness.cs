@@ -222,16 +222,20 @@ internal static class Harness
             new DiffFile("assets/logo.png", DiffFileChange.Modified, true, 0, 0, []),
         ]);
 
+        // The diff overlay is Mainframe's — the main window is mission
+        // control and no longer reviews code.
         var reviewing = new MainViewModel(engine, options);
         reviewing.AttachEngine(engine);
         reviewing.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         reviewing.AgentStatus = "claude";
         reviewing.IsDiffVisible = true;
         reviewing.PresentDiff(sampleChanges);
-        Render(new MainWindow { DataContext = reviewing }, "18-diff-review.png",
+        Render(new MainframeWindow { DataContext = new MainframeViewModel(reviewing) },
+            "18-diff-review.png", 1600, 900,
+            afterShow: HideIntro,
             afterSettle: w =>
             {
-                if (w.FindControl<ScrollViewer>("DiffScroller") is not { } scroller ||
+                if (w.FindControl<ScrollViewer>("MainframeDiffScroller") is not { } scroller ||
                     scroller.Bounds.Height < 40 ||
                     scroller.Extent.Height < 40)
                 {
@@ -266,7 +270,9 @@ internal static class Harness
         cleanTree.AgentStatus = "claude";
         cleanTree.IsDiffVisible = true;
         cleanTree.PresentDiff(new WorkspaceChanges([]));
-        Render(new MainWindow { DataContext = cleanTree }, "19-diff-clean.png");
+        Render(new MainframeWindow { DataContext = new MainframeViewModel(cleanTree) },
+            "19-diff-clean.png", 1600, 900,
+            afterShow: HideIntro);
 
         // The boot sequence, sampled across its timeline. The animation clock
         // DOES advance here — Pump sleeps in real time between render ticks —
@@ -369,14 +375,17 @@ internal static class Harness
 
         // A markdown-rich agent reply, injected directly: the mock agent
         // speaks plain prose, and this shot is what proves bold, inline code,
-        // bullets, and a fenced block actually render as styled blocks.
+        // bullets, and a fenced block actually render as styled blocks. The
+        // conversation renders only in Mainframe now — the main window is
+        // mission control and has no chat surface.
         chat.Transcript.Add(new ChatMessage
         {
             IsUser = false,
             IsActivity = false,
             Text = "Here is the plan:\n\n## Mapping fix\n- Prefer **chords** over plain buttons in `MappingEngine.Process`\n- Keep *eligibility* filtering last\n\n```csharp\nvar commands = engine.Process(input);\n```",
         });
-        Render(new MainWindow { DataContext = chat }, "06-conversation.png");
+        Render(new MainframeWindow { DataContext = mainframeChat }, "06-conversation.png", 1600, 900,
+            afterShow: HideIntro);
 
         // First-run setup overlay.
         var setup = new MainViewModel(null, options) { IsSetupVisible = true };

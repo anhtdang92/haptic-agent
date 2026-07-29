@@ -36,46 +36,6 @@
         </Animation>
       </Style.Animations>
     </Style>
-    <!-- Conversation view: prose as chat bubbles, tool/status lines as
-         small dim activity rows — the Claude-app layout -->
-    <Style Selector="ListBox.chat ListBoxItem">
-      <Setter Property="Padding" Value="4,3" />
-      <Setter Property="MinHeight" Value="0" />
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    </Style>
-    <!-- Chat rows are content, not choices: hover and selection chrome made
-         the transcript flicker like a menu under the pointer. -->
-    <Style Selector="ListBox.chat ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="ListBox.chat ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="ListBox.chat ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="ListBox.chat ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="Border.bubble">
-      <Setter Property="Background" Value="#CC17233C" />
-      <Setter Property="BorderBrush" Value="#1FFFFFFF" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="12" />
-      <Setter Property="Padding" Value="12,8" />
-      <Setter Property="MaxWidth" Value="640" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-    </Style>
-    <Style Selector="Border.bubble.user">
-      <Setter Property="HorizontalAlignment" Value="Right" />
-      <Setter Property="Background" Value="#33194B66" />
-      <Setter Property="BorderBrush" Value="#5900D4FF" />
-    </Style>
-    <Style Selector="TextBlock.activityRow">
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="#7B93BC" />
-      <Setter Property="Margin" Value="2,0" />
-    </Style>
   </Window.Styles>
 
   <Panel>
@@ -118,12 +78,6 @@
               <!-- Stroked Path icons, never text glyphs: the app ships Inter,
                    which has none of the dingbats these buttons used, and the
                    Windows fallback drew them as blobs and boxes. -->
-              <Button Classes="tool" Command="{Binding ShowDiffCommand}"
-                      ToolTip.Tip="Review the workspace changes — every pending edit, before you approve more (Esc closes)">
-                <Path Classes="icon" Width="14" Height="14"
-                      Data="M5,3.5 H3 V14.5 H5 M13,3.5 H15 V14.5 H13 M9,5.5 V9.5 M7,7.5 H11 M7,12 H11" />
-              </Button>
-              <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
               <Button Classes="tool" Command="{Binding NewSessionCommand}"
                       ToolTip.Tip="Start a fresh session (Menu on the controller)">
                 <Path Classes="icon" Width="14" Height="14"
@@ -142,6 +96,32 @@
               <Button Classes="tool" Click="OnToggleOverlay" ToolTip.Tip="Toggle the always-on-top HUD">
                 <Path Classes="icon" Width="14" Height="14"
                       Data="M9,3 L15,6.5 L9,10 L3,6.5 Z M4,10.5 L9,13.5 L14,10.5" />
+              </Button>
+              <!-- Mic picker: which device dictation listens on. A setup
+                   concern, so it lives in the rail — in-app because
+                   System.Speech only follows the Windows default otherwise,
+                   and "change your OS sound settings" is not a feature. -->
+              <Button x:Name="MicPickButton"
+                      Classes="tool"
+                      Click="OnPickMicrophone"
+                      ToolTip.Tip="Choose which microphone dictation uses">
+                <Path Classes="icon" Width="14" Height="14"
+                      Data="M9,2.5 A2.6,2.6 0 0 1 11.6,5.1 L11.6,9.4 A2.6,2.6 0 0 1 6.4,9.4
+                            L6.4,5.1 A2.6,2.6 0 0 1 9,2.5 Z
+                            M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
+                            M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
+                <FlyoutBase.AttachedFlyout>
+                  <MenuFlyout ItemsSource="{Binding Microphones}">
+                    <MenuFlyout.ItemContainerTheme>
+                      <ControlTheme TargetType="MenuItem"
+                                    BasedOn="{StaticResource {x:Type MenuItem}}"
+                                    x:DataType="gui:MicrophoneChoice">
+                        <Setter Property="Header" Value="{Binding Label}" />
+                        <Setter Property="Command" Value="{Binding SelectCommand}" />
+                      </ControlTheme>
+                    </MenuFlyout.ItemContainerTheme>
+                  </MenuFlyout>
+                </FlyoutBase.AttachedFlyout>
               </Button>
               <Button Classes="tool" Click="OnEditProfile"
                       ToolTip.Tip="Edit controller bindings with live validation">
@@ -243,350 +223,77 @@
       </StackPanel>
     </Border>
 
-    <!-- Sessions + conversation + controller hub fill the middle -->
-    <!-- The composer lives INSIDE the conversation card below, not docked to
-         the window: it is part of the chat column, the way the Claude app
-         draws it — a full-width box under the sessions rail and the
-         controller hub claimed a relationship to both that it does not have. -->
-    <Grid ColumnDefinitions="Auto,3*,2*" Margin="0,14,0,10">
+    <!-- Mission control's two columns: Mainframe CTA + events, controller hub -->
+    <Grid ColumnDefinitions="3*,2*" Margin="0,14,0,10">
 
-      <!-- Recents sidebar (Claude-app style): every session the agent's
-           on-disk store knows for this workspace, newest first — click one to
-           resume it. Auto column, so hiding it (non-Claude adapters have no
-           readable store yet) collapses the space entirely. -->
-      <Border Grid.Column="0"
-              Classes="card"
-              Padding="12,14"
-              Margin="0,0,9,0"
-              Width="212"
-              IsVisible="{Binding IsSessionListVisible}">
-        <Border.Styles>
-          <Style Selector="Button.sessionRow">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Padding" Value="9,7" />
-            <Setter Property="Margin" Value="0,0,0,6" />
-            <Setter Property="CornerRadius" Value="8" />
-          </Style>
-          <Style Selector="Button.sessionRow.current">
-            <Setter Property="BorderBrush" Value="#5900D4FF" />
-            <Setter Property="Background" Value="#1400D4FF" />
-          </Style>
-        </Border.Styles>
-        <DockPanel>
-          <DockPanel DockPanel.Dock="Top" Margin="4,0,0,8">
-            <Button DockPanel.Dock="Right"
-                    Classes="ghost"
-                    Padding="8,5"
-                    Command="{Binding RefreshSessionsCommand}"
-                    ToolTip.Tip="Refresh the session list">
-              <Path Classes="icon"
-                    Data="M14.2,9 A5.2,5.2 0 1 1 12.7,5.3 M12.7,2.6 L12.7,5.6 L9.7,5.6" />
+      <!-- Column 0: the Mainframe call-to-action on top, the event stream
+           underneath. This window is mission control — set up, verify, then
+           go where the work happens. Coding lives in Mainframe only (owner's
+           call); nothing here submits prompts or answers approvals. -->
+      <Grid RowDefinitions="Auto,*" Margin="0,0,9,0">
+
+        <Border Classes="card" Padding="18,16">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Classes="accent" FontSize="14" Padding="20,12"
+                    VerticalAlignment="Center" Click="OnShowMainframe">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <Path Classes="icon" Width="15" Height="15"
+                      Data="M3,6.5 V3 H6.5 M11.5,3 H15 V6.5 M15,11.5 V15 H11.5 M6.5,15 H3 V11.5" />
+                <TextBlock Text="Enter Mainframe" VerticalAlignment="Center" />
+              </StackPanel>
             </Button>
-            <TextBlock Text="SESSIONS" Classes="label" VerticalAlignment="Center" />
+            <StackPanel Spacing="4" VerticalAlignment="Center" Margin="0,0,14,0">
+              <TextBlock Text="MAINFRAME" Classes="label" />
+              <TextBlock Text="The coding surface: chat, voice, diff review, approvals — fullscreen and controller-first."
+                         FontSize="12.5" Foreground="#9FB7DF" TextWrapping="Wrap" />
+              <TextBlock Text="F11 · Xbox/PS button · double-press View"
+                         FontSize="11" Foreground="#5A7099"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
           </DockPanel>
-          <Button DockPanel.Dock="Top"
-                  Content="+ New chat"
-                  Classes="ghost"
-                  Foreground="#7DD3FC"
-                  BorderBrush="#3300D4FF"
-                  BorderThickness="1"
-                  CornerRadius="8"
-                  HorizontalAlignment="Stretch"
-                  HorizontalContentAlignment="Center"
-                  Margin="0,0,0,10"
-                  Command="{Binding NewSessionCommand}" />
-          <Panel>
-            <TextBlock Classes="placeholder"
-                       Text="No sessions yet"
-                       IsVisible="{Binding IsSessionsEmpty}" />
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-              <ItemsControl ItemsSource="{Binding Sessions}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="gui:SessionListItem">
-                    <Button Classes="ghost sessionRow"
-                            Classes.current="{Binding IsCurrent}"
-                            Command="{Binding ResumeCommand}"
-                            ToolTip.Tip="{Binding SessionId}">
-                      <StackPanel Spacing="3">
-                        <TextBlock Text="{Binding Title}"
-                                   TextWrapping="Wrap"
-                                   MaxLines="2"
-                                   TextTrimming="CharacterEllipsis"
-                                   FontSize="11.5"
-                                   Foreground="#D7E4FA" />
-                        <TextBlock Text="{Binding WhenLabel}"
-                                   FontSize="10"
-                                   Foreground="#5A7099" />
-                      </StackPanel>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Panel>
-        </DockPanel>
-      </Border>
+        </Border>
 
-      <Border Grid.Column="1" Classes="card" Padding="16,14" Margin="0,0,9,0">
-        <DockPanel>
-          <DockPanel DockPanel.Dock="Top" Margin="4,0,0,6">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
-              <ToggleButton Classes="chip"
-                            Content="conversation"
-                            IsChecked="{Binding IsChatView}"
-                            ToolTip.Tip="Toggle between the conversation and the raw event stream" />
-              <ToggleButton Classes="chip"
+        <!-- The diagnostics stream: what the engine, controller, and agent
+             are doing, severity-tinted. This window watches the machinery;
+             the conversation lives in Mainframe. -->
+        <Border Grid.Row="1" Classes="card" Padding="16,14" Margin="0,12,0,0">
+          <DockPanel>
+            <DockPanel DockPanel.Dock="Top" Margin="4,0,0,6">
+              <ToggleButton DockPanel.Dock="Right" Classes="chip"
                             Content="controller input"
                             IsChecked="{Binding ShowControllerEvents}"
-                            IsVisible="{Binding !IsChatView}"
                             ToolTip.Tip="Show or hide raw controller input lines" />
-            </StackPanel>
-            <TextBlock Text="ACTIVITY" Classes="label" VerticalAlignment="Center" />
+              <TextBlock Text="EVENTS" Classes="label" VerticalAlignment="Center" />
+            </DockPanel>
+            <Panel>
+              <TextBlock Classes="placeholder"
+                         Text="No events yet — controller and agent activity will stream here."
+                         IsVisible="{Binding IsLogEmpty}" />
+              <ListBox x:Name="EventStream"
+                       ItemsSource="{Binding Log}"
+                       FontFamily="Cascadia Mono,Consolas,monospace"
+                       FontSize="12">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="6,2" />
+                    <Setter Property="MinHeight" Value="0" />
+                  </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="gui:LogEntry">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding Timestamp}" Foreground="#5A7099" />
+                      <TextBlock Text="{Binding Message}"
+                                 Foreground="{Binding Brush}"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Panel>
           </DockPanel>
-
-          <!-- ===================== COMPOSER =====================
-               The bottom of the conversation itself: replies stream in
-               directly above the box that answers them. Box on top, actions
-               underneath — the column is narrower than the window, and a
-               side-by-side row squeezed the box into a slot. One primary
-               action: Interrupt appears (icon-only) while a turn is live. -->
-          <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,10,0,0">
-            <TextBox Text="{Binding PromptText}"
-                     FontSize="14"
-                     Padding="14,10"
-                     AcceptsReturn="True"
-                     AcceptsTab="False"
-                     TextWrapping="Wrap"
-                     MaxHeight="132"
-                     VerticalContentAlignment="Top"
-                     x:Name="PromptBox"
-                     Watermark="Ask the agent anything — Enter submits, Shift+Enter for a new line" />
-            <DockPanel>
-              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
-                          VerticalAlignment="Center">
-                <Button Command="{Binding StartVoiceCommand}" Padding="12,8"
-                        ToolTip.Tip="Speak a prompt (Y on the controller)">
-                  <Path Classes="icon"
-                        Data="M9,2.5 A2.6,2.6 0 0 1 11.6,5.1 L11.6,9.4 A2.6,2.6 0 0 1 6.4,9.4
-                              L6.4,5.1 A2.6,2.6 0 0 1 9,2.5 Z
-                              M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
-                              M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
-                </Button>
-                <!-- Mic picker: which device the dictation listens on.
-                     In-app because System.Speech only follows the Windows
-                     default otherwise, and "change your OS sound settings"
-                     is not a feature. -->
-                <Button x:Name="MicPickButton"
-                        Padding="6,8"
-                        Click="OnPickMicrophone"
-                        ToolTip.Tip="Choose which microphone dictation uses">
-                  <Path Classes="icon" Width="10" Height="10" Data="M4,7 L9,12 L14,7" />
-                  <FlyoutBase.AttachedFlyout>
-                    <MenuFlyout ItemsSource="{Binding Microphones}">
-                      <MenuFlyout.ItemContainerTheme>
-                        <ControlTheme TargetType="MenuItem"
-                                      BasedOn="{StaticResource {x:Type MenuItem}}"
-                                      x:DataType="gui:MicrophoneChoice">
-                          <Setter Property="Header" Value="{Binding Label}" />
-                          <Setter Property="Command" Value="{Binding SelectCommand}" />
-                        </ControlTheme>
-                      </MenuFlyout.ItemContainerTheme>
-                    </MenuFlyout>
-                  </FlyoutBase.AttachedFlyout>
-                </Button>
-                <Button Command="{Binding AttachFileCommand}" Padding="12,8"
-                        ToolTip.Tip="Attach files for the next prompt (LB+X on the controller)">
-                  <Path Classes="icon"
-                        Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
-                              A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
-                </Button>
-                <Button Classes="deny" Padding="12,8"
-                        Command="{Binding InterruptCommand}"
-                        IsVisible="{Binding IsAgentActive}"
-                        ToolTip.Tip="Stop the current turn (B on the controller)">
-                  <Path Classes="icon" Width="11" Height="11"
-                        Data="M4.5,4.5 H13.5 V13.5 H4.5 Z" />
-                </Button>
-                <Button Content="Submit" Classes="accent" FontSize="13.5" Padding="20,8"
-                        Command="{Binding SubmitPromptCommand}" />
-              </StackPanel>
-              <Border Background="#33FFB020" BorderBrush="#66FFB020" BorderThickness="1"
-                      CornerRadius="8" Padding="8,2"
-                      HorizontalAlignment="Left" VerticalAlignment="Center"
-                      IsVisible="{Binding HasQueuedPrompts}"
-                      ToolTip.Tip="Prompts waiting to send when the current turn ends">
-                <TextBlock Text="{Binding QueuedPromptLabel}" FontSize="10" Foreground="#FFD9A0" />
-              </Border>
-            </DockPanel>
-          </StackPanel>
-
-          <!-- Attached files: directly above the prompt because they are part
-               of what the next Submit sends, not a separate thing that
-               happened. -->
-          <Border DockPanel.Dock="Bottom"
-                  Background="#4D0E1728"
-                  BorderBrush="#1FFFFFFF"
-                  BorderThickness="1"
-                  CornerRadius="10"
-                  Padding="12,8"
-                  Margin="0,8,0,0"
-                  IsVisible="{Binding HasAttachments}">
-            <DockPanel>
-              <Button DockPanel.Dock="Right"
-                      Classes="ghost"
-                      Content="Clear"
-                      FontSize="11"
-                      Command="{Binding ClearAttachmentsCommand}" />
-              <Path DockPanel.Dock="Left"
-                    Classes="icon"
-                    Width="14" Height="14"
-                    VerticalAlignment="Center"
-                    Margin="0,0,8,0"
-                    Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
-                          A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
-              <StackPanel Spacing="3">
-                <TextBlock Text="{Binding AttachmentLabel}" Classes="label" FontSize="9" />
-                <ItemsControl ItemsSource="{Binding Attachments}">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="x:String">
-                      <Border Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
-                              CornerRadius="6" Padding="7,2">
-                        <TextBlock Text="{Binding}"
-                                   FontSize="11"
-                                   Foreground="#B9CCEF"
-                                   MaxWidth="320"
-                                   TextTrimming="CharacterEllipsis" />
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </DockPanel>
-          </Border>
-
-          <!-- Approval banner: directly above the input area, where the eye
-               already rests between reading and typing — the same place the
-               Claude app raises its own permission prompts. -->
-          <Border DockPanel.Dock="Bottom"
-                  Classes="alert approvalBanner"
-                  Classes.show="{Binding HasPendingApproval}"
-                  Margin="0,12,0,0"
-                  Padding="14,10"
-                  BoxShadow="0 6 28 0 #66FFB020"
-                  IsVisible="{Binding HasPendingApproval}">
-            <!-- The chat column is too narrow for message-plus-buttons on one
-                 line: heading and message read first, the answers sit on
-                 their own row beneath, wrapping when four do not fit. -->
-            <StackPanel Spacing="8">
-              <DockPanel>
-                <TextBlock DockPanel.Dock="Left"
-                           Text="APPROVAL REQUIRED"
-                           Classes="label"
-                           Foreground="#FFD9A0"
-                           Opacity="1"
-                           Margin="0,0,10,0"
-                           VerticalAlignment="Center" />
-                <TextBlock Text="{Binding PendingApprovalMessage}"
-                           VerticalAlignment="Center"
-                           TextWrapping="Wrap"
-                           TextTrimming="CharacterEllipsis"
-                           MaxLines="2"
-                           Foreground="#FFEFD6" />
-              </DockPanel>
-              <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
-                <Button Content="Approve once" Classes="approve" Command="{Binding ApproveOnceCommand}" />
-                <Button Content="Approve for session" Classes="approve" Command="{Binding ApproveSessionCommand}" />
-                <Button Content="Decline" Classes="deny" Command="{Binding DeclineCommand}" />
-                <Button Content="Cancel" Classes="deny" Command="{Binding CancelCommand}" />
-              </WrapPanel>
-            </StackPanel>
-          </Border>
-          <Panel>
-
-          <!-- Conversation: what you said, what the agent replied, and what
-               it did in between -->
-          <Panel IsVisible="{Binding IsChatView}">
-          <!-- Empty state: one quiet line and one hint, centered in the
-               space. A long sentence floating in a void reads as an error. -->
-          <StackPanel Spacing="7"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      IsVisible="{Binding IsTranscriptEmpty}">
-            <Path Classes="icon" Width="34" Height="34"
-                  Stroke="#3D7DD3FC" StrokeThickness="1.3"
-                  HorizontalAlignment="Center"
-                  Data="M3,4.5 H15 A1.5,1.5 0 0 1 16.5,6 V12 A1.5,1.5 0 0 1 15,13.5
-                        H8 L4.5,16.5 V13.5 H3 A1.5,1.5 0 0 1 1.5,12 V6 A1.5,1.5 0 0 1 3,4.5 Z
-                        M5.5,8 H12.5 M5.5,10.5 H10" />
-            <TextBlock Text="Nothing yet"
-                       FontSize="13"
-                       Foreground="#7B93BC"
-                       HorizontalAlignment="Center" />
-            <TextBlock Text="Type a prompt, or press A on the controller"
-                       FontSize="11.5"
-                       Foreground="#4C6A93"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       MaxWidth="260"
-                       HorizontalAlignment="Center" />
-          </StackPanel>
-          <ListBox x:Name="ChatList"
-                   Classes="chat"
-                   ItemsSource="{Binding Transcript}">
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="gui:ChatMessage">
-                <Panel>
-                  <TextBlock Classes="activityRow"
-                             Text="{Binding Text}"
-                             TextWrapping="Wrap"
-                             IsVisible="{Binding IsActivity}" />
-                  <Border Classes="bubble"
-                          Classes.user="{Binding IsUser}"
-                          IsVisible="{Binding !IsActivity}">
-                    <gui:MarkdownView Markdown="{Binding Text}" />
-                  </Border>
-                </Panel>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-          </Panel>
-
-          <Panel IsVisible="{Binding !IsChatView}">
-          <TextBlock Classes="placeholder"
-                     Text="No events yet — controller and agent activity will stream here."
-                     IsVisible="{Binding IsLogEmpty}" />
-          <ListBox x:Name="EventStream"
-                   ItemsSource="{Binding Log}"
-                   FontFamily="Cascadia Mono,Consolas,monospace"
-                   FontSize="12">
-            <ListBox.Styles>
-              <Style Selector="ListBoxItem">
-                <Setter Property="Padding" Value="6,2" />
-                <Setter Property="MinHeight" Value="0" />
-              </Style>
-            </ListBox.Styles>
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="gui:LogEntry">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Text="{Binding Timestamp}" Foreground="#5A7099" />
-                  <TextBlock Text="{Binding Message}"
-                             Foreground="{Binding Brush}"
-                             TextWrapping="Wrap" />
-                </StackPanel>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-          </Panel>
-
-          </Panel>
-        </DockPanel>
-      </Border>
+        </Border>
+      </Grid>
 
       <!-- ===================== CONTROLLER HUB =====================
            One card, one subject: the companion that coaches the pad, the pad
@@ -596,7 +303,7 @@
            question "what can my controller do". Fixed rows for the bot and
            mirror, star row for the shortcuts — the list absorbs short
            windows instead of the mirror eating the column. -->
-      <Grid Grid.Column="2" Margin="9,0,0,0">
+      <Grid Grid.Column="1" Margin="9,0,0,0">
         <Border Classes="card" Padding="16,14">
           <Grid RowDefinitions="Auto,Auto,Auto,*">
 
@@ -798,123 +505,6 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </ScrollViewer>
-      </DockPanel>
-    </Border>
-  </Border>
-
-  <!-- ===================== DIFF REVIEW =====================
-       What has actually changed in the workspace, before more of it is
-       approved. An overlay rather than a card in the grid because reviewing
-       is a mode: while you are deciding, the diff deserves the whole window,
-       and Esc (or ✕) puts the conversation back. Right stick pages it while
-       it is open — the same binding that pages the agent feed. -->
-  <Border IsVisible="{Binding IsDiffVisible}" Background="#CC05080F">
-    <!-- Opaque, unlike the shared .card: code is read, not glanced at, and
-         the composer bleeding through the diff text made both unreadable. -->
-    <Border Classes="card"
-            Background="#F70B1424"
-            Margin="44,52"
-            Padding="18,14">
-      <DockPanel>
-        <DockPanel DockPanel.Dock="Top" Margin="4,0,0,10">
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-            <Button Classes="ghost" Content="Refresh" Command="{Binding RefreshDiffCommand}"
-                    ToolTip.Tip="Re-read the workspace" />
-            <Button Classes="ghost" Content="Ask agent to review" Command="{Binding ReviewCommand}"
-                    ToolTip.Tip="Have the agent critique its own changes (X on the controller)" />
-            <Button Classes="tool" Command="{Binding CloseDiffCommand}" ToolTip.Tip="Close (Esc)">
-              <Path Classes="icon" Width="12" Height="12"
-                    Data="M4.5,4.5 L13.5,13.5 M13.5,4.5 L4.5,13.5" />
-            </Button>
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-            <TextBlock Text="CHANGES" Classes="label" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding DiffSummary}"
-                       FontSize="12.5"
-                       Foreground="#7DD3FC"
-                       VerticalAlignment="Center" />
-            <TextBlock Text="Ctrl+↑/↓ jumps files"
-                       FontSize="11.5"
-                       Foreground="#5A7099"
-                       VerticalAlignment="Center"
-                       IsVisible="{Binding HasDiffFiles}" />
-          </StackPanel>
-        </DockPanel>
-
-        <TextBlock DockPanel.Dock="Top"
-                   Text="{Binding DiffError}"
-                   Foreground="#FF7A8C"
-                   FontSize="12.5"
-                   TextWrapping="Wrap"
-                   Margin="4,0,0,8"
-                   IsVisible="{Binding HasDiffError}" />
-
-        <Panel>
-          <StackPanel Spacing="7"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      IsVisible="{Binding IsDiffClean}">
-            <Ellipse Width="34" Height="34" HorizontalAlignment="Center"
-                     Fill="#1234F5A4" Stroke="#3334F5A4" StrokeThickness="1" />
-            <TextBlock Text="Nothing to review"
-                       FontSize="13"
-                       Foreground="#7B93BC"
-                       HorizontalAlignment="Center" />
-            <TextBlock Text="The working tree matches the last commit"
-                       FontSize="11.5"
-                       Foreground="#4C6A93"
-                       HorizontalAlignment="Center" />
-          </StackPanel>
-          <Grid ColumnDefinitions="Auto,*">
-            <!-- File rail: one click per file, so a many-file diff is not one
-                 long scroll with no map. Shown only when there is more than
-                 one file to jump between. -->
-            <Border Grid.Column="0"
-                    IsVisible="{Binding HasDiffFiles}"
-                    BorderBrush="#1A7DD3FC"
-                    BorderThickness="0,0,1,0"
-                    Margin="0,0,12,0"
-                    Padding="0,0,10,0">
-              <ScrollViewer VerticalScrollBarVisibility="Auto" Width="230">
-                <ItemsControl ItemsSource="{Binding DiffFiles}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="gui:DiffFileLink">
-                      <Button Command="{Binding Jump}"
-                              Classes="filelink"
-                              Classes.current="{Binding IsCurrent}"
-                              HorizontalAlignment="Stretch"
-                              HorizontalContentAlignment="Left"
-                              ToolTip.Tip="{Binding Headline}">
-                        <TextBlock Text="{Binding Headline}"
-                                   FontFamily="Cascadia Mono,Consolas,monospace"
-                                   FontSize="11.5"
-                                   TextTrimming="CharacterEllipsis" />
-                      </Button>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </ScrollViewer>
-            </Border>
-            <ScrollViewer Grid.Column="1" x:Name="DiffScroller" HorizontalScrollBarVisibility="Auto">
-              <ItemsControl x:Name="DiffList" ItemsSource="{Binding DiffRows}" Margin="4,0">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="gui:DiffRow">
-                    <Border Background="{Binding Background}"
-                            Margin="{Binding Margin}"
-                            Padding="8,1"
-                            CornerRadius="3">
-                      <TextBlock Text="{Binding Text}"
-                                 FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="12"
-                                 FontWeight="{Binding Weight}"
-                                 Foreground="{Binding Foreground}" />
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Grid>
-        </Panel>
       </DockPanel>
     </Border>
   </Border>

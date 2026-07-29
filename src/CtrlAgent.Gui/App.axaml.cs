@@ -506,46 +506,38 @@ public sealed class App : Application
         {
             _viewModel.AddAttachments(paths);
             _viewModel.AppendLog($"Attached {paths.Count} file(s) for the next prompt.");
+
+            // The attachment chips render in Mainframe's composer — the only
+            // composer there is. Picking files from mission control opens the
+            // surface where they are visible and where the prompt they ride
+            // will be written.
+            if (_mainframe is not { IsVisible: true })
+            {
+                ShowMainframe();
+            }
         }
     }
 
     /// <summary>
-    /// Dictates into the prompt box. When Mainframe owns the screen it runs
-    /// its own voice overlay instead — that surface shows the transcript large
-    /// enough to read from a couch and lets the pad confirm or discard it.
+    /// Routes a voice-prompt request to Mainframe's voice overlay, opening
+    /// Mainframe first if it is not on screen. Coding — prompts included —
+    /// happens only there; the main window is mission control and has no
+    /// prompt box for dictation to land in.
     /// </summary>
-    public async Task DictateIntoPromptAsync()
+    public Task DictateIntoPromptAsync()
     {
         if (_viewModel is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        if (_mainframe is { IsVisible: true } fullscreen)
+        if (_mainframe is not { IsVisible: true })
         {
-            fullscreen.StartVoiceFromBinding();
-            return;
+            ShowMainframe();
         }
 
-        using var speech = new SpeechToTextService();
-        if (!speech.EnsureInitialized())
-        {
-            _viewModel.AppendLog($"[error] Voice input unavailable: {speech.UnavailableReason}");
-            return;
-        }
-
-        _viewModel.AppendLog("Listening… speak your prompt.");
-        var heard = await speech.RecognizeOnceAsync();
-        if (string.IsNullOrWhiteSpace(heard))
-        {
-            _viewModel.AppendLog("Nothing was heard.");
-            return;
-        }
-
-        // Appended, not replaced: dictation often tops up something typed.
-        _viewModel.PromptText = string.IsNullOrWhiteSpace(_viewModel.PromptText)
-            ? heard
-            : $"{_viewModel.PromptText} {heard}";
+        _mainframe?.StartVoiceFromBinding();
+        return Task.CompletedTask;
     }
 
     private Window? OwnerWindow()

@@ -28,6 +28,7 @@ public sealed partial class MainframeWindow : Window
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
+        Closed += OnClosed;
         SizeChanged += (_, _) => ApplyResponsiveLayout();
 
         // Enter sends while Shift+Enter inserts a line break. Tunnel because
@@ -42,29 +43,7 @@ public sealed partial class MainframeWindow : Window
             Cursor = reticle;
         }
 
-        DataContextChanged += (_, _) =>
-        {
-            if (DataContext is MainframeViewModel viewModel && !ReferenceEquals(viewModel, _observed))
-            {
-                if (_observed is not null)
-                {
-                    _observed.FeedScrollRequested -= OnFeedScroll;
-                    _observed.FocusMoved -= OnFocusMoved;
-                    _observed.ControllerPressed -= SkipIntro;
-                    _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
-                    _observed.Main.TranscriptStreamed -= OnFeedStreamed;
-                    _observed.Main.DiffJumpRequested -= OnDiffJump;
-                }
-
-                _observed = viewModel;
-                viewModel.FocusMoved += OnFocusMoved;
-                viewModel.FeedScrollRequested += OnFeedScroll;
-                viewModel.ControllerPressed += SkipIntro;
-                viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
-                viewModel.Main.TranscriptStreamed += OnFeedStreamed;
-                viewModel.Main.DiffJumpRequested += OnDiffJump;
-            }
-        };
+        DataContextChanged += (_, _) => ObserveViewModel();
 
         // Any pointer input dismisses the cinematic immediately. The intro is
         // atmosphere, never a gate between the user and their work.
@@ -93,6 +72,46 @@ public sealed partial class MainframeWindow : Window
             IntroOverlay.IsVisible = false;
             FocusPromptWhenReady();
         };
+    }
+
+    private void ObserveViewModel()
+    {
+        if (DataContext is not MainframeViewModel viewModel || ReferenceEquals(viewModel, _observed))
+        {
+            return;
+        }
+
+        DetachObservedViewModel();
+        _observed = viewModel;
+        viewModel.FocusMoved += OnFocusMoved;
+        viewModel.FeedScrollRequested += OnFeedScroll;
+        viewModel.ControllerPressed += SkipIntro;
+        viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
+        viewModel.Main.TranscriptStreamed += OnFeedStreamed;
+        viewModel.Main.DiffJumpRequested += OnDiffJump;
+    }
+
+    private void DetachObservedViewModel()
+    {
+        if (_observed is null)
+        {
+            return;
+        }
+
+        _observed.FeedScrollRequested -= OnFeedScroll;
+        _observed.FocusMoved -= OnFocusMoved;
+        _observed.ControllerPressed -= SkipIntro;
+        _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
+        _observed.Main.TranscriptStreamed -= OnFeedStreamed;
+        _observed.Main.DiffJumpRequested -= OnDiffJump;
+        _observed = null;
+    }
+
+    private void OnClosed(object? sender, EventArgs eventArgs)
+    {
+        DetachObservedViewModel();
+        KeyDown -= OnKeyDown;
+        Closed -= OnClosed;
     }
 
     /// <summary>
@@ -365,7 +384,8 @@ public sealed partial class MainframeWindow : Window
 
         // Standard desktop affordances should work independently of the
         // controller navigation vocabulary.
-        if (eventArgs.Key == Key.F11)
+        if (eventArgs.Key == Key.F11 ||
+            (eventArgs.Key == Key.Enter && eventArgs.KeyModifiers.HasFlag(KeyModifiers.Alt)))
         {
             eventArgs.Handled = true;
             ToggleFullscreen();
@@ -388,7 +408,29 @@ public sealed partial class MainframeWindow : Window
                     eventArgs.Handled = true;
                     WindowState = WindowState.Minimized;
                     return;
+                case Key.O:
+                    eventArgs.Handled = true;
+                    viewModel.Main.AttachFileCommand.Execute(null);
+                    return;
+                case Key.N:
+                    eventArgs.Handled = true;
+                    viewModel.Main.NewSessionCommand.Execute(null);
+                    return;
+                case Key.Space when eventArgs.KeyModifiers.HasFlag(KeyModifiers.Alt):
+                    eventArgs.Handled = true;
+                    viewModel.Main.StartVoiceCommand.Execute(null);
+                    return;
             }
+        }
+
+        // Editing the prompt must feel like a normal desktop text editor. In
+        // particular, arrow keys belong to the caret while a TextBox owns
+        // focus; letting them bubble into controller navigation made multiline
+        // prompts jump the HUD instead of moving through text.
+        if (eventArgs.Source is TextBox ||
+            FocusManager?.GetFocusedElement() is TextBox)
+        {
+            return;
         }
 
         var key = eventArgs.Key switch

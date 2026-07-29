@@ -214,6 +214,30 @@ public sealed partial class MainframeWindow : Window
     private void OnToggleSettings(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
         (DataContext as MainframeViewModel)?.ToggleSettings();
 
+    private void OnMinimize(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
+        WindowState = WindowState.Minimized;
+
+    /// <summary>
+    /// Fullscreen is Mainframe's home, not its cage: windowed mode gets real
+    /// system decorations so the OS provides move/resize/minimize, and going
+    /// back to fullscreen drops them again for the clean couch look.
+    /// </summary>
+    private void OnToggleFullscreen(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs)
+    {
+        if (WindowState == WindowState.FullScreen)
+        {
+            SystemDecorations = SystemDecorations.Full;
+            WindowState = WindowState.Normal;
+            Width = 1440;
+            Height = 860;
+        }
+        else
+        {
+            SystemDecorations = SystemDecorations.None;
+            WindowState = WindowState.FullScreen;
+        }
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
     {
         SkipIntro();

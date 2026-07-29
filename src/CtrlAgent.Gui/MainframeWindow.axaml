@@ -439,6 +439,22 @@
               <TextBlock Text="Settings" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <!-- Window controls: Mainframe is a real window, not a kiosk. It
+               can drop to the taskbar mid-turn and come back, or run windowed
+               beside an editor — fullscreen is the default, not a cage. -->
+          <Button Classes="ghost" Padding="9,6" Cursor="Hand"
+                  Click="OnMinimize"
+                  ToolTip.Tip="Minimize to the taskbar">
+            <!-- A Rectangle, not a Path: Path.icon stretches uniformly, and a
+                 zero-height horizontal line collapses to a speck under it. -->
+            <Rectangle Width="13" Height="1.6" Fill="#E8F1FF" VerticalAlignment="Center" />
+          </Button>
+          <Button Classes="ghost" Padding="9,6" Cursor="Hand"
+                  Click="OnToggleFullscreen"
+                  ToolTip.Tip="Toggle fullscreen / windowed">
+            <Path Classes="icon" Width="13" Height="13"
+                  Data="M3,6.5 V3 H6.5 M11.5,3 H15 V6.5 M15,11.5 V15 H11.5 M6.5,15 H3 V11.5" />
+          </Button>
         </StackPanel>
         <Image Source="avares://CtrlAgent.Gui/Assets/logo.png"
                Height="44"

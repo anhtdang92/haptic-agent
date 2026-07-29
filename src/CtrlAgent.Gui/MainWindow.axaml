@@ -9,7 +9,7 @@
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="PreferSystemChrome"
         Width="980"
-        Height="760"
+        Height="840"
         MinWidth="740"
         MinHeight="660">
 
@@ -313,7 +313,7 @@
             <DockPanel Grid.Row="0" Margin="4,0,0,4"
                        DataContext="{Binding Buddy}"
                        x:DataType="gui:AgentBuddyViewModel">
-              <Viewbox DockPanel.Dock="Left" Height="62" Stretch="Uniform" Margin="0,0,10,0">
+              <Viewbox DockPanel.Dock="Left" Height="56" Stretch="Uniform" Margin="0,0,10,0">
                 <gui:BotView />
               </Viewbox>
               <Border Background="#7A17243E"
@@ -334,7 +334,7 @@
                  Series 2 layout: asymmetric sticks, hybrid d-pad disc,
                  notched stick rings, guide button, rear paddle blades. -->
             <gui:ControllerMirrorView Grid.Row="1"
-                                      MaxHeight="185"
+                                      MaxHeight="112"
                                       Margin="0,6,0,0"
                                       DataContext="{Binding ControllerVisual}" />
 
@@ -342,7 +342,7 @@
                  five-row stack on a narrow window, shoving the shortcuts
                  below the fold. Testing rumble is an occasional act; it fits
                  in one flyout. -->
-            <StackPanel Grid.Row="2" Spacing="6" Margin="0,10,0,6">
+            <StackPanel Grid.Row="2" Spacing="5" Margin="0,7,0,4">
               <Rectangle Height="1" Fill="#14FFFFFF" />
               <DockPanel Margin="4,4,0,0">
                 <Button DockPanel.Dock="Right"
@@ -378,10 +378,14 @@
             <TextBlock Classes="placeholder"
                        Text="No bindings — open Profile… to add some."
                        IsVisible="{Binding IsBindingsEmpty}" />
+            <!-- The same chip language as Mainframe's HUD: face buttons as
+                 their colored circles (Sony shapes on a DualSense), the d-pad
+                 as the drawn cross, keycap text for the rest. Two surfaces
+                 describing one pad must describe it the same way. -->
             <ListBox ItemsSource="{Binding VisibleBindings}" FontSize="12">
               <ListBox.Styles>
                 <Style Selector="ListBoxItem">
-                  <Setter Property="Padding" Value="6,3" />
+                  <Setter Property="Padding" Value="6,1.5" />
                   <Setter Property="MinHeight" Value="0" />
                 </Style>
               </ListBox.Styles>
@@ -396,18 +400,51 @@
                             Padding="6,2"
                             MinWidth="60"
                             VerticalAlignment="Center">
-                      <Panel>
-                        <TextBlock Text="{Binding Chord}"
-                                   FontFamily="Cascadia Mono,Consolas,monospace"
-                                   FontSize="10.5"
-                                   Foreground="#7DD3FC"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding !IsDPad}" />
-                        <gui:DPadIcon Width="16" Height="16"
-                                      HorizontalAlignment="Center"
-                                      Direction="{Binding DPadControl}"
-                                      IsVisible="{Binding IsDPad}" />
-                      </Panel>
+                      <ItemsControl ItemsSource="{Binding Tokens}" HorizontalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2.5" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="gui:ChordToken">
+                            <Panel VerticalAlignment="Center">
+                              <TextBlock Text="{Binding Text}"
+                                         FontFamily="Cascadia Mono,Consolas,monospace"
+                                         FontSize="10.5"
+                                         Foreground="#7DD3FC"
+                                         VerticalAlignment="Center"
+                                         IsVisible="{Binding IsText}" />
+                              <Border Width="17" Height="17" CornerRadius="8.5"
+                                      Background="#0B1322"
+                                      BorderThickness="1.3"
+                                      BorderBrush="{Binding FaceBrush}"
+                                      IsVisible="{Binding IsFace}">
+                                <Panel>
+                                  <TextBlock Text="{Binding Text}"
+                                             FontSize="9"
+                                             FontWeight="Bold"
+                                             Foreground="{Binding FaceBrush}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             IsVisible="{Binding IsLetter}" />
+                                  <Path Data="{Binding ShapeData}"
+                                        Stroke="{Binding FaceBrush}"
+                                        StrokeThickness="1.3"
+                                        Width="8.5" Height="8.5"
+                                        Stretch="Uniform"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsVisible="{Binding IsShape}" />
+                                </Panel>
+                              </Border>
+                              <gui:DPadIcon Width="15" Height="15"
+                                            Direction="{Binding Control}"
+                                            IsVisible="{Binding IsDPad}" />
+                            </Panel>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
                     </Border>
                     <Border DockPanel.Dock="Right"
                             Background="#33FFB020"
@@ -473,18 +510,51 @@
                           Padding="8,2"
                           MinWidth="118"
                           VerticalAlignment="Center">
-                    <Panel>
-                      <TextBlock Text="{Binding Chord}"
-                                 FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="13"
-                                 Foreground="#7DD3FC"
-                                 HorizontalAlignment="Center"
-                                 IsVisible="{Binding !IsDPad}" />
-                      <gui:DPadIcon Width="19" Height="19"
-                                    HorizontalAlignment="Center"
-                                    Direction="{Binding DPadControl}"
-                                    IsVisible="{Binding IsDPad}" />
-                    </Panel>
+                    <ItemsControl ItemsSource="{Binding Tokens}" HorizontalAlignment="Center">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" Spacing="3" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="gui:ChordToken">
+                          <Panel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Text}"
+                                       FontFamily="Cascadia Mono,Consolas,monospace"
+                                       FontSize="13"
+                                       Foreground="#7DD3FC"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding IsText}" />
+                            <Border Width="21" Height="21" CornerRadius="10.5"
+                                    Background="#0B1322"
+                                    BorderThickness="1.6"
+                                    BorderBrush="{Binding FaceBrush}"
+                                    IsVisible="{Binding IsFace}">
+                              <Panel>
+                                <TextBlock Text="{Binding Text}"
+                                           FontSize="11.5"
+                                           FontWeight="Bold"
+                                           Foreground="{Binding FaceBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsLetter}" />
+                                <Path Data="{Binding ShapeData}"
+                                      Stroke="{Binding FaceBrush}"
+                                      StrokeThickness="1.5"
+                                      Width="11" Height="11"
+                                      Stretch="Uniform"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      IsVisible="{Binding IsShape}" />
+                              </Panel>
+                            </Border>
+                            <gui:DPadIcon Width="18" Height="18"
+                                          Direction="{Binding Control}"
+                                          IsVisible="{Binding IsDPad}" />
+                          </Panel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                   </Border>
                   <Border DockPanel.Dock="Right"
                           Background="#33FFB020"

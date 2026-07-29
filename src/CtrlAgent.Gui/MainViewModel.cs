@@ -278,8 +278,12 @@ public sealed class MainViewModel : ViewModelBase
         IsDiffVisible = false;
         _isDiffLoading = false;
         DiffRows.Clear();
+        DiffFiles.Clear();
+        _diffAnchors = [];
+        _diffFileFocus = -1;
         DiffSummary = string.Empty;
         DiffError = string.Empty;
+        Raise(nameof(HasDiffFiles));
         Raise(nameof(IsDiffClean));
 
         // A new engine means a new session, which starts on the agent's own
@@ -888,6 +892,50 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<DiffRow> DiffRows { get; } = [];
 
+    /// <summary>The panel's file rail: one clickable link per file, jumping
+    /// the row list to that file's header.</summary>
+    public ObservableCollection<DiffFileLink> DiffFiles { get; } = [];
+
+    /// <summary>The rail earns its width only when there is something to
+    /// navigate between — a rail for a single file is furniture.</summary>
+    public bool HasDiffFiles => DiffFiles.Count > 1;
+
+    /// <summary>A jump to the given row index in <see cref="DiffRows"/> —
+    /// whichever window is showing the diff scrolls its own viewer.</summary>
+    public event Action<int>? DiffJumpRequested;
+
+    private IReadOnlyList<DiffAnchor> _diffAnchors = [];
+    private int _diffFileFocus = -1;
+
+    /// <summary>Jumps the panel to a file by rail position.</summary>
+    public void JumpToDiffFile(int fileIndex)
+    {
+        if (fileIndex < 0 || fileIndex >= _diffAnchors.Count)
+        {
+            return;
+        }
+
+        _diffFileFocus = fileIndex;
+        for (var index = 0; index < DiffFiles.Count; index++)
+        {
+            DiffFiles[index].IsCurrent = index == fileIndex;
+        }
+
+        DiffJumpRequested?.Invoke(_diffAnchors[fileIndex].RowIndex);
+    }
+
+    /// <summary>Steps to the next/previous file — the Mainframe d-pad path.
+    /// The first step lands on the first file rather than skipping it.</summary>
+    public void StepDiffFile(int delta)
+    {
+        if (_diffAnchors.Count == 0)
+        {
+            return;
+        }
+
+        JumpToDiffFile(Math.Clamp(_diffFileFocus + delta, 0, _diffAnchors.Count - 1));
+    }
+
     public ICommand ShowDiffCommand { get; }
 
     public ICommand CloseDiffCommand { get; }
@@ -953,12 +1001,26 @@ public sealed class MainViewModel : ViewModelBase
         _isDiffLoading = false;
         DiffError = changes.Error ?? string.Empty;
         DiffSummary = changes.Note is null ? changes.Summary : $"{changes.Summary} · {changes.Note}";
+
+        var (rows, anchors) = DiffPanel.Build(changes);
         DiffRows.Clear();
-        foreach (var row in DiffRow.Build(changes))
+        foreach (var row in rows)
         {
-            DiffRows.Add(row);
+            DiffRows.Add(DiffRow.From(row));
         }
 
+        _diffAnchors = anchors;
+        _diffFileFocus = -1;
+        DiffFiles.Clear();
+        for (var index = 0; index < anchors.Count; index++)
+        {
+            var target = index;
+            DiffFiles.Add(new DiffFileLink(
+                anchors[index].Headline,
+                new RelayCommand(_ => JumpToDiffFile(target))));
+        }
+
+        Raise(nameof(HasDiffFiles));
         Raise(nameof(IsDiffClean));
     }
 

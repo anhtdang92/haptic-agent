@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -121,6 +122,25 @@ public sealed partial class MainWindow : Window
         viewModel.TranscriptStreamed += FollowChatIfAtBottom;
         viewModel.OutputScrollRequested += OnOutputScroll;
         viewModel.ModelPickerRequested += OnModelPickerRequested;
+        viewModel.DiffJumpRequested += OnDiffJump;
+    }
+
+    /// <summary>
+    /// Scrolls the diff to a file's header row — the rail click and the d-pad
+    /// file step both land here. The row's own position is measured rather
+    /// than estimated: rows vary in height (headers carry margins), so
+    /// index-times-line-height would drift on long diffs.
+    /// </summary>
+    private void OnDiffJump(int rowIndex)
+    {
+        if (DiffList.ContainerFromIndex(rowIndex) is not Control container ||
+            container.TranslatePoint(new Avalonia.Point(0, 0), DiffList) is not { } point)
+        {
+            return;
+        }
+
+        var highest = Math.Max(0, DiffScroller.Extent.Height - DiffScroller.Viewport.Height);
+        DiffScroller.Offset = DiffScroller.Offset.WithY(Math.Clamp(point.Y, 0, highest));
     }
 
     // Typed "/model" means "show me the picker" — open the chip's flyout

@@ -849,24 +849,55 @@
                        Foreground="#4C6A93"
                        HorizontalAlignment="Center" />
           </StackPanel>
-          <ScrollViewer x:Name="DiffScroller" HorizontalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding DiffRows}" Margin="4,0">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="gui:DiffRow">
-                  <Border Background="{Binding Background}"
-                          Margin="{Binding Margin}"
-                          Padding="8,1"
-                          CornerRadius="3">
-                    <TextBlock Text="{Binding Text}"
-                               FontFamily="Cascadia Mono,Consolas,monospace"
-                               FontSize="12"
-                               FontWeight="{Binding Weight}"
-                               Foreground="{Binding Foreground}" />
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
+          <Grid ColumnDefinitions="Auto,*">
+            <!-- File rail: one click per file, so a many-file diff is not one
+                 long scroll with no map. Shown only when there is more than
+                 one file to jump between. -->
+            <Border Grid.Column="0"
+                    IsVisible="{Binding HasDiffFiles}"
+                    BorderBrush="#1A7DD3FC"
+                    BorderThickness="0,0,1,0"
+                    Margin="0,0,12,0"
+                    Padding="0,0,10,0">
+              <ScrollViewer VerticalScrollBarVisibility="Auto" Width="230">
+                <ItemsControl ItemsSource="{Binding DiffFiles}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="gui:DiffFileLink">
+                      <Button Command="{Binding Jump}"
+                              Classes="filelink"
+                              Classes.current="{Binding IsCurrent}"
+                              HorizontalAlignment="Stretch"
+                              HorizontalContentAlignment="Left"
+                              ToolTip.Tip="{Binding Headline}">
+                        <TextBlock Text="{Binding Headline}"
+                                   FontFamily="Cascadia Mono,Consolas,monospace"
+                                   FontSize="11.5"
+                                   TextTrimming="CharacterEllipsis" />
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Border>
+            <ScrollViewer Grid.Column="1" x:Name="DiffScroller" HorizontalScrollBarVisibility="Auto">
+              <ItemsControl x:Name="DiffList" ItemsSource="{Binding DiffRows}" Margin="4,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="gui:DiffRow">
+                    <Border Background="{Binding Background}"
+                            Margin="{Binding Margin}"
+                            Padding="8,1"
+                            CornerRadius="3">
+                      <TextBlock Text="{Binding Text}"
+                                 FontFamily="Cascadia Mono,Consolas,monospace"
+                                 FontSize="12"
+                                 FontWeight="{Binding Weight}"
+                                 Foreground="{Binding Foreground}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Grid>
         </Panel>
       </DockPanel>
     </Border>

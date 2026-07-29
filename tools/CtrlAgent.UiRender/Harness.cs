@@ -237,6 +237,26 @@ internal static class Harness
                 {
                     Faults.Add("18-diff-review: the diff rows did not lay out.");
                 }
+
+                // The file rail: one link per file, and jumping marks the
+                // target current. (The scroll itself can't move here — the
+                // sample diff is shorter than the viewport — so the anchor
+                // arithmetic is proven in the unit tests instead.)
+                var links = w.GetVisualDescendants()
+                    .OfType<Button>()
+                    .Count(button => button.Classes.Contains("filelink") && button.IsEffectivelyVisible);
+                if (links != 4)
+                {
+                    Faults.Add($"18-diff-review: expected 4 file-rail links, found {links}.");
+                }
+
+                reviewing.JumpToDiffFile(3);
+                if (!reviewing.DiffFiles[3].IsCurrent || reviewing.DiffFiles[0].IsCurrent)
+                {
+                    Faults.Add("18-diff-review: jumping to a file did not mark it current.");
+                }
+
+                reviewing.JumpToDiffFile(0);
             });
 
         // The same panel over a clean tree: the empty state has to explain

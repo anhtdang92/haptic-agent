@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
@@ -47,6 +48,7 @@ public sealed partial class MainframeWindow : Window
                     _observed.ControllerPressed -= SkipIntro;
                     _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
                     _observed.Main.TranscriptStreamed -= OnFeedStreamed;
+                    _observed.Main.DiffJumpRequested -= OnDiffJump;
                 }
 
                 _observed = viewModel;
@@ -55,6 +57,7 @@ public sealed partial class MainframeWindow : Window
                 viewModel.ControllerPressed += SkipIntro;
                 viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
                 viewModel.Main.TranscriptStreamed += OnFeedStreamed;
+                viewModel.Main.DiffJumpRequested += OnDiffJump;
             }
         };
         // Any input dismisses the boot intro: it is a moment, not a gate, and
@@ -106,6 +109,24 @@ public sealed partial class MainframeWindow : Window
         var target = scroller.Offset.Y + (direction * page);
         var highest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
         scroller.Offset = scroller.Offset.WithY(Math.Clamp(target, 0, highest));
+    }
+
+    /// <summary>
+    /// Scrolls the diff overlay to a file's header row when the d-pad steps
+    /// between files. Same measured-position approach as the main window:
+    /// rows vary in height, so estimating from the index would drift.
+    /// </summary>
+    private void OnDiffJump(int rowIndex)
+    {
+        if (MainframeDiffList.ContainerFromIndex(rowIndex) is not Control container ||
+            container.TranslatePoint(new Avalonia.Point(0, 0), MainframeDiffList) is not { } point)
+        {
+            return;
+        }
+
+        var highest = Math.Max(
+            0, MainframeDiffScroller.Extent.Height - MainframeDiffScroller.Viewport.Height);
+        MainframeDiffScroller.Offset = MainframeDiffScroller.Offset.WithY(Math.Clamp(point.Y, 0, highest));
     }
 
     /// <summary>

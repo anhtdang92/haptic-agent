@@ -59,6 +59,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Log lines classify most-severe first", TestLogClassificationAsync),
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
     ("Unified diff parses edits, adds, renames, binaries", TestUnifiedDiffParserAsync),
+    ("Diff panel rows carry per-file anchors and cap honestly", TestDiffPanelAsync),
     ("Workspace diff folds tracked and untracked changes", TestWorkspaceDiffAsync),
     ("Startup preflight names every missing prerequisite", TestStartupPreflightAsync),
     ("Stored transcripts reload as prose, tools skipped", TestTranscriptReloadAsync),
@@ -1922,6 +1923,57 @@ static Task TestUnifiedDiffParserAsync()
     AssertEqual("Unavailable", new WorkspaceChanges([], Error: "no git").Summary);
     var one = new WorkspaceChanges([new DiffFile("a.txt", DiffFileChange.Modified, false, 3, 1, [])]);
     AssertEqual("1 file · +3 −1", one.Summary);
+    return Task.CompletedTask;
+}
+
+static Task TestDiffPanelAsync()
+{
+    var changes = new WorkspaceChanges(
+    [
+        new DiffFile("src/App.cs", DiffFileChange.Modified, false, 2, 1,
+        [
+            new DiffLine(DiffLineKind.HunkHeader, "@@ -1,3 +1,4 @@"),
+            new DiffLine(DiffLineKind.Removed, "-old"),
+            new DiffLine(DiffLineKind.Added, "+new"),
+            new DiffLine(DiffLineKind.Added, "+more"),
+        ]),
+        new DiffFile("assets/logo.png", DiffFileChange.Modified, true, 0, 0, []),
+        new DiffFile("docs/notes.md", DiffFileChange.Added, false, 1, 0,
+        [
+            new DiffLine(DiffLineKind.Added, "+hello"),
+        ]),
+    ]);
+
+    // Every file gets an anchor, and each anchor points at the row that
+    // really is that file's header — the rail jumps land on what they name.
+    var (rows, anchors) = DiffPanel.Build(changes);
+    AssertEqual(3, anchors.Count);
+    foreach (var anchor in anchors)
+    {
+        AssertEqual(DiffPanelRowKind.FileHeader, rows[anchor.RowIndex].Kind);
+        AssertEqual(anchor.Headline, rows[anchor.RowIndex].Text);
+    }
+
+    AssertEqual(0, anchors[0].RowIndex);
+    AssertEqual(5, anchors[1].RowIndex); // header + 4 lines
+    AssertEqual(6, anchors[2].RowIndex); // binary file renders header only
+    Assert(rows[0].IsFirstHeader, "The first header hugs the top of the panel.");
+    Assert(!rows[5].IsFirstHeader, "Later headers get space above them.");
+    AssertEqual(8, rows.Count);
+    AssertEqual(DiffPanelRowKind.HunkHeader, rows[1].Kind);
+    AssertEqual(DiffPanelRowKind.Removed, rows[2].Kind);
+    AssertEqual(DiffPanelRowKind.Added, rows[3].Kind);
+
+    // The cap elides rows behind one honest marker, and a file whose header
+    // fell past the cap gets no anchor — a jump to nowhere is worse than none.
+    var (capped, cappedAnchors) = DiffPanel.Build(changes, maxRows: 6);
+    AssertEqual(7, capped.Count); // 6 kept + the elision row
+    AssertEqual(DiffPanelRowKind.Elision, capped[6].Kind);
+    Assert(capped[6].Text.Contains("2 more lines", StringComparison.Ordinal),
+        $"Elision row must count what it hid, got: {capped[6].Text}");
+    AssertEqual(2, cappedAnchors.Count);
+    AssertEqual(5, cappedAnchors[1].RowIndex);
+
     return Task.CompletedTask;
 }
 

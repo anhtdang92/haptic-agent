@@ -270,6 +270,28 @@
         </Transitions>
       </Setter>
     </Style>
+    <!-- The diff panel's file rail: flat list rows, not chips — the rail is a
+         table of contents, and forty bordered buttons stacked up read as
+         noise. Current file gets the accent; hover a faint lift. -->
+    <Style Selector="Button.filelink">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#93A9CC" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="Margin" Value="0,1" />
+    </Style>
+    <Style Selector="Button.filelink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1A7DD3FC" />
+      <Setter Property="Foreground" Value="#D7E4FA" />
+    </Style>
+    <Style Selector="Button.filelink.current">
+      <Setter Property="Background" Value="#1F7DD3FC" />
+      <Setter Property="Foreground" Value="#7DD3FC" />
+    </Style>
+
     <!-- Drawn glyphs, not emoji. Emoji render at the mercy of whatever font
          the platform picks — here they came out as grey blobs, and on Windows
          they would arrive full-colour and clash with a monochrome UI. A stroked

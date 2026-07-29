@@ -990,7 +990,7 @@
         <DockPanel>
           <DockPanel DockPanel.Dock="Top" Margin="4,0,0,12">
             <TextBlock DockPanel.Dock="Right"
-                       Text="B closes · right stick scrolls"
+                       Text="{Binding DiffLegend}"
                        FontSize="13"
                        Foreground="#5A7099"
                        VerticalAlignment="Center" />
@@ -1028,7 +1028,7 @@
                          HorizontalAlignment="Center" />
             </StackPanel>
             <ScrollViewer x:Name="MainframeDiffScroller" HorizontalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
+              <ItemsControl x:Name="MainframeDiffList" ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="gui:DiffRow">
                     <Border Background="{Binding Background}"

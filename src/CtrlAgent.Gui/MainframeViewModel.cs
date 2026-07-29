@@ -221,6 +221,11 @@ public sealed class MainframeViewModel : ViewModelBase
     public string EmptyFeedHint =>
         $"Type below, use a shortcut, or press {Name(ControllerControl.Y)} to speak a prompt";
 
+    /// <summary>The diff overlay's control hint, in the connected pad's
+    /// button names.</summary>
+    public string DiffLegend =>
+        $"{Name(ControllerControl.B)} closes · right stick scrolls · d-pad jumps files";
+
     /// <summary>How prose names a button on the connected pad ("Y" or
     /// "Triangle") — the chip language draws shapes, sentences need words.</summary>
     private static string Name(ControllerControl control) => ControlLabels.Label(control);
@@ -318,6 +323,7 @@ public sealed class MainframeViewModel : ViewModelBase
             Raise(nameof(LegendHint));
             Raise(nameof(PromptWatermark));
             Raise(nameof(EmptyFeedHint));
+            Raise(nameof(DiffLegend));
         }
     }
 
@@ -350,9 +356,20 @@ public sealed class MainframeViewModel : ViewModelBase
         // here would shadow the user's own bindings.
         if (Main.IsDiffVisible)
         {
-            if (inputEvent.Control == ControllerControl.B)
+            switch (inputEvent.Control)
             {
-                Back();
+                case ControllerControl.B:
+                    Back();
+                    break;
+
+                // The stick pages lines; the d-pad jumps files. A many-file
+                // diff from the couch needs a coarse gear, not just a fine one.
+                case ControllerControl.DPadDown:
+                    Main.StepDiffFile(+1);
+                    break;
+                case ControllerControl.DPadUp:
+                    Main.StepDiffFile(-1);
+                    break;
             }
 
             return;

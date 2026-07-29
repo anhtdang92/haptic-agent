@@ -243,163 +243,11 @@
       </StackPanel>
     </Border>
 
-    <!-- ===================== COMPOSER =====================
-         Docked to the BOTTOM, like every chat app: the conversation reads
-         downward and ends where the hands are. It sat under the command bar
-         at the top for a while, which meant the reply streamed in below the
-         box you were typing into. One primary action, not four peers:
-         Interrupt appears only while there is a turn to interrupt. -->
-    <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
-      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
-                  Margin="10,0,0,0" VerticalAlignment="Bottom">
-        <Border Background="#33FFB020" BorderBrush="#66FFB020" BorderThickness="1"
-                CornerRadius="8" Padding="8,2" VerticalAlignment="Center"
-                IsVisible="{Binding HasQueuedPrompts}"
-                ToolTip.Tip="Prompts waiting to send when the current turn ends">
-          <TextBlock Text="{Binding QueuedPromptLabel}" FontSize="10" Foreground="#FFD9A0" />
-        </Border>
-        <Button Command="{Binding StartVoiceCommand}" Padding="12,9"
-                ToolTip.Tip="Speak a prompt (Y on the controller)">
-          <Path Classes="icon"
-                Data="M9,2.5 A2.6,2.6 0 0 1 11.6,5.1 L11.6,9.4 A2.6,2.6 0 0 1 6.4,9.4
-                      L6.4,5.1 A2.6,2.6 0 0 1 9,2.5 Z
-                      M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
-                      M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
-        </Button>
-        <!-- Mic picker: which device the dictation listens on. In-app because
-             System.Speech only follows the Windows default otherwise, and
-             "change your OS sound settings" is not a feature. -->
-        <Button x:Name="MicPickButton"
-                Padding="6,9"
-                Click="OnPickMicrophone"
-                ToolTip.Tip="Choose which microphone dictation uses">
-          <Path Classes="icon" Width="10" Height="10" Data="M4,7 L9,12 L14,7" />
-          <FlyoutBase.AttachedFlyout>
-            <MenuFlyout ItemsSource="{Binding Microphones}">
-              <MenuFlyout.ItemContainerTheme>
-                <ControlTheme TargetType="MenuItem"
-                              BasedOn="{StaticResource {x:Type MenuItem}}"
-                              x:DataType="gui:MicrophoneChoice">
-                  <Setter Property="Header" Value="{Binding Label}" />
-                  <Setter Property="Command" Value="{Binding SelectCommand}" />
-                </ControlTheme>
-              </MenuFlyout.ItemContainerTheme>
-            </MenuFlyout>
-          </FlyoutBase.AttachedFlyout>
-        </Button>
-        <Button Command="{Binding AttachFileCommand}" Padding="12,9"
-                ToolTip.Tip="Attach files for the next prompt (LB+X on the controller)">
-          <Path Classes="icon"
-                Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
-                      A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
-        </Button>
-        <Button Content="Interrupt" Classes="deny" Padding="16,10"
-                Command="{Binding InterruptCommand}"
-                IsVisible="{Binding IsAgentActive}"
-                ToolTip.Tip="Stop the current turn (B on the controller)" />
-        <Button Content="Submit" Classes="accent" FontSize="14" Padding="22,10"
-                Command="{Binding SubmitPromptCommand}" />
-      </StackPanel>
-
-      <TextBox Text="{Binding PromptText}"
-               FontSize="14"
-               Padding="16,11"
-               AcceptsReturn="True"
-               AcceptsTab="False"
-               TextWrapping="Wrap"
-               MaxHeight="132"
-               VerticalContentAlignment="Top"
-               x:Name="PromptBox"
-               Watermark="Ask the agent anything — Enter submits, Shift+Enter for a new line" />
-    </DockPanel>
-
-
-    <!-- Attached files: directly above the prompt because they are part of
-         what the next Submit sends, not a separate thing that happened. -->
-    <Border DockPanel.Dock="Bottom"
-            Classes="card"
-            Padding="12,8"
-            Margin="0,8,0,0"
-            IsVisible="{Binding HasAttachments}">
-      <DockPanel>
-        <Button DockPanel.Dock="Right"
-                Classes="ghost"
-                Content="Clear"
-                FontSize="11"
-                Command="{Binding ClearAttachmentsCommand}" />
-        <Path DockPanel.Dock="Left"
-              Classes="icon"
-              Width="14" Height="14"
-              VerticalAlignment="Center"
-              Margin="0,0,8,0"
-              Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
-                    A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
-        <StackPanel Spacing="3">
-          <TextBlock Text="{Binding AttachmentLabel}" Classes="label" FontSize="9" />
-          <ItemsControl ItemsSource="{Binding Attachments}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="x:String">
-                <Border Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
-                        CornerRadius="6" Padding="7,2">
-                  <TextBlock Text="{Binding}"
-                             FontSize="11"
-                             Foreground="#B9CCEF"
-                             MaxWidth="320"
-                             TextTrimming="CharacterEllipsis" />
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <!-- Approval banner: directly above the input area, where the eye
-         already rests between reading and typing — the same place the
-         Claude app raises its own permission prompts. -->
-    <Border DockPanel.Dock="Bottom"
-            Classes="alert approvalBanner"
-            Classes.show="{Binding HasPendingApproval}"
-            Margin="0,12,0,0"
-            Padding="14,10"
-            BoxShadow="0 6 28 0 #66FFB020"
-            IsVisible="{Binding HasPendingApproval}">
-      <!-- Buttons dock right and keep their full width; the message takes
-           whatever is left. A fixed-width message pushed Cancel off the edge
-           of the banner — the one control you need to stop a bad write. -->
-      <DockPanel LastChildFill="True">
-        <StackPanel DockPanel.Dock="Right"
-                    Orientation="Horizontal"
-                    Spacing="6"
-                    Margin="10,0,0,0"
-                    VerticalAlignment="Center">
-          <Button Content="Approve once" Classes="approve" Command="{Binding ApproveOnceCommand}" />
-          <Button Content="Approve for session" Classes="approve" Command="{Binding ApproveSessionCommand}" />
-          <Button Content="Decline" Classes="deny" Command="{Binding DeclineCommand}" />
-          <Button Content="Cancel" Classes="deny" Command="{Binding CancelCommand}" />
-        </StackPanel>
-        <TextBlock DockPanel.Dock="Left"
-                   Text="APPROVAL REQUIRED"
-                   Classes="label"
-                   Foreground="#FFD9A0"
-                   Opacity="1"
-                   Margin="0,0,10,0"
-                   VerticalAlignment="Center" />
-        <TextBlock Text="{Binding PendingApprovalMessage}"
-                   VerticalAlignment="Center"
-                   TextWrapping="Wrap"
-                   TextTrimming="CharacterEllipsis"
-                   MaxLines="2"
-                   Foreground="#FFEFD6" />
-      </DockPanel>
-    </Border>
-
     <!-- Sessions + conversation + controller hub fill the middle -->
+    <!-- The composer lives INSIDE the conversation card below, not docked to
+         the window: it is part of the chat column, the way the Claude app
+         draws it — a full-width box under the sessions rail and the
+         controller hub claimed a relationship to both that it does not have. -->
     <Grid ColumnDefinitions="Auto,3*,2*" Margin="0,14,0,10">
 
       <!-- Recents sidebar (Claude-app style): every session the agent's
@@ -496,6 +344,169 @@
             </StackPanel>
             <TextBlock Text="ACTIVITY" Classes="label" VerticalAlignment="Center" />
           </DockPanel>
+
+          <!-- ===================== COMPOSER =====================
+               The bottom of the conversation itself: replies stream in
+               directly above the box that answers them. Box on top, actions
+               underneath — the column is narrower than the window, and a
+               side-by-side row squeezed the box into a slot. One primary
+               action: Interrupt appears (icon-only) while a turn is live. -->
+          <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,10,0,0">
+            <TextBox Text="{Binding PromptText}"
+                     FontSize="14"
+                     Padding="14,10"
+                     AcceptsReturn="True"
+                     AcceptsTab="False"
+                     TextWrapping="Wrap"
+                     MaxHeight="132"
+                     VerticalContentAlignment="Top"
+                     x:Name="PromptBox"
+                     Watermark="Ask the agent anything — Enter submits, Shift+Enter for a new line" />
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                          VerticalAlignment="Center">
+                <Button Command="{Binding StartVoiceCommand}" Padding="12,8"
+                        ToolTip.Tip="Speak a prompt (Y on the controller)">
+                  <Path Classes="icon"
+                        Data="M9,2.5 A2.6,2.6 0 0 1 11.6,5.1 L11.6,9.4 A2.6,2.6 0 0 1 6.4,9.4
+                              L6.4,5.1 A2.6,2.6 0 0 1 9,2.5 Z
+                              M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
+                              M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
+                </Button>
+                <!-- Mic picker: which device the dictation listens on.
+                     In-app because System.Speech only follows the Windows
+                     default otherwise, and "change your OS sound settings"
+                     is not a feature. -->
+                <Button x:Name="MicPickButton"
+                        Padding="6,8"
+                        Click="OnPickMicrophone"
+                        ToolTip.Tip="Choose which microphone dictation uses">
+                  <Path Classes="icon" Width="10" Height="10" Data="M4,7 L9,12 L14,7" />
+                  <FlyoutBase.AttachedFlyout>
+                    <MenuFlyout ItemsSource="{Binding Microphones}">
+                      <MenuFlyout.ItemContainerTheme>
+                        <ControlTheme TargetType="MenuItem"
+                                      BasedOn="{StaticResource {x:Type MenuItem}}"
+                                      x:DataType="gui:MicrophoneChoice">
+                          <Setter Property="Header" Value="{Binding Label}" />
+                          <Setter Property="Command" Value="{Binding SelectCommand}" />
+                        </ControlTheme>
+                      </MenuFlyout.ItemContainerTheme>
+                    </MenuFlyout>
+                  </FlyoutBase.AttachedFlyout>
+                </Button>
+                <Button Command="{Binding AttachFileCommand}" Padding="12,8"
+                        ToolTip.Tip="Attach files for the next prompt (LB+X on the controller)">
+                  <Path Classes="icon"
+                        Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
+                              A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
+                </Button>
+                <Button Classes="deny" Padding="12,8"
+                        Command="{Binding InterruptCommand}"
+                        IsVisible="{Binding IsAgentActive}"
+                        ToolTip.Tip="Stop the current turn (B on the controller)">
+                  <Path Classes="icon" Width="11" Height="11"
+                        Data="M4.5,4.5 H13.5 V13.5 H4.5 Z" />
+                </Button>
+                <Button Content="Submit" Classes="accent" FontSize="13.5" Padding="20,8"
+                        Command="{Binding SubmitPromptCommand}" />
+              </StackPanel>
+              <Border Background="#33FFB020" BorderBrush="#66FFB020" BorderThickness="1"
+                      CornerRadius="8" Padding="8,2"
+                      HorizontalAlignment="Left" VerticalAlignment="Center"
+                      IsVisible="{Binding HasQueuedPrompts}"
+                      ToolTip.Tip="Prompts waiting to send when the current turn ends">
+                <TextBlock Text="{Binding QueuedPromptLabel}" FontSize="10" Foreground="#FFD9A0" />
+              </Border>
+            </DockPanel>
+          </StackPanel>
+
+          <!-- Attached files: directly above the prompt because they are part
+               of what the next Submit sends, not a separate thing that
+               happened. -->
+          <Border DockPanel.Dock="Bottom"
+                  Background="#4D0E1728"
+                  BorderBrush="#1FFFFFFF"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="12,8"
+                  Margin="0,8,0,0"
+                  IsVisible="{Binding HasAttachments}">
+            <DockPanel>
+              <Button DockPanel.Dock="Right"
+                      Classes="ghost"
+                      Content="Clear"
+                      FontSize="11"
+                      Command="{Binding ClearAttachmentsCommand}" />
+              <Path DockPanel.Dock="Left"
+                    Classes="icon"
+                    Width="14" Height="14"
+                    VerticalAlignment="Center"
+                    Margin="0,0,8,0"
+                    Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
+                          A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
+              <StackPanel Spacing="3">
+                <TextBlock Text="{Binding AttachmentLabel}" Classes="label" FontSize="9" />
+                <ItemsControl ItemsSource="{Binding Attachments}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                      <Border Background="#4D0E1728" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                              CornerRadius="6" Padding="7,2">
+                        <TextBlock Text="{Binding}"
+                                   FontSize="11"
+                                   Foreground="#B9CCEF"
+                                   MaxWidth="320"
+                                   TextTrimming="CharacterEllipsis" />
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+
+          <!-- Approval banner: directly above the input area, where the eye
+               already rests between reading and typing — the same place the
+               Claude app raises its own permission prompts. -->
+          <Border DockPanel.Dock="Bottom"
+                  Classes="alert approvalBanner"
+                  Classes.show="{Binding HasPendingApproval}"
+                  Margin="0,12,0,0"
+                  Padding="14,10"
+                  BoxShadow="0 6 28 0 #66FFB020"
+                  IsVisible="{Binding HasPendingApproval}">
+            <!-- The chat column is too narrow for message-plus-buttons on one
+                 line: heading and message read first, the answers sit on
+                 their own row beneath, wrapping when four do not fit. -->
+            <StackPanel Spacing="8">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left"
+                           Text="APPROVAL REQUIRED"
+                           Classes="label"
+                           Foreground="#FFD9A0"
+                           Opacity="1"
+                           Margin="0,0,10,0"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding PendingApprovalMessage}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           TextTrimming="CharacterEllipsis"
+                           MaxLines="2"
+                           Foreground="#FFEFD6" />
+              </DockPanel>
+              <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                <Button Content="Approve once" Classes="approve" Command="{Binding ApproveOnceCommand}" />
+                <Button Content="Approve for session" Classes="approve" Command="{Binding ApproveSessionCommand}" />
+                <Button Content="Decline" Classes="deny" Command="{Binding DeclineCommand}" />
+                <Button Content="Cancel" Classes="deny" Command="{Binding CancelCommand}" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
           <Panel>
 
           <!-- Conversation: what you said, what the agent replied, and what

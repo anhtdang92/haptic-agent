@@ -822,6 +822,11 @@
                        FontSize="12.5"
                        Foreground="#7DD3FC"
                        VerticalAlignment="Center" />
+            <TextBlock Text="Ctrl+↑/↓ jumps files"
+                       FontSize="11.5"
+                       Foreground="#5A7099"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding HasDiffFiles}" />
           </StackPanel>
         </DockPanel>
 

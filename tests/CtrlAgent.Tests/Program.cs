@@ -60,6 +60,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Approval highlight covers chord modifiers", TestApprovalControlsAsync),
     ("Unified diff parses edits, adds, renames, binaries", TestUnifiedDiffParserAsync),
     ("Diff panel rows carry per-file anchors and cap honestly", TestDiffPanelAsync),
+    ("Control shorthand parses pad language and enum names", TestControlShorthandAsync),
     ("Workspace diff folds tracked and untracked changes", TestWorkspaceDiffAsync),
     ("Startup preflight names every missing prerequisite", TestStartupPreflightAsync),
     ("Stored transcripts reload as prose, tools skipped", TestTranscriptReloadAsync),
@@ -1974,6 +1975,54 @@ static Task TestDiffPanelAsync()
     AssertEqual(2, cappedAnchors.Count);
     AssertEqual(5, cappedAnchors[1].RowIndex);
 
+    return Task.CompletedTask;
+}
+
+static Task TestControlShorthandAsync()
+{
+    static ControllerControl Parse(string text)
+    {
+        Assert(ControlShorthand.TryParse(text, out var control), $"'{text}' must parse.");
+        return control;
+    }
+
+    // The app's own chip language round-trips.
+    AssertEqual(ControllerControl.LeftShoulder, Parse("LB"));
+    AssertEqual(ControllerControl.RightShoulder, Parse("rb"));
+    AssertEqual(ControllerControl.LeftTrigger, Parse("LT"));
+    AssertEqual(ControllerControl.RightTrigger, Parse("rt"));
+    AssertEqual(ControllerControl.LeftThumbstickButton, Parse("LS"));
+    AssertEqual(ControllerControl.RightThumbstickButton, Parse("R3"));
+    AssertEqual(ControllerControl.PaddleLeft1, Parse("P1"));
+    AssertEqual(ControllerControl.PaddleLeft2, Parse("p2"));
+    AssertEqual(ControllerControl.PaddleRight1, Parse("P3"));
+    AssertEqual(ControllerControl.PaddleRight2, Parse("p4"));
+
+    // Sony names map positionally, same as the chips.
+    AssertEqual(ControllerControl.A, Parse("Cross"));
+    AssertEqual(ControllerControl.B, Parse("circle"));
+    AssertEqual(ControllerControl.X, Parse("SQUARE"));
+    AssertEqual(ControllerControl.Y, Parse("Triangle"));
+
+    // D-pad in every spelling people actually type, arrows included.
+    AssertEqual(ControllerControl.DPadUp, Parse("D-Up"));
+    AssertEqual(ControllerControl.DPadDown, Parse("d↓"));
+    AssertEqual(ControllerControl.DPadLeft, Parse("dpad left"));
+    AssertEqual(ControllerControl.DPadRight, Parse("D→"));
+
+    // Familiar aliases and the formal names both work.
+    AssertEqual(ControllerControl.Menu, Parse("start"));
+    AssertEqual(ControllerControl.View, Parse("Back"));
+    AssertEqual(ControllerControl.Guide, Parse("xbox"));
+    AssertEqual(ControllerControl.Guide, Parse("PS"));
+    AssertEqual(ControllerControl.LeftShoulder, Parse("LeftShoulder"));
+    AssertEqual(ControllerControl.LeftThumbstickX, Parse("leftthumbstickx"));
+
+    // Junk and None are rejections, not silent zeros that validate.
+    Assert(!ControlShorthand.TryParse("zzz", out _), "Nonsense must not parse.");
+    Assert(!ControlShorthand.TryParse("", out _), "Empty must not parse.");
+    Assert(!ControlShorthand.TryParse(null, out _), "Null must not parse.");
+    Assert(!ControlShorthand.TryParse("None", out _), "None is not a bindable control.");
     return Task.CompletedTask;
 }
 

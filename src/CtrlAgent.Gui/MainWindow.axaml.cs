@@ -64,6 +64,20 @@ public sealed partial class MainWindow : Window
                     eventArgs.Handled = true;
                     viewModel.CloseDiffCommand.Execute(null);
                     break;
+
+                // The keyboard's coarse gear, matching the Mainframe d-pad:
+                // Ctrl+arrows step between files while the diff is open.
+                case Key.Down when viewModel.IsDiffVisible &&
+                                   eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control):
+                    eventArgs.Handled = true;
+                    viewModel.StepDiffFile(+1);
+                    break;
+
+                case Key.Up when viewModel.IsDiffVisible &&
+                                 eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control):
+                    eventArgs.Handled = true;
+                    viewModel.StepDiffFile(-1);
+                    break;
             }
         };
     }

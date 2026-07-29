@@ -2,8 +2,16 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Input;
 using CtrlAgent.Core;
+using CtrlAgent.Presentation;
 
 namespace CtrlAgent.Gui;
+
+/// <summary>A combo choice that stores an enum name but reads like a person
+/// wrote it: the value stays "SubmitPrompt", the shelf says "Submit prompt".</summary>
+public sealed record EnumOption(string Value, string Label)
+{
+    public override string ToString() => Label;
+}
 
 /// <summary>One editable binding row. String-backed so partial input never throws.</summary>
 public sealed class BindingEditor : ViewModelBase
@@ -98,7 +106,7 @@ public sealed class BindingEditor : ViewModelBase
 
             var modifiers = _modifiersText
                 .Split(['+', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(part => Enum.TryParse<ControllerControl>(part, ignoreCase: true, out var parsed)
+                .Select(part => ControlShorthand.TryParse(part, out var parsed)
                     ? ControlLabels.Label(parsed)
                     : part)
                 .ToArray();
@@ -151,14 +159,16 @@ public sealed class BindingEditor : ViewModelBase
                 ['+', ','],
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                if (Enum.TryParse<ControllerControl>(part, ignoreCase: true, out var modifier) &&
-                    modifier != ControllerControl.None)
+                // Pad language first ("LB", "P1", "Cross"), formal enum names
+                // still accepted — typed the way the app prints chords.
+                if (ControlShorthand.TryParse(part, out var modifier))
                 {
                     modifiers.Add(modifier);
                 }
                 else
                 {
-                    errors.Add($"Binding {position}: unknown modifier '{part}'.");
+                    errors.Add(
+                        $"Binding {position}: unknown modifier '{part}' — try LB, RB, LT, RT, LS, RS, P1–P4, or a button name.");
                     valid = false;
                 }
             }
@@ -300,14 +310,42 @@ public sealed class ProfileEditorViewModel : ViewModelBase
         LoadFrom(profile);
     }
 
-    public static string[] ControlNames { get; } =
-        Enum.GetNames<ControllerControl>().Where(name => name != nameof(ControllerControl.None)).ToArray();
+    /// <summary>Controls read as chip-plus-name ("LB · LeftShoulder") so the
+    /// combo teaches the shorthand the rest of the app speaks. Face buttons
+    /// keep their bare letter — it IS the shorthand — and the flavor-flipped
+    /// Sony names stay out of a static list that outlives pad swaps.</summary>
+    public static EnumOption[] ControlOptions { get; } =
+        Enum.GetValues<ControllerControl>()
+            .Where(control => control != ControllerControl.None)
+            .Select(control => new EnumOption(control.ToString(), ControlOptionLabel(control)))
+            .ToArray();
 
-    public static string[] GestureNames { get; } = Enum.GetNames<InputGesture>();
+    public static EnumOption[] GestureOptions { get; } =
+        Enum.GetNames<InputGesture>()
+            .Select(name => new EnumOption(name, ControlLabels.Humanize(name)))
+            .ToArray();
 
-    public static string[] CommandNames { get; } = Enum.GetNames<AgentCommandKind>();
+    public static EnumOption[] CommandOptions { get; } =
+        Enum.GetNames<AgentCommandKind>()
+            .Select(name => new EnumOption(name, ControlLabels.Humanize(name)))
+            .ToArray();
 
-    public static string[] ActivationNames { get; } = Enum.GetNames<LayerActivation>();
+    public static EnumOption[] ActivationOptions { get; } =
+        Enum.GetNames<LayerActivation>()
+            .Select(name => new EnumOption(name, ControlLabels.Humanize(name)))
+            .ToArray();
+
+    private static string ControlOptionLabel(ControllerControl control)
+    {
+        var name = control.ToString();
+        var shorthand = control switch
+        {
+            ControllerControl.A or ControllerControl.B or
+            ControllerControl.X or ControllerControl.Y => name,
+            _ => ControlLabels.Label(control),
+        };
+        return shorthand == name ? name : $"{shorthand} · {name}";
+    }
 
     public ObservableCollection<BindingEditor> Bindings { get; } = [];
 

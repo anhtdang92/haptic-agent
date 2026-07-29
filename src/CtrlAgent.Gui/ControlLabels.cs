@@ -116,9 +116,12 @@ internal static class ControlLabels
         return single.Length <= limit ? single : single[..limit].TrimEnd() + "\u2026";
     }
 
-    public static string Humanize(AgentCommandKind command)
+    public static string Humanize(AgentCommandKind command) => Humanize(command.ToString());
+
+    /// <summary>"DoublePress" → "Double press" — for any enum name shown to
+    /// a person.</summary>
+    public static string Humanize(string name)
     {
-        var name = command.ToString();
         var builder = new System.Text.StringBuilder(name.Length + 4);
         for (var index = 0; index < name.Length; index++)
         {

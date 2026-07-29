@@ -14,6 +14,8 @@ public sealed partial class MainframeWindow : Window
 {
     private static bool _bootSequencePlayed;
     private MainframeViewModel? _observed;
+    private double _windowedWidth = 1440;
+    private double _windowedHeight = 860;
 
     /// <summary>Lets the app start dictation here when this window owns the
     /// screen, so a controller binding reaches the large voice overlay rather
@@ -94,7 +96,19 @@ public sealed partial class MainframeWindow : Window
     private void FocusPromptWhenReady()
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(
-            () => MainframePromptBox.Focus(),
+            () =>
+            {
+                if (DataContext is MainframeViewModel viewModel &&
+                    !viewModel.IsSettingsVisible &&
+                    !viewModel.IsShortcutsVisible &&
+                    !viewModel.IsVoiceVisible &&
+                    !viewModel.IsSessionsVisible &&
+                    !viewModel.Main.IsDiffVisible)
+                {
+                    MainframePromptBox.Focus();
+                    MainframePromptBox.CaretIndex = MainframePromptBox.Text?.Length ?? 0;
+                }
+            },
             Avalonia.Threading.DispatcherPriority.Background);
     }
 
@@ -176,6 +190,7 @@ public sealed partial class MainframeWindow : Window
         if (DataContext is MainframeViewModel viewModel)
         {
             viewModel.Main.SubmitPromptCommand.Execute(null);
+            FocusPromptWhenReady();
         }
     }
 
@@ -219,17 +234,26 @@ public sealed partial class MainframeWindow : Window
 
     private void OnToggleFullscreen(
         object? sender,
-        Avalonia.Interactivity.RoutedEventArgs eventArgs)
+        Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
+        ToggleFullscreen();
+
+    private void ToggleFullscreen()
     {
         if (WindowState == WindowState.FullScreen)
         {
             SystemDecorations = SystemDecorations.Full;
             WindowState = WindowState.Normal;
-            Width = 1440;
-            Height = 860;
+            Width = _windowedWidth;
+            Height = _windowedHeight;
         }
         else
         {
+            if (WindowState == WindowState.Normal)
+            {
+                _windowedWidth = Math.Max(960, Width);
+                _windowedHeight = Math.Max(640, Height);
+            }
+
             SystemDecorations = SystemDecorations.None;
             WindowState = WindowState.FullScreen;
         }
@@ -241,6 +265,34 @@ public sealed partial class MainframeWindow : Window
         if (DataContext is not MainframeViewModel viewModel)
         {
             return;
+        }
+
+        // Standard desktop affordances should work independently of the
+        // controller navigation vocabulary.
+        if (eventArgs.Key == Key.F11)
+        {
+            eventArgs.Handled = true;
+            ToggleFullscreen();
+            return;
+        }
+
+        if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            switch (eventArgs.Key)
+            {
+                case Key.L:
+                    eventArgs.Handled = true;
+                    FocusPromptWhenReady();
+                    return;
+                case Key.OemComma:
+                    eventArgs.Handled = true;
+                    viewModel.ToggleSettings();
+                    return;
+                case Key.M:
+                    eventArgs.Handled = true;
+                    WindowState = WindowState.Minimized;
+                    return;
+            }
         }
 
         var key = eventArgs.Key switch
@@ -256,7 +308,6 @@ public sealed partial class MainframeWindow : Window
             Key.F2 => "F2",
             Key.F3 => "F3",
             Key.F4 => "F4",
-            Key.F11 => "F11",
             _ => null,
         };
 

@@ -39,11 +39,12 @@
       <!-- Header doubles as the drag handle -->
       <DockPanel Name="DragZone" Background="Transparent" PointerPressed="OnDragStart">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
-          <Button Content="⌂"
-                  FontSize="12"
-                  Padding="7,3"
+          <Button Padding="7,4"
                   Click="OnOpenMain"
-                  ToolTip.Tip="Open CtrlAgent" />
+                  ToolTip.Tip="Open CtrlAgent">
+            <Path Classes="icon" Width="11" Height="11"
+                  Data="M2.5,8.5 L9,3 L15.5,8.5 M4.5,7.5 V15 H13.5 V7.5" />
+          </Button>
           <Button Content="×"
                   FontSize="11"
                   Padding="7,3"

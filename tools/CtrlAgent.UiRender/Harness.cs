@@ -407,6 +407,9 @@ internal static class Harness
         hud.AgentState = "ApprovalRequired";
         hud.HasPendingApproval = true;
         hud.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
+        hud.Buddy.OnAgentEvent(new AgentEvent(
+            "claude", "sess", AgentStateKind.ApprovalRequired, DateTimeOffset.UtcNow,
+            "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs", "req-1"));
         Render(new OverlayWindow { DataContext = hud }, "09-overlay.png", 380, 150);
 
         // Notification toast.

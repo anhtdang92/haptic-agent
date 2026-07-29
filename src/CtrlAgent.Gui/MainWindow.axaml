@@ -98,9 +98,9 @@
             PointerPressed="OnHeroPressed"
             Classes="card"
             CornerRadius="18"
-            Padding="20,14"
+            Padding="20,12"
             Margin="0,0,0,12">
-      <StackPanel Spacing="12">
+      <StackPanel Spacing="9">
 
         <!-- Row 1 — what the session is, and the window-level tools. CTRL·BOT
              moved out of here into the controller hub on the right: the bot,

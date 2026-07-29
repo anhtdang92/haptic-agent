@@ -28,7 +28,7 @@ internal static class ControlLabels
         return chord + GestureSuffix(binding.Gesture);
     }
 
-    private static string? StickArrow(ControllerControl control, float threshold) => control switch
+    internal static string? StickArrow(ControllerControl control, float threshold) => control switch
     {
         ControllerControl.LeftThumbstickY or ControllerControl.RightThumbstickY =>
             threshold >= 0 ? "↑" : "↓",

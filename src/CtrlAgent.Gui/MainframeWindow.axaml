@@ -490,19 +490,42 @@
                           Margin="0,1" HorizontalAlignment="Stretch">
                     <DockPanel>
                       <Border DockPanel.Dock="Left" Classes="hudKey" Classes.armed="{Binding IsApproval}"
-                              MinWidth="96" VerticalAlignment="Center">
-                        <Panel>
-                          <TextBlock Text="{Binding Chord}"
-                                     FontFamily="Cascadia Mono,Consolas,monospace"
-                                     FontSize="12.5"
-                                     FontWeight="Bold"
-                                     HorizontalAlignment="Center"
-                                     IsVisible="{Binding !IsDPad}" />
-                          <gui:DPadIcon Width="17" Height="17"
-                                        HorizontalAlignment="Center"
-                                        Direction="{Binding DPadControl}"
-                                        IsVisible="{Binding IsDPad}" />
-                        </Panel>
+                              MinWidth="96" Padding="8,2" VerticalAlignment="Center">
+                        <ItemsControl ItemsSource="{Binding Tokens}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" Spacing="3" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="gui:ChordToken">
+                              <Panel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Text}"
+                                           FontFamily="Cascadia Mono,Consolas,monospace"
+                                           FontSize="12.5"
+                                           FontWeight="Bold"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsText}" />
+                                <Border Width="21" Height="21" CornerRadius="10.5"
+                                        Background="#0B1322"
+                                        BorderThickness="1.6"
+                                        BorderBrush="{Binding FaceBrush}"
+                                        IsVisible="{Binding IsFace}">
+                                  <TextBlock Text="{Binding Text}"
+                                             FontSize="11.5"
+                                             FontWeight="Bold"
+                                             Foreground="{Binding FaceBrush}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center" />
+                                </Border>
+                                <gui:DPadIcon Width="18" Height="18"
+                                              Direction="{Binding Control}"
+                                              IsVisible="{Binding IsDPad}" />
+                              </Panel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                       </Border>
                       <TextBlock Text="{Binding Label}"
                                  FontSize="13.5"
@@ -770,17 +793,42 @@
                 <Border Classes="hudChip" Width="410" Padding="16,12">
                   <DockPanel>
                     <Border Classes="hudKey" DockPanel.Dock="Left"
-                            MinWidth="96" VerticalAlignment="Center">
-                      <Panel>
-                        <TextBlock Text="{Binding Chord}"
-                                   FontFamily="Cascadia Mono,Consolas,monospace"
-                                   FontSize="16" HorizontalAlignment="Center"
-                                   IsVisible="{Binding !IsDPad}" />
-                        <gui:DPadIcon Width="20" Height="20"
-                                      HorizontalAlignment="Center"
-                                      Direction="{Binding DPadControl}"
-                                      IsVisible="{Binding IsDPad}" />
-                      </Panel>
+                            MinWidth="96" Padding="8,3" VerticalAlignment="Center">
+                      <ItemsControl ItemsSource="{Binding Tokens}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" Spacing="3" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="gui:ChordToken">
+                              <Panel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Text}"
+                                           FontFamily="Cascadia Mono,Consolas,monospace"
+                                           FontSize="12.5"
+                                           FontWeight="Bold"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsText}" />
+                                <Border Width="21" Height="21" CornerRadius="10.5"
+                                        Background="#0B1322"
+                                        BorderThickness="1.6"
+                                        BorderBrush="{Binding FaceBrush}"
+                                        IsVisible="{Binding IsFace}">
+                                  <TextBlock Text="{Binding Text}"
+                                             FontSize="11.5"
+                                             FontWeight="Bold"
+                                             Foreground="{Binding FaceBrush}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center" />
+                                </Border>
+                                <gui:DPadIcon Width="18" Height="18"
+                                              Direction="{Binding Control}"
+                                              IsVisible="{Binding IsDPad}" />
+                              </Panel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Border>
                     <Border DockPanel.Dock="Right"
                             Background="#33FFB020" CornerRadius="6" Padding="8,3"

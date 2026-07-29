@@ -26,6 +26,10 @@ public sealed class BindingRow
     /// <summary>The arm to light when <see cref="IsDPad"/>.</summary>
     public required ControllerControl DPadControl { get; init; }
 
+    /// <summary>The chord as physical parts, for surfaces that draw the pad's
+    /// own buttons (Mainframe) instead of desktop keycap text.</summary>
+    public required IReadOnlyList<ChordToken> Tokens { get; init; }
+
     public static BindingRow From(InputBinding binding) => new()
     {
         Chord = ControlLabels.Chord(binding),
@@ -37,5 +41,6 @@ public sealed class BindingRow
                  binding.Control is ControllerControl.DPadUp or ControllerControl.DPadDown
                      or ControllerControl.DPadLeft or ControllerControl.DPadRight,
         DPadControl = binding.Control,
+        Tokens = ChordToken.For(binding),
     };
 }

@@ -45,11 +45,9 @@ public sealed class ActionHint
 
     public required bool IsApproval { get; init; }
 
-    /// <summary>Render the chord as a drawn d-pad with the arm lit. Only for
-    /// an unmerged plain d-pad press — a merged row ("P1 · RB+A") is text.</summary>
-    public bool IsDPad { get; init; }
-
-    public ControllerControl DPadControl { get; init; } = ControllerControl.DPadLeft;
+    /// <summary>The chord(s) as physical parts — colored face buttons, drawn
+    /// d-pad, keycap text — merged rows joined with a dot.</summary>
+    public required IReadOnlyList<ChordToken> Tokens { get; init; }
 }
 
 /// <summary>
@@ -727,7 +725,7 @@ public sealed class MainframeViewModel : ViewModelBase
         HintHeading = pending ? "APPROVAL REQUIRED — ANSWER WITH" : "AVAILABLE NOW";
 
         // Merge bindings that drive the same command into one hint.
-        var merged = new List<(AgentCommandKind Command, string Label, bool IsApproval, List<string> Chords, BindingRow First)>();
+        var merged = new List<(AgentCommandKind Command, string Label, bool IsApproval, List<string> Chords, List<BindingRow> Rows)>();
         foreach (var binding in Main.Bindings)
         {
             if (!IsAvailable(binding, pending, busy))
@@ -742,24 +740,23 @@ public sealed class MainframeViewModel : ViewModelBase
                 if (!merged[existing].Chords.Contains(binding.Chord))
                 {
                     merged[existing].Chords.Add(binding.Chord);
+                    merged[existing].Rows.Add(binding);
                 }
             }
             else
             {
-                merged.Add((binding.Command, binding.Action, binding.IsApproval, [binding.Chord], binding));
+                merged.Add((binding.Command, binding.Action, binding.IsApproval, [binding.Chord], [binding]));
             }
         }
 
         foreach (var entry in merged)
         {
-            var singleDPad = entry.Chords.Count == 1 && entry.First.IsDPad;
             Hints.Add(new ActionHint
             {
                 Chord = string.Join("  ·  ", entry.Chords),
                 Label = entry.Label,
                 IsApproval = entry.IsApproval,
-                IsDPad = singleDPad,
-                DPadControl = entry.First.DPadControl,
+                Tokens = ChordToken.Join(entry.Rows.Select(row => row.Tokens)),
             });
         }
     }

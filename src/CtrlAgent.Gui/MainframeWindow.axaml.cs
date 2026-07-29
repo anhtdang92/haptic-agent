@@ -1,3 +1,4 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -27,6 +28,7 @@ public sealed partial class MainframeWindow : Window
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
+        SizeChanged += (_, _) => ApplyResponsiveLayout();
 
         // Enter sends while Shift+Enter inserts a line break. Tunnel because
         // AcceptsReturn causes the TextBox to consume Enter before bubbling.
@@ -73,6 +75,8 @@ public sealed partial class MainframeWindow : Window
 
         Opened += async (_, _) =>
         {
+            ApplyResponsiveLayout();
+
             // The full power-on sequence is memorable once, but repeat entries
             // should feel instant. Keep it once per app session and preserve the
             // existing input-to-skip behavior for the first showing.
@@ -89,6 +93,98 @@ public sealed partial class MainframeWindow : Window
             IntroOverlay.IsVisible = false;
             FocusPromptWhenReady();
         };
+    }
+
+    /// <summary>
+    /// Keeps the conversation visually dominant at every supported window
+    /// width. Large screens retain the controller cockpit; narrower windows
+    /// reduce chrome, compact the status strip, and give the feed more room.
+    /// </summary>
+    private void ApplyResponsiveLayout()
+    {
+        if (Bounds.Width <= 0)
+        {
+            return;
+        }
+
+        var shell = this.GetVisualDescendants()
+            .OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("mainframeContent"));
+        if (shell is null)
+        {
+            return;
+        }
+
+        var stage = shell.Children
+            .OfType<Grid>()
+            .FirstOrDefault(grid => Grid.GetRow(grid) == 1 && grid.ColumnDefinitions.Count >= 2);
+        var topStrip = shell.Children
+            .OfType<DockPanel>()
+            .FirstOrDefault(panel => Grid.GetRow(panel) == 0);
+
+        var compact = Bounds.Width < 1600;
+        var narrow = Bounds.Width < 1220;
+
+        shell.Margin = narrow
+            ? new Thickness(20, 16, 20, 16)
+            : compact
+                ? new Thickness(32, 22, 32, 20)
+                : new Thickness(48, 28, 48, 24);
+
+        if (stage is not null)
+        {
+            stage.Margin = narrow
+                ? new Thickness(0, 10)
+                : new Thickness(0, 14);
+
+            // The original 2:3 split made supporting hardware UI nearly as
+            // prominent as the work itself. Conversation now owns the canvas.
+            stage.ColumnDefinitions[0].Width = narrow
+                ? new GridLength(0.78, GridUnitType.Star)
+                : compact
+                    ? new GridLength(0.95, GridUnitType.Star)
+                    : new GridLength(1.1, GridUnitType.Star);
+            stage.ColumnDefinitions[1].Width = narrow
+                ? new GridLength(2.22, GridUnitType.Star)
+                : compact
+                    ? new GridLength(2.15, GridUnitType.Star)
+                    : new GridLength(2.4, GridUnitType.Star);
+
+            var controllerHub = stage.Children
+                .OfType<Grid>()
+                .FirstOrDefault(grid => Grid.GetColumn(grid) == 0);
+            if (controllerHub is not null)
+            {
+                controllerHub.MaxWidth = narrow ? 300 : compact ? 360 : 420;
+            }
+
+            var feedCard = stage.Children
+                .OfType<Border>()
+                .FirstOrDefault(border => Grid.GetColumn(border) == 1);
+            if (feedCard is not null)
+            {
+                feedCard.Margin = new Thickness(narrow ? 14 : compact ? 18 : 24, 0, 0, 0);
+                feedCard.Padding = new Thickness(narrow ? 18 : compact ? 21 : 24);
+            }
+        }
+
+        if (topStrip?.Children
+                .OfType<StackPanel>()
+                .FirstOrDefault(panel => DockPanel.GetDock(panel) == Dock.Right) is { } statusItems)
+        {
+            statusItems.Spacing = narrow ? 12 : compact ? 16 : 24;
+
+            // Profile, model and effort remain available in Settings. Hiding
+            // their duplicate labels prevents the toolbar from wrapping or
+            // competing with the live agent and workspace states.
+            var secondaryLabels = statusItems.Children.OfType<TextBlock>().ToList();
+            if (secondaryLabels.Count >= 4)
+            {
+                secondaryLabels[0].IsVisible = !compact;
+                secondaryLabels[2].IsVisible = !compact;
+                secondaryLabels[3].IsVisible = !compact;
+            }
+        }
     }
 
     /// <summary>Moves keyboard users directly to the primary action after the

@@ -67,18 +67,23 @@ public sealed class TranscriptFolder
                 _isStreaming = true;
                 return new TranscriptAction.StartBubble(message);
 
+            // Word markers, not glyphs: the app ships Inter, which has no ✓,
+            // ✕, or 🔒 — on Windows those fall back to Segoe's symbol/emoji
+            // fonts and render as grey blobs or empty boxes, and the lock sat
+            // on every approval row. Verified on a real launch, invisible in
+            // headless shots only until you know to look.
             case AgentStateKind.Completed:
-                return CloseAndAdd($"✓ {message}");
+                return CloseAndAdd($"Done — {message}");
 
             case AgentStateKind.Error:
-                return CloseAndAdd($"✕ {message}");
+                return CloseAndAdd($"Error — {message}");
 
             // Deliberately does not close the bubble: an approval interrupts a
             // reply mid-sentence, and the rest of that sentence belongs to the
             // same bubble once the user answers.
             case AgentStateKind.ApprovalRequired:
             case AgentStateKind.WaitingForInput:
-                return new TranscriptAction.AddActivity($"🔒 {message}");
+                return new TranscriptAction.AddActivity($"Needs approval — {message}");
 
             case AgentStateKind.Idle:
                 return CloseAndAdd(message);

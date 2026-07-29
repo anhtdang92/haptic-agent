@@ -100,7 +100,7 @@
                       <ComboBox ItemsSource="{x:Static gui:ProfileEditorViewModel.ActivationNames}"
                                 SelectedItem="{Binding Activation}"
                                 FontSize="12" />
-                      <Button Content="✕"
+                      <Button Content="×"
                               Classes="ghost"
                               Foreground="#E08496"
                               FontSize="11" Padding="8,3"

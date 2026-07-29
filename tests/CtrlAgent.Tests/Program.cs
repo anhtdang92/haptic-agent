@@ -62,6 +62,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Workspace diff folds tracked and untracked changes", TestWorkspaceDiffAsync),
     ("Startup preflight names every missing prerequisite", TestStartupPreflightAsync),
     ("Stored transcripts reload as prose, tools skipped", TestTranscriptReloadAsync),
+    ("Pending approval locks out non-approval bindings", TestApprovalLockoutAsync),
 };
 
 var failures = 0;
@@ -1235,19 +1236,21 @@ static Task TestTranscriptFoldingAsync()
     // agent will finish once answered.
     var locked = AssertIsAction<TranscriptAction.AddActivity>(
         folder.Fold(Event(AgentStateKind.ApprovalRequired, "wants: Write: a.cs")));
-    Assert(locked.Text.StartsWith("🔒", StringComparison.Ordinal), "Approvals are marked.");
+    // Word prefixes, not glyphs: Inter has no lock/check/cross characters,
+    // and the fallbacks rendered as blobs on a real Windows launch.
+    Assert(locked.Text.StartsWith("Needs approval — ", StringComparison.Ordinal), "Approvals are marked.");
     Assert(folder.IsStreaming, "An approval must not close the bubble.");
     AssertIsAction<TranscriptAction.UpdateBubble>(folder.Fold(Event(AgentStateKind.Working, "Tests pass, done")));
 
     // Results close it and are marked by outcome.
     Assert(
         AssertIsAction<TranscriptAction.AddActivity>(
-            folder.Fold(Event(AgentStateKind.Completed, "done"))).Text.StartsWith("✓", StringComparison.Ordinal),
-        "Completion is ticked.");
+            folder.Fold(Event(AgentStateKind.Completed, "done"))).Text.StartsWith("Done — ", StringComparison.Ordinal),
+        "Completion is marked.");
     Assert(
         AssertIsAction<TranscriptAction.AddActivity>(
-            folder.Fold(Event(AgentStateKind.Error, "boom"))).Text.StartsWith("✕", StringComparison.Ordinal),
-        "Errors are crossed.");
+            folder.Fold(Event(AgentStateKind.Error, "boom"))).Text.StartsWith("Error — ", StringComparison.Ordinal),
+        "Errors are marked.");
 
     // Empty messages contribute nothing and must not open a bubble.
     AssertIsAction<TranscriptAction.None>(folder.Fold(Event(AgentStateKind.Working, "   ")));
@@ -2043,6 +2046,51 @@ static Task TestTranscriptReloadAsync()
         Directory.Delete(home, recursive: true);
     }
 
+    return Task.CompletedTask;
+}
+
+static Task TestApprovalLockoutAsync()
+{
+    var engine = new MappingEngine(ControllerProfile.Default);
+
+    // No approval pending: plain A submits, the LB+A preset fires.
+    AssertEqual(AgentCommandKind.SubmitPrompt, engine.Process(Press(ControllerControl.A)).Single().Kind);
+    engine.Process(At(ControllerControl.A, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+    engine.Process(Press(ControllerControl.LeftShoulder));
+    Assert(engine.Process(Press(ControllerControl.A)).Single().Text is not null,
+        "LB+A carries its preset prompt when nothing is pending.");
+    engine.Process(At(ControllerControl.A, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+    engine.Process(At(ControllerControl.LeftShoulder, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+
+    // Approval pending: the same presses do NOTHING — a mispressed submit
+    // used to queue a surprise prompt behind the pending request.
+    engine.SetPendingApproval("session-1", "request-1");
+    AssertEqual(0, engine.Process(Press(ControllerControl.A)).Count);
+    engine.Process(At(ControllerControl.A, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+    engine.Process(Press(ControllerControl.LeftShoulder));
+    AssertEqual(0, engine.Process(Press(ControllerControl.A)).Count);
+    engine.Process(At(ControllerControl.A, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+    engine.Process(At(ControllerControl.LeftShoulder, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+
+    // But the answers answer, hydrated with the pending ids...
+    engine.Process(Press(ControllerControl.RightShoulder));
+    var approve = engine.Process(Press(ControllerControl.A)).Single();
+    AssertEqual(AgentCommandKind.ApproveOnce, approve.Kind);
+    AssertEqual("request-1", approve.RequestId);
+    engine.Process(At(ControllerControl.A, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+    engine.Process(At(ControllerControl.RightShoulder, ControllerInputEventKind.Released, DateTimeOffset.UtcNow));
+
+    // ...and reading stays possible: the scroll bindings still fire, because
+    // paging through the diff is how the decision gets made.
+    var now = DateTimeOffset.UtcNow;
+    var scroll = engine.Process(new ControllerInputEvent(
+        "test-controller", ControllerControl.RightThumbstickY,
+        ControllerInputEventKind.ValueChanged, 0.9f, now));
+    AssertEqual(AgentCommandKind.ScrollOutputUp, scroll.Single().Kind);
+
+    // Cleared: everything is back.
+    engine.SetPendingApproval(null, null);
+    AssertEqual(AgentCommandKind.SubmitPrompt, engine.Process(Press(ControllerControl.A)).Single().Kind);
     return Task.CompletedTask;
 }
 

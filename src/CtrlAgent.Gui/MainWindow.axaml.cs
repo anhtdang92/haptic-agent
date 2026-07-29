@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -21,19 +22,47 @@ public sealed partial class MainWindow : Window
         // KeyBinding) never sees the key we want to intercept.
         PromptBox.AddHandler(KeyDownEvent, OnPromptKeyDown, RoutingStrategies.Tunnel);
 
-        // F11 = enter Mainframe, the standard fullscreen key.
+        // Desktop-first: the keyboard reaches everything the mouse can.
+        // F1 shortcuts map, F3 diff review, Ctrl+N new session, F11
+        // Mainframe, Esc closes whichever overlay is on top.
         KeyDown += (_, eventArgs) =>
         {
-            if (eventArgs.Key == Key.F11)
+            if (DataContext is not MainViewModel viewModel)
             {
-                eventArgs.Handled = true;
-                (Avalonia.Application.Current as App)?.ShowMainframe();
+                return;
             }
-            else if (eventArgs.Key == Key.Escape &&
-                     DataContext is MainViewModel { IsDiffVisible: true } viewModel)
+
+            switch (eventArgs.Key)
             {
-                eventArgs.Handled = true;
-                viewModel.CloseDiffCommand.Execute(null);
+                case Key.F11:
+                    eventArgs.Handled = true;
+                    (Avalonia.Application.Current as App)?.ShowMainframe();
+                    break;
+
+                case Key.F1:
+                    eventArgs.Handled = true;
+                    viewModel.IsShortcutsVisible = !viewModel.IsShortcutsVisible;
+                    break;
+
+                case Key.F3:
+                    eventArgs.Handled = true;
+                    viewModel.ShowDiffCommand.Execute(null);
+                    break;
+
+                case Key.N when eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control):
+                    eventArgs.Handled = true;
+                    viewModel.NewSessionCommand.Execute(null);
+                    break;
+
+                case Key.Escape when viewModel.IsShortcutsVisible:
+                    eventArgs.Handled = true;
+                    viewModel.CloseShortcutsCommand.Execute(null);
+                    break;
+
+                case Key.Escape when viewModel.IsDiffVisible:
+                    eventArgs.Handled = true;
+                    viewModel.CloseDiffCommand.Execute(null);
+                    break;
             }
         };
     }
@@ -89,6 +118,7 @@ public sealed partial class MainWindow : Window
         _observedViewModel = viewModel;
         viewModel.Log.CollectionChanged += OnLogChanged;
         viewModel.Transcript.CollectionChanged += OnTranscriptChanged;
+        viewModel.TranscriptStreamed += FollowChatIfAtBottom;
         viewModel.OutputScrollRequested += OnOutputScroll;
         viewModel.ModelPickerRequested += OnModelPickerRequested;
     }
@@ -97,11 +127,58 @@ public sealed partial class MainWindow : Window
     // exactly as if it had been clicked.
     private void OnModelPickerRequested() => ModelKnob.Flyout?.ShowAt(ModelKnob);
 
+    // Rebuilt on every open so a headset plugged in mid-session appears
+    // without a restart.
+    private void OnPickMicrophone(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.RefreshMicrophones();
+        }
+
+        FlyoutBase.ShowAttachedFlyout(MicPickButton);
+    }
+
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
         StickToBottom(EventStream, eventArgs);
 
-    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
-        StickToBottom(ChatList, eventArgs);
+    private void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Action == NotifyCollectionChangedAction.Add)
+        {
+            FollowChatIfAtBottom();
+        }
+    }
+
+    /// <summary>
+    /// Keeps the conversation pinned to the newest words — including while a
+    /// streaming reply grows its bubble <em>in place</em>. ScrollIntoView is
+    /// the wrong tool for that: a growing last bubble is always partially
+    /// visible, so "into view" is already satisfied and it never moves, while
+    /// the newest text streams in below the fold. Stickiness is decided here,
+    /// before layout absorbs the growth (the extent still reflects the state
+    /// the user actually saw); the scroll itself is posted for after layout,
+    /// when ScrollToEnd knows the new bottom.
+    /// </summary>
+    private void FollowChatIfAtBottom()
+    {
+        if (ChatList.Scroll is not ScrollViewer scroll)
+        {
+            return;
+        }
+
+        // Reading history must not be undone by the next chunk; scrolling
+        // back down re-arms following. The tolerance covers a partially
+        // visible last row.
+        if (scroll.Offset.Y < scroll.Extent.Height - scroll.Viewport.Height - 48)
+        {
+            return;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            scroll.ScrollToEnd,
+            Avalonia.Threading.DispatcherPriority.Background);
+    }
 
     /// <summary>
     /// Follows new items only while the view is already at the bottom. It used

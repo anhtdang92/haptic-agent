@@ -28,6 +28,9 @@ public sealed class SpeechToTextService : IDisposable
     /// <summary>When set, recognition "hears" this instead of failing.</summary>
     public static string? ScriptedResult { get; set; }
 
+    /// <summary>Mirrors the real service's device selection surface.</summary>
+    public static string? PreferredMicrophone { get; set; }
+
     public event Action<string>? HypothesisChanged;
 
     public string? UnavailableReason { get; private set; } =
@@ -167,6 +170,11 @@ internal static class Harness
         // until something renders narrow.
         Render(new MainWindow { DataContext = viewModel }, "16-main-narrow.png", 740, 660);
 
+        // The desktop all-shortcuts overlay (F1): every binding, full height.
+        viewModel.IsShortcutsVisible = true;
+        Render(new MainWindow { DataContext = viewModel }, "29-shortcuts-overlay.png");
+        viewModel.IsShortcutsVisible = false;
+
         // Approval state: banner + highlighted controls.
         var approving = new MainViewModel(engine, options);
         approving.AttachEngine(engine);
@@ -174,6 +182,12 @@ internal static class Harness
         approving.AgentStatus = "claude";
         approving.AgentState = "ApprovalRequired";
         approving.HasPendingApproval = true;
+        // Drive the bot with the real event so the bubble coaches the
+        // approval, as it does live — a hand-set flag skips OnAgentEvent and
+        // left the shot showing stale "send me a prompt" advice.
+        approving.Buddy.OnAgentEvent(new AgentEvent(
+            "claude", "sess", AgentStateKind.ApprovalRequired, DateTimeOffset.UtcNow,
+            "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs", "req-1"));
         approving.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
         approving.AppendLog("[agent] ApprovalRequired: Claude Code wants: Write: src/Mapping.cs");
         Render(new MainWindow { DataContext = approving }, "02-main-approval.png");
@@ -181,12 +195,7 @@ internal static class Harness
         // The diff review panel: what you are about to approve, before you
         // approve more of it. Populated through PresentDiff so the shot needs
         // no git repository — the collection path is unit-tested separately.
-        var reviewing = new MainViewModel(engine, options);
-        reviewing.AttachEngine(engine);
-        reviewing.ControllerStatus = "Xbox Elite Series 2 (paddles)";
-        reviewing.AgentStatus = "claude";
-        reviewing.IsDiffVisible = true;
-        reviewing.PresentDiff(new WorkspaceChanges(
+        var sampleChanges = new WorkspaceChanges(
         [
             new DiffFile("src/CtrlAgent.Core/Mapping.cs", DiffFileChange.Modified, false, 3, 1,
             [
@@ -211,7 +220,14 @@ internal static class Harness
                 new DiffLine(DiffLineKind.Added, "+using CtrlAgent.Presentation;"),
             ]),
             new DiffFile("assets/logo.png", DiffFileChange.Modified, true, 0, 0, []),
-        ]));
+        ]);
+
+        var reviewing = new MainViewModel(engine, options);
+        reviewing.AttachEngine(engine);
+        reviewing.ControllerStatus = "Xbox Elite Series 2 (paddles)";
+        reviewing.AgentStatus = "claude";
+        reviewing.IsDiffVisible = true;
+        reviewing.PresentDiff(sampleChanges);
         Render(new MainWindow { DataContext = reviewing }, "18-diff-review.png",
             afterSettle: w =>
             {
@@ -278,11 +294,58 @@ internal static class Harness
         chat.AttachEngine(engine);
         chat.ControllerStatus = "Xbox Elite Series 2 (paddles)";
         chat.AgentStatus = "claude";
+
+        // Sessions before the Mainframe view model exists: the Sessions tile
+        // is added at construction only when the adapter's store is readable.
+        chat.ShowSessionList(
+        [
+            new SessionListItem("8f21c0a4", "Refactor the mapping engine tests", DateTimeOffset.UtcNow.AddMinutes(-3), isCurrent: true, noop),
+            new SessionListItem("2b77d1ee", "Add a session picker to Mainframe mode and wire it to the d-pad", DateTimeOffset.UtcNow.AddHours(-5), isCurrent: false, noop),
+            new SessionListItem("77aa19c2", "Fix the DualSense trigger effect", DateTimeOffset.UtcNow.AddDays(-2), isCurrent: false, noop),
+        ]);
+
+        // Subscribed before the turns run, so the Mainframe feed captures the
+        // same conversation — the populated-feed shot below depends on it.
+        var mainframeChat = new MainframeViewModel(chat);
+
         engine.StartAsync().GetAwaiter().GetResult();
         chat.SubmitPromptText("Add a session picker to Mainframe mode");
         Pump(3000);
         chat.SubmitPromptText("Now write tests for it");
         Pump(3000);
+
+        // The Mainframe conversation: user bubbles right, agent markdown
+        // left, composer under it. This is the surface the user actually
+        // chats in from the couch, so it gets its own populated shot.
+        Render(new MainframeWindow { DataContext = mainframeChat }, "26-mainframe-chat.png", 1600, 900,
+            afterShow: HideIntro);
+
+        // The same diff panel, projected into Mainframe: readable from the
+        // couch before approving more of it. State is reset afterwards —
+        // later shots reuse this view model.
+        chat.IsDiffVisible = true;
+        chat.PresentDiff(sampleChanges);
+        Render(new MainframeWindow { DataContext = mainframeChat }, "27-mainframe-diff.png", 1600, 900,
+            afterShow: HideIntro,
+            afterSettle: w =>
+            {
+                if (w.FindControl<ScrollViewer>("MainframeDiffScroller") is not { } scroller ||
+                    scroller.Extent.Height < 40)
+                {
+                    Faults.Add("27-mainframe-diff: the diff rows did not lay out.");
+                }
+            });
+        chat.IsDiffVisible = false;
+
+        // The couch session picker, with the middle row focused.
+        Render(new MainframeWindow { DataContext = mainframeChat }, "28-mainframe-sessions.png", 1600, 900,
+            afterShow: HideIntro,
+            afterSettle: _ =>
+            {
+                mainframeChat.ShowSessions();
+                mainframeChat.OnKey("Down");
+            });
+        mainframeChat.OnKey("Escape");
 
         // A markdown-rich agent reply, injected directly: the mock agent
         // speaks plain prose, and this shot is what proves bold, inline code,
@@ -344,6 +407,9 @@ internal static class Harness
         hud.AgentState = "ApprovalRequired";
         hud.HasPendingApproval = true;
         hud.PendingApprovalMessage = "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs";
+        hud.Buddy.OnAgentEvent(new AgentEvent(
+            "claude", "sess", AgentStateKind.ApprovalRequired, DateTimeOffset.UtcNow,
+            "Claude Code wants: Write: src/CtrlAgent.Core/Mapping.cs", "req-1"));
         Render(new OverlayWindow { DataContext = hud }, "09-overlay.png", 380, 150);
 
         // Notification toast.

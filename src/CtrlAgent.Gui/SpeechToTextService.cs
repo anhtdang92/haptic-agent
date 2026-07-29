@@ -1,3 +1,4 @@
+using System.Speech.AudioFormat;
 using System.Speech.Recognition;
 
 namespace CtrlAgent.Gui;
@@ -12,8 +13,18 @@ namespace CtrlAgent.Gui;
 public sealed class SpeechToTextService : IDisposable
 {
     private SpeechRecognitionEngine? _recognizer;
+    private WaveInStream? _capture;
     private TaskCompletionSource<string?>? _pending;
     private bool _disposed;
+
+    /// <summary>
+    /// The capture device to listen on, by winmm name; null follows the
+    /// Windows default. App-global on purpose: the main window and Mainframe
+    /// each own a service instance, and "which microphone" is one fact about
+    /// the machine, not one per window. A remembered device that is unplugged
+    /// falls back to the default rather than failing.
+    /// </summary>
+    public static string? PreferredMicrophone { get; set; }
 
     /// <summary>Partial text while the user is still speaking.</summary>
     public event Action<string>? HypothesisChanged;
@@ -43,7 +54,27 @@ public sealed class SpeechToTextService : IDisposable
         {
             var recognizer = new SpeechRecognitionEngine();
             recognizer.LoadGrammar(new DictationGrammar());
-            recognizer.SetInputToDefaultAudioDevice();
+
+            // System.Speech has no device selection of its own — "default" or
+            // "a stream" are the only inputs it accepts. A chosen microphone
+            // therefore means capturing from that device ourselves and
+            // feeding the recognizer PCM.
+            var preferred = PreferredMicrophone;
+            var device = preferred is null
+                ? null
+                : MicrophoneCatalog.List().FirstOrDefault(candidate =>
+                    string.Equals(candidate.Name, preferred, StringComparison.OrdinalIgnoreCase));
+            if (device is not null)
+            {
+                _capture = new WaveInStream(device.Index);
+                recognizer.SetInputToAudioStream(
+                    _capture,
+                    new SpeechAudioFormatInfo(16000, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
+            }
+            else
+            {
+                recognizer.SetInputToDefaultAudioDevice();
+            }
             recognizer.SpeechHypothesized += (_, eventArgs) =>
                 HypothesisChanged?.Invoke(eventArgs.Result.Text);
             recognizer.SpeechRecognized += (_, eventArgs) =>
@@ -112,5 +143,7 @@ public sealed class SpeechToTextService : IDisposable
         CancelRecognition();
         _recognizer?.Dispose();
         _recognizer = null;
+        _capture?.Dispose();
+        _capture = null;
     }
 }

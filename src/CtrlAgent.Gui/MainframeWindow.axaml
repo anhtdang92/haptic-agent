@@ -71,9 +71,9 @@
       </Setter>
       <Setter Property="BorderBrush" Value="#26FFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="16" />
-      <Setter Property="Padding" Value="16,11" />
-      <Setter Property="BoxShadow" Value="inset 0 1 0 0 #26FFFFFF, 0 6 18 0 #59000000" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="BoxShadow" Value="inset 0 1 0 0 #1AFFFFFF" />
     </Style>
     <!-- Armed: an approval is pending and this shortcut answers it. Amber
          fill, amber glow, and a pulse — it should be impossible to miss. -->
@@ -106,8 +106,8 @@
       </Setter>
       <Setter Property="BorderBrush" Value="#4D7DD3FC" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="9" />
-      <Setter Property="Padding" Value="13,5" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="8,1" />
       <Setter Property="MinWidth" Value="74" />
       <Setter Property="TextElement.Foreground" Value="#8FD6FF" />
       <Setter Property="BoxShadow" Value="inset 0 1 0 0 #2EFFFFFF, 0 0 14 0 #2600D4FF" />
@@ -418,7 +418,8 @@
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                       ToolTip.Tip="{Binding Main.WorkspacePath}">
-            <TextBlock Text="🗂" FontSize="13" Foreground="#5A7099" VerticalAlignment="Center" />
+            <Path Classes="icon" Width="14" Height="14" Stroke="#5A7099" VerticalAlignment="Center"
+                  Data="M2.5,14.5 V4.5 H7 L8.6,6.4 H15.5 V14.5 Z" />
             <TextBlock Text="{Binding Main.WorkspaceName}" FontSize="15" Foreground="#B9CCEF" VerticalAlignment="Center" />
           </StackPanel>
           <TextBlock Text="{Binding Main.ProfileName}" FontSize="15" Foreground="#5A7099" VerticalAlignment="Center" />
@@ -433,7 +434,8 @@
                   FontSize="14"
                   ToolTip.Tip="Settings — permission mode, profile, shortcuts (View on the pad)">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBlock Text="⚙" FontSize="15" VerticalAlignment="Center" />
+              <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center"
+                    Data="M9,5.6 A3.4,3.4 0 1 1 8.99,5.6 M9,2.4 V4.4 M9,13.6 V15.6 M2.4,9 H4.4 M13.6,9 H15.6 M4.3,4.3 L5.7,5.7 M12.3,12.3 L13.7,13.7 M13.7,4.3 L12.3,5.7 M5.7,12.3 L4.3,13.7" />
               <TextBlock Text="Settings" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
@@ -444,66 +446,221 @@
                RenderOptions.BitmapInterpolationMode="HighQuality" />
       </DockPanel>
 
-      <!-- Center stage: CTRL·BOT | agent feed -->
-      <Grid Grid.Row="1" ColumnDefinitions="2*,3*" Margin="0,28">
+      <!-- Center stage: the controller hub | agent feed.
+           The hub is ONE column — bot, its coaching line, the live pad, and
+           the shortcuts that can fire right now — because they are one
+           subject: "what can my controller do at this moment". They used to
+           be split between here and a chip pile at the bottom of the screen,
+           which meant looking in two places to answer one question. -->
+      <Grid Grid.Row="1" ColumnDefinitions="2*,3*" Margin="0,14">
 
-        <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
-          <Viewbox Height="235" Stretch="Uniform"
+        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,Auto,*" MaxWidth="470">
+          <Viewbox Grid.Row="0" Height="92" Stretch="Uniform"
                    DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
             <gui:BotView />
           </Viewbox>
-          <Border Background="#8A17243E" BorderBrush="#1FFFFFFF" BorderThickness="1"
-                  CornerRadius="16" Padding="22,13" MaxWidth="420"
+          <Border Grid.Row="1" Background="#8A17243E" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                  CornerRadius="14" Padding="16,8" MaxWidth="420" Margin="0,10,0,0"
+                  HorizontalAlignment="Center"
                   DataContext="{Binding Main.Buddy}" x:DataType="gui:AgentBuddyViewModel">
-            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="16" Foreground="#CFE1FF" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="13.5" Foreground="#CFE1FF" />
           </Border>
-          <!-- Live input, fullscreen: the pad mirrors while you drive -->
-          <gui:ControllerMirrorView MaxHeight="190"
+          <!-- Live input: the pad mirrors while you drive -->
+          <gui:ControllerMirrorView Grid.Row="2" MaxHeight="122" Margin="0,8,0,0"
                                     DataContext="{Binding Main.ControllerVisual}" />
-        </StackPanel>
+
+          <TextBlock Grid.Row="3"
+                     Text="{Binding HintHeading}"
+                     Classes="label"
+                     FontSize="12"
+                     Margin="12,10,0,5"
+                     Foreground="#8FA9D6"
+                     IsVisible="{Binding IsHudVisible}" />
+
+          <!-- The map of the pad in your hands: read-only by design, only
+               what can actually fire right now, amber when a pending
+               approval is the only thing worth answering. -->
+          <ScrollViewer Grid.Row="4"
+                        VerticalScrollBarVisibility="Auto"
+                        IsVisible="{Binding IsHudVisible}">
+            <ItemsControl ItemsSource="{Binding Hints}" Margin="8,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="gui:ActionHint">
+                  <Border Classes="hudChip" Classes.armed="{Binding IsApproval}"
+                          Margin="0,1" HorizontalAlignment="Stretch">
+                    <DockPanel>
+                      <Border DockPanel.Dock="Left" Classes="hudKey" Classes.armed="{Binding IsApproval}"
+                              MinWidth="96" Padding="8,2" VerticalAlignment="Center">
+                        <ItemsControl ItemsSource="{Binding Tokens}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" Spacing="3" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="gui:ChordToken">
+                              <Panel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Text}"
+                                           FontFamily="Cascadia Mono,Consolas,monospace"
+                                           FontSize="12.5"
+                                           FontWeight="Bold"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsText}" />
+                                <Border Width="21" Height="21" CornerRadius="10.5"
+                                        Background="#0B1322"
+                                        BorderThickness="1.6"
+                                        BorderBrush="{Binding FaceBrush}"
+                                        IsVisible="{Binding IsFace}">
+                                  <TextBlock Text="{Binding Text}"
+                                             FontSize="11.5"
+                                             FontWeight="Bold"
+                                             Foreground="{Binding FaceBrush}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center" />
+                                </Border>
+                                <gui:DPadIcon Width="18" Height="18"
+                                              Direction="{Binding Control}"
+                                              IsVisible="{Binding IsDPad}" />
+                              </Panel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Border>
+                      <TextBlock Text="{Binding Label}"
+                                 FontSize="13.5"
+                                 FontWeight="Medium"
+                                 Foreground="#EAF3FF"
+                                 Margin="12,0,0,0"
+                                 TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" />
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
 
         <!-- Agent response feed -->
         <Border Grid.Column="1" Classes="card" Padding="24" Margin="24,0,0,0">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="AGENT FEED" Classes="label" FontSize="13" Margin="0,0,0,14" />
-            <Border DockPanel.Dock="Bottom"
-                    Background="#33122544"
-                    BorderBrush="#5500D4FF"
-                    BorderThickness="1"
-                    CornerRadius="10"
-                    Padding="16,12"
-                    Margin="0,14,0,0">
-              <TextBlock Text="{Binding LatestResponse}"
-                         TextWrapping="Wrap"
-                         FontSize="19"
-                         Foreground="#EAF3FF"
-                         MaxLines="5"
-                         TextTrimming="CharacterEllipsis" />
-            </Border>
+            <!-- A real composer, not a readout. This strip used to echo the
+                 latest response (already visible in the feed above it) while
+                 the mode had no way to type at all — Mainframe is a place to
+                 work, not only to watch. Same PromptText and submit command
+                 as the main window, so a half-typed prompt survives switching
+                 between the two. -->
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+              <Button DockPanel.Dock="Right"
+                      Content="Send"
+                      Classes="accent"
+                      FontSize="16"
+                      Padding="22,11"
+                      Margin="12,0,0,0"
+                      VerticalAlignment="Bottom"
+                      Command="{Binding Main.SubmitPromptCommand}" />
+              <Border DockPanel.Dock="Right"
+                      Background="#33FFB020"
+                      BorderBrush="#66FFB020"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="10,4"
+                      Margin="12,0,0,0"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding Main.HasQueuedPrompts}"
+                      ToolTip.Tip="Prompts waiting to send when the current turn ends">
+                <TextBlock Text="{Binding Main.QueuedPromptLabel}" FontSize="12" Foreground="#FFD9A0" />
+              </Border>
+              <TextBox x:Name="MainframePromptBox"
+                       Text="{Binding Main.PromptText}"
+                       FontSize="16"
+                       Padding="16,11"
+                       AcceptsReturn="True"
+                       AcceptsTab="False"
+                       TextWrapping="Wrap"
+                       MaxHeight="120"
+                       VerticalContentAlignment="Top"
+                       Watermark="Type a prompt — Enter sends, Shift+Enter for a new line (Y to speak)" />
+            </DockPanel>
+
+            <!-- Attached files ride with the next Send; declared after the
+                 composer so this bottom-docked row sits directly above it.
+                 Invisible attachments are how a file gets sent to the agent
+                 by surprise. -->
+            <DockPanel DockPanel.Dock="Bottom"
+                       Margin="0,12,0,0"
+                       IsVisible="{Binding Main.HasAttachments}">
+              <Button DockPanel.Dock="Right"
+                      Classes="ghost"
+                      Content="Clear"
+                      FontSize="12"
+                      Command="{Binding Main.ClearAttachmentsCommand}" />
+              <Path DockPanel.Dock="Left"
+                    Classes="icon" Width="13" Height="13"
+                    VerticalAlignment="Center"
+                    Margin="0,0,8,0"
+                    Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
+                          A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
+              <TextBlock Text="{Binding Main.AttachmentLabel}"
+                         FontSize="12.5"
+                         Foreground="#B9CCEF"
+                         VerticalAlignment="Center" />
+            </DockPanel>
             <!-- Empty state: a quiet mark and two short lines, not a
                  paragraph adrift in a large panel -->
             <StackPanel Spacing="10"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        IsVisible="{Binding IsFeedEmpty}">
-              <Ellipse Width="46" Height="46" HorizontalAlignment="Center"
-                       Fill="#12FFFFFF" Stroke="#1FFFFFFF" StrokeThickness="1" />
+                        IsVisible="{Binding Main.IsTranscriptEmpty}">
+              <Path Classes="icon" Width="44" Height="44"
+                    Stroke="#3D7DD3FC" StrokeThickness="1.2"
+                    HorizontalAlignment="Center"
+                    Data="M3,4.5 H15 A1.5,1.5 0 0 1 16.5,6 V12 A1.5,1.5 0 0 1 15,13.5
+                          H8 L4.5,16.5 V13.5 H3 A1.5,1.5 0 0 1 1.5,12 V6 A1.5,1.5 0 0 1 3,4.5 Z
+                          M5.5,8 H12.5 M5.5,10.5 H10" />
               <TextBlock Text="Nothing from the agent yet"
                          FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
-              <TextBlock Text="Use a shortcut below, or press Y to speak a prompt"
+              <TextBlock Text="Type below, use a shortcut, or press Y to speak a prompt"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
+            <!-- The feed IS the transcript — the same folded rows the main
+                 window's chat shows, projected at couch scale. It used to be
+                 a parallel pipeline fed from raw agent events, which meant
+                 status lines read like prose, activity rows were missing,
+                 and the two surfaces could disagree about the conversation. -->
             <ScrollViewer x:Name="FeedScroller"
                           VerticalScrollBarVisibility="Auto"
-                          IsVisible="{Binding !IsFeedEmpty}">
-              <ItemsControl ItemsSource="{Binding Responses}">
+                          IsVisible="{Binding !Main.IsTranscriptEmpty}">
+              <ItemsControl ItemsSource="{Binding Main.Transcript}">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="x:String">
-                    <TextBlock Text="{Binding}"
-                               TextWrapping="Wrap"
-                               FontSize="14"
-                               Foreground="#8FA8CF"
-                               Margin="0,3" />
+                  <DataTemplate x:DataType="gui:ChatMessage">
+                    <Panel Margin="0,4">
+                      <TextBlock Text="{Binding Text}"
+                                 FontSize="12.5"
+                                 Foreground="#7B93BC"
+                                 TextWrapping="Wrap"
+                                 IsVisible="{Binding IsActivity}" />
+                      <Border IsVisible="{Binding IsUserBubble}"
+                              HorizontalAlignment="Right"
+                              Background="#33194B66"
+                              BorderBrush="#5900D4FF"
+                              BorderThickness="1"
+                              CornerRadius="10"
+                              Padding="13,8"
+                              MaxWidth="560">
+                        <TextBlock Text="{Binding Text}"
+                                   TextWrapping="Wrap"
+                                   FontSize="14.5"
+                                   Foreground="#D8ECFF" />
+                      </Border>
+                      <Border IsVisible="{Binding IsAgentBubble}"
+                              HorizontalAlignment="Left"
+                              MaxWidth="720">
+                        <gui:MarkdownView Markdown="{Binding Text}" />
+                      </Border>
+                    </Panel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
@@ -526,43 +683,10 @@
         </StackPanel>
       </Border>
 
-      <!-- Action HUD: the shortcuts that can fire right now, big enough to
-           read across a room. Read-only by design — these are not buttons,
-           they are the map of the pad in your hands. -->
-      <StackPanel Grid.Row="3" Spacing="12" IsVisible="{Binding IsHudVisible}">
-        <TextBlock Text="{Binding HintHeading}"
-                   Classes="label"
-                   FontSize="13"
-                   HorizontalAlignment="Center"
-                   Foreground="#8FA9D6" />
-        <ItemsControl ItemsSource="{Binding Hints}" HorizontalAlignment="Center">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="12" MaxWidth="1460" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="gui:ActionHint">
-              <Border Classes="hudChip" Classes.armed="{Binding IsApproval}">
-                <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
-                  <Border Classes="hudKey" Classes.armed="{Binding IsApproval}">
-                    <TextBlock Text="{Binding Chord}"
-                               FontFamily="Cascadia Mono,Consolas,monospace"
-                               FontSize="18"
-                               FontWeight="Bold"
-                               HorizontalAlignment="Center" />
-                  </Border>
-                  <TextBlock Text="{Binding Label}"
-                             FontSize="19"
-                             FontWeight="Medium"
-                             Foreground="#EAF3FF"
-                             VerticalAlignment="Center" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
+      <!-- The shortcuts HUD used to be a chip pile here — four rows of it,
+           fighting the feed for vertical space and living a screen away from
+           the controller it describes. It now rides in the hub column with
+           the bot and the pad; this row is only the settings rail. -->
 
       <!-- Settings panel: the one place focus navigation exists. Tiles respond
            to hover and click as well as the d-pad, so a mouse works here. -->
@@ -584,10 +708,12 @@
                     PointerPressed="OnTilePointerPressed"
                     Cursor="Hand">
               <StackPanel VerticalAlignment="Center" Spacing="10">
-                <TextBlock Text="{Binding Glyph}"
-                           FontSize="36"
-                           HorizontalAlignment="Center"
-                           Foreground="{Binding AccentBrush}" />
+                <Path Classes="icon"
+                      Data="{Binding IconData}"
+                      Width="34" Height="34"
+                      StrokeThickness="1.4"
+                      HorizontalAlignment="Center"
+                      Stroke="{Binding AccentBrush}" />
                 <TextBlock Text="{Binding Label}"
                            FontSize="14"
                            HorizontalAlignment="Center"
@@ -667,10 +793,42 @@
                 <Border Classes="hudChip" Width="410" Padding="16,12">
                   <DockPanel>
                     <Border Classes="hudKey" DockPanel.Dock="Left"
-                            MinWidth="96" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Chord}"
-                                 FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="16" HorizontalAlignment="Center" />
+                            MinWidth="96" Padding="8,3" VerticalAlignment="Center">
+                      <ItemsControl ItemsSource="{Binding Tokens}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" Spacing="3" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="gui:ChordToken">
+                              <Panel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Text}"
+                                           FontFamily="Cascadia Mono,Consolas,monospace"
+                                           FontSize="12.5"
+                                           FontWeight="Bold"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsText}" />
+                                <Border Width="21" Height="21" CornerRadius="10.5"
+                                        Background="#0B1322"
+                                        BorderThickness="1.6"
+                                        BorderBrush="{Binding FaceBrush}"
+                                        IsVisible="{Binding IsFace}">
+                                  <TextBlock Text="{Binding Text}"
+                                             FontSize="11.5"
+                                             FontWeight="Bold"
+                                             Foreground="{Binding FaceBrush}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center" />
+                                </Border>
+                                <gui:DPadIcon Width="18" Height="18"
+                                              Direction="{Binding Control}"
+                                              IsVisible="{Binding IsDPad}" />
+                              </Panel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Border>
                     <Border DockPanel.Dock="Right"
                             Background="#33FFB020" CornerRadius="6" Padding="8,3"
@@ -688,6 +846,165 @@
         </StackPanel>
       </ScrollViewer>
       </Panel>
+    </Border>
+
+    <!-- ===================== SESSIONS =====================
+         The recents list at couch scale: the same rows the main window's
+         sidebar shows, walked with the d-pad. A resumes (the conversation
+         reloads from the on-disk store), B backs out. -->
+    <Border IsVisible="{Binding IsSessionsVisible}" Background="#05080F">
+      <Panel>
+        <gui:AmbientBackdrop />
+        <StackPanel Spacing="24" Margin="72,48"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="920">
+          <StackPanel Spacing="10">
+            <TextBlock Text="SESSIONS"
+                       Classes="label"
+                       FontSize="18"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Every session in this workspace, newest first. A resumes with its conversation restored; B goes back."
+                       FontSize="15"
+                       Foreground="#8FA8CF"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <TextBlock Text="No sessions yet"
+                     FontSize="15"
+                     Foreground="#5A7099"
+                     HorizontalAlignment="Center"
+                     IsVisible="{Binding Main.IsSessionsEmpty}" />
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="560">
+            <ItemsControl ItemsSource="{Binding Main.Sessions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="gui:SessionListItem">
+                  <!-- Base colors live in a style, not local properties:
+                       local values outrank style setters, so a locally-set
+                       Background would make the focused style unwinnable. -->
+                  <Border Margin="0,5"
+                          Padding="18,12"
+                          CornerRadius="12"
+                          BorderThickness="1.5"
+                          MinWidth="640"
+                          Classes="sessionRow"
+                          Classes.sessionFocused="{Binding IsFocused}">
+                    <Border.Styles>
+                      <Style Selector="Border.sessionRow">
+                        <Setter Property="Background" Value="#33101B30" />
+                        <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+                      </Style>
+                      <Style Selector="Border.sessionRow.sessionFocused">
+                        <Setter Property="BorderBrush" Value="#FF00D4FF" />
+                        <Setter Property="Background" Value="#2600D4FF" />
+                      </Style>
+                    </Border.Styles>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Right"
+                                 Text="{Binding WhenLabel}"
+                                 FontSize="13.5"
+                                 Foreground="#5A7099"
+                                 VerticalAlignment="Center"
+                                 Margin="18,0,0,0" />
+                      <Border DockPanel.Dock="Right"
+                              Background="#1400D4FF"
+                              BorderBrush="#5900D4FF"
+                              BorderThickness="1"
+                              CornerRadius="6"
+                              Padding="8,2"
+                              VerticalAlignment="Center"
+                              Margin="14,0,0,0"
+                              IsVisible="{Binding IsCurrent}">
+                        <TextBlock Text="current" FontSize="11" Foreground="#7DD3FC" />
+                      </Border>
+                      <TextBlock Text="{Binding Title}"
+                                 FontSize="16"
+                                 Foreground="#E6EFFB"
+                                 TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" />
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </StackPanel>
+      </Panel>
+    </Border>
+
+    <!-- ===================== DIFF REVIEW =====================
+         The same panel as the main window — literally the same rows, a second
+         projection of Main's diff state — so what is being approved is
+         readable from the couch before more of it is approved. B or Esc
+         closes; the right stick pages it while open. -->
+    <Border IsVisible="{Binding Main.IsDiffVisible}" Background="#D905080F">
+      <Border Classes="card"
+              Background="#F70B1424"
+              Margin="110,64"
+              Padding="22,18">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="4,0,0,12">
+            <TextBlock DockPanel.Dock="Right"
+                       Text="B closes · right stick scrolls"
+                       FontSize="13"
+                       Foreground="#5A7099"
+                       VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+              <TextBlock Text="CHANGES" Classes="label" FontSize="13" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Main.DiffSummary}"
+                         FontSize="15"
+                         Foreground="#7DD3FC"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </DockPanel>
+
+          <TextBlock DockPanel.Dock="Top"
+                     Text="{Binding Main.DiffError}"
+                     Foreground="#FF7A8C"
+                     FontSize="14"
+                     TextWrapping="Wrap"
+                     Margin="4,0,0,10"
+                     IsVisible="{Binding Main.HasDiffError}" />
+
+          <Panel>
+            <StackPanel Spacing="8"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding Main.IsDiffClean}">
+              <Ellipse Width="40" Height="40" HorizontalAlignment="Center"
+                       Fill="#1234F5A4" Stroke="#3334F5A4" StrokeThickness="1" />
+              <TextBlock Text="Nothing to review"
+                         FontSize="16"
+                         Foreground="#7B93BC"
+                         HorizontalAlignment="Center" />
+              <TextBlock Text="The working tree matches the last commit"
+                         FontSize="13.5"
+                         Foreground="#4C6A93"
+                         HorizontalAlignment="Center" />
+            </StackPanel>
+            <ScrollViewer x:Name="MainframeDiffScroller" HorizontalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding Main.DiffRows}" Margin="4,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="gui:DiffRow">
+                    <Border Background="{Binding Background}"
+                            Margin="{Binding Margin}"
+                            Padding="10,2"
+                            CornerRadius="3">
+                      <TextBlock Text="{Binding Text}"
+                                 FontFamily="Cascadia Mono,Consolas,monospace"
+                                 FontSize="14"
+                                 FontWeight="{Binding Weight}"
+                                 Foreground="{Binding Foreground}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Panel>
+        </DockPanel>
+      </Border>
     </Border>
 
     <!-- Boot intro overlay: plays once on open, then dissolves to the UI.
@@ -830,10 +1147,16 @@
       <Border Classes="card" MaxWidth="760" Padding="42,36"
               VerticalAlignment="Center" HorizontalAlignment="Center">
         <StackPanel Spacing="20" HorizontalAlignment="Center">
-          <TextBlock Text="🎤"
-                     FontSize="56"
-                     HorizontalAlignment="Center"
-                     Classes.pulse="{Binding IsListening}" />
+          <Path Classes="icon"
+                Width="58" Height="58"
+                StrokeThickness="1.2"
+                Stroke="#7DD3FC"
+                HorizontalAlignment="Center"
+                Classes.pulse="{Binding IsListening}"
+                Data="M9,2.5 A2.6,2.6 0 0 1 11.6,5.1 L11.6,9.4 A2.6,2.6 0 0 1 6.4,9.4
+                      L6.4,5.1 A2.6,2.6 0 0 1 9,2.5 Z
+                      M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
+                      M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
           <TextBlock Text="{Binding VoiceStatus}"
                      FontSize="17"
                      Foreground="#9FB7DF"

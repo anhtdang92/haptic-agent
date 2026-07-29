@@ -15,8 +15,27 @@ internal static class ControlLabels
             ? string.Join("+", binding.Modifiers.OrderBy(modifier => modifier).Select(Label)) + "+" + Label(binding.Control)
             : Label(binding.Control);
 
+        // A stick direction is an arrow, not a word: "RS ↑" reads without
+        // thinking where "RightThumbstickY (pull)" required a decoder ring.
+        // The sign convention is XInput's: positive Y is up, positive X is
+        // right. Triggers keep "(pull)" — that is genuinely what you do.
+        if (binding.Gesture == InputGesture.AxisThreshold &&
+            StickArrow(binding.Control, binding.MinimumValue) is { } arrow)
+        {
+            return chord + " " + arrow;
+        }
+
         return chord + GestureSuffix(binding.Gesture);
     }
+
+    internal static string? StickArrow(ControllerControl control, float threshold) => control switch
+    {
+        ControllerControl.LeftThumbstickY or ControllerControl.RightThumbstickY =>
+            threshold >= 0 ? "↑" : "↓",
+        ControllerControl.LeftThumbstickX or ControllerControl.RightThumbstickX =>
+            threshold >= 0 ? "→" : "←",
+        _ => null,
+    };
 
     public static string GestureSuffix(InputGesture gesture) => gesture switch
     {
@@ -43,10 +62,16 @@ internal static class ControlLabels
         ControllerControl.RightTrigger => "RT",
         ControllerControl.LeftThumbstickButton => "LS",
         ControllerControl.RightThumbstickButton => "RS",
-        ControllerControl.DPadUp => "D-Up",
-        ControllerControl.DPadDown => "D-Down",
-        ControllerControl.DPadLeft => "D-Left",
-        ControllerControl.DPadRight => "D-Right",
+        ControllerControl.LeftThumbstickX or ControllerControl.LeftThumbstickY => "LS",
+        ControllerControl.RightThumbstickX or ControllerControl.RightThumbstickY => "RS",
+
+        // The arrow IS the icon — the d-pad is the one directional cluster on
+        // the pad, and "D→" reads without thinking where "D-Right" was a word
+        // to parse. Inter covers U+2190–2193, so these can never tofu.
+        ControllerControl.DPadUp => "D↑",
+        ControllerControl.DPadDown => "D↓",
+        ControllerControl.DPadLeft => "D←",
+        ControllerControl.DPadRight => "D→",
         ControllerControl.PaddleLeft1 => "P1",
         ControllerControl.PaddleLeft2 => "P2",
         ControllerControl.PaddleRight1 => "P3",

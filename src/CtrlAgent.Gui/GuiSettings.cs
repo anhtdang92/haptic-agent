@@ -32,7 +32,8 @@ public sealed record GuiSettings(
     double? WindowHeight = null,
     int? WindowX = null,
     int? WindowY = null,
-    string[]? RecentWorkspaces = null)
+    string[]? RecentWorkspaces = null,
+    string? Microphone = null)
 {
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -86,8 +87,26 @@ public sealed record GuiSettings(
                 uiState?.WindowHeight ?? previous?.WindowHeight,
                 uiState?.WindowX ?? previous?.WindowX,
                 uiState?.WindowY ?? previous?.WindowY,
-                Remember(previous?.RecentWorkspaces, options.WorkingDirectory));
+                Remember(previous?.RecentWorkspaces, options.WorkingDirectory),
+                previous?.Microphone);
 
+            var path = SettingsPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(settings, Options));
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    /// <summary>Persists the chosen capture device (null = system default)
+    /// without disturbing anything else in the file.</summary>
+    public static void TrySaveMicrophone(string? microphone)
+    {
+        try
+        {
+            var previous = TryLoad() ?? new GuiSettings(null, null, null, null, null, null, null);
+            var settings = previous with { Microphone = microphone };
             var path = SettingsPath;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(settings, Options));

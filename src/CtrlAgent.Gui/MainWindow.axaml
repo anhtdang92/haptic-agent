@@ -43,13 +43,27 @@
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     </Style>
+    <!-- Chat rows are content, not choices: hover and selection chrome made
+         the transcript flicker like a menu under the pointer. -->
+    <Style Selector="ListBox.chat ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chat ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chat ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chat ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
     <Style Selector="Border.bubble">
       <Setter Property="Background" Value="#CC17233C" />
       <Setter Property="BorderBrush" Value="#1FFFFFFF" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="12" />
-      <Setter Property="Padding" Value="10,7" />
-      <Setter Property="MaxWidth" Value="400" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="MaxWidth" Value="640" />
       <Setter Property="HorizontalAlignment" Value="Left" />
     </Style>
     <Style Selector="Border.bubble.user">
@@ -84,11 +98,14 @@
             PointerPressed="OnHeroPressed"
             Classes="card"
             CornerRadius="18"
-            Padding="20,14"
+            Padding="20,12"
             Margin="0,0,0,12">
-      <StackPanel Spacing="12">
+      <StackPanel Spacing="9">
 
-        <!-- Row 1 — the companion, and the window-level tools -->
+        <!-- Row 1 — what the session is, and the window-level tools. CTRL·BOT
+             moved out of here into the controller hub on the right: the bot,
+             the pad, and the shortcuts are one subject and belong in one
+             place, and the command bar gets calmer for it. -->
         <DockPanel>
           <Border DockPanel.Dock="Right"
                   VerticalAlignment="Center"
@@ -98,71 +115,99 @@
                   CornerRadius="13"
                   Padding="4,3">
             <StackPanel Orientation="Horizontal" Spacing="1">
+              <!-- Stroked Path icons, never text glyphs: the app ships Inter,
+                   which has none of the dingbats these buttons used, and the
+                   Windows fallback drew them as blobs and boxes. -->
               <Button Classes="tool" Command="{Binding ShowDiffCommand}"
                       ToolTip.Tip="Review the workspace changes — every pending edit, before you approve more (Esc closes)">
-<TextBlock Text="◱" FontSize="13" VerticalAlignment="Center" />
+                <Path Classes="icon" Width="14" Height="14"
+                      Data="M5,3.5 H3 V14.5 H5 M13,3.5 H15 V14.5 H13 M9,5.5 V9.5 M7,7.5 H11 M7,12 H11" />
               </Button>
               <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
               <Button Classes="tool" Command="{Binding NewSessionCommand}"
                       ToolTip.Tip="Start a fresh session (Menu on the controller)">
-<TextBlock Text="✦" FontSize="13" VerticalAlignment="Center" />
+                <Path Classes="icon" Width="14" Height="14"
+                      Data="M9,3.5 V14.5 M3.5,9 H14.5" />
               </Button>
               <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
               <Button Classes="tool" Click="OnShowMainframe"
                       ToolTip.Tip="Mainframe — fullscreen controller-first mode (F11, Xbox/PS button, or double-press View)">
                 <StackPanel Orientation="Horizontal" Spacing="7">
-                  <TextBlock Text="⛶" FontSize="13" VerticalAlignment="Center" />
+                  <Path Classes="icon" Width="14" Height="14"
+                        Data="M3,6.5 V3 H6.5 M11.5,3 H15 V6.5 M15,11.5 V15 H11.5 M6.5,15 H3 V11.5" />
                   <TextBlock Text="Mainframe" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
               <Rectangle Width="1" Fill="#14FFFFFF" Margin="3,5" />
               <Button Classes="tool" Click="OnToggleOverlay" ToolTip.Tip="Toggle the always-on-top HUD">
-                <TextBlock Text="▤" FontSize="13" VerticalAlignment="Center" />
+                <Path Classes="icon" Width="14" Height="14"
+                      Data="M9,3 L15,6.5 L9,10 L3,6.5 Z M4,10.5 L9,13.5 L14,10.5" />
               </Button>
               <Button Classes="tool" Click="OnEditProfile"
                       ToolTip.Tip="Edit controller bindings with live validation">
                 <StackPanel Orientation="Horizontal" Spacing="7">
-                  <TextBlock Text="⚙" FontSize="13" VerticalAlignment="Center" />
+                  <Path Classes="icon" Width="14" Height="14"
+                        Data="M9,5.6 A3.4,3.4 0 1 1 8.99,5.6 M9,2.4 V4.4 M9,13.6 V15.6 M2.4,9 H4.4 M13.6,9 H15.6 M4.3,4.3 L5.7,5.7 M12.3,12.3 L13.7,13.7 M13.7,4.3 L12.3,5.7 M5.7,12.3 L4.3,13.7" />
                   <TextBlock Text="{Binding ProfileName}" VerticalAlignment="Center" />
                   <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{Binding ProfileDotBrush}" />
                 </StackPanel>
               </Button>
               <Button Classes="tool" Click="OnValidateHardware" ToolTip.Tip="Run the guided hardware validation wizard">
-                <TextBlock Text="◎" FontSize="13" VerticalAlignment="Center" />
+                <Path Classes="icon" Width="14" Height="14"
+                      Data="M9,3.4 A5.6,5.6 0 1 1 8.99,3.4 M9,6.6 A2.4,2.4 0 1 1 8.99,6.6" />
               </Button>
             </StackPanel>
           </Border>
 
-          <!-- CTRL·BOT and the line it is currently coaching -->
-          <StackPanel Orientation="Horizontal"
-                      Spacing="12"
-                      VerticalAlignment="Center"
-                      DataContext="{Binding Buddy}"
-                      x:DataType="gui:AgentBuddyViewModel">
-            <Viewbox Height="76" Stretch="Uniform">
-              <gui:BotView />
-            </Viewbox>
-            <Border Background="#7A17243E"
-                    BorderBrush="#14FFFFFF"
-                    BorderThickness="1"
-                    CornerRadius="14"
-                    Padding="14,9"
-                    MaxWidth="360"
-                    VerticalAlignment="Center">
-              <TextBlock Text="{Binding Message}"
-                         TextWrapping="Wrap"
-                         FontSize="12.5"
-                         Foreground="#CFE1FF" />
-            </Border>
-          </StackPanel>
+          <WrapPanel ItemSpacing="12" LineSpacing="8" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                       Fill="{Binding AgentDotBrush}" Classes.pulse="{Binding IsAgentActive}" />
+              <StackPanel Spacing="1">
+                <TextBlock Text="AGENT" Classes="label" FontSize="9" />
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <TextBlock Text="{Binding AgentStatus}" FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
+                  <TextBlock Text="{Binding AgentState}" FontSize="13" Foreground="#7DD3FC" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+
+            <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
+
+            <Button Classes="ghost" Padding="8,4" Command="{Binding PickWorkspaceCommand}"
+                    VerticalAlignment="Center" Cursor="Hand" ToolTip.Tip="{Binding WorkspacePath}">
+              <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                <Path Classes="icon" Width="13" Height="13" Stroke="#6B84AD"
+                      Data="M2.5,14.5 V4.5 H7 L8.6,6.4 H15.5 V14.5 Z" />
+                <StackPanel Spacing="1">
+                  <TextBlock Text="WORKSPACE" Classes="label" FontSize="9" />
+                  <TextBlock Text="{Binding WorkspaceName}" FontSize="13" FontWeight="Medium"
+                             Foreground="#E6EFFB" TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                </StackPanel>
+              </StackPanel>
+            </Button>
+
+            <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
+
+            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                       Fill="{Binding ControllerDotBrush}" Classes.pulse="{Binding IsControllerSearching}" />
+              <StackPanel Spacing="1">
+                <TextBlock Text="CONTROLLER" Classes="label" FontSize="9" />
+                <TextBlock Text="{Binding ControllerStatus}" FontSize="13" FontWeight="Medium"
+                           Foreground="#E6EFFB" TextTrimming="CharacterEllipsis" MaxWidth="205" />
+              </StackPanel>
+            </StackPanel>
+
+          </WrapPanel>
         </DockPanel>
 
         <Rectangle Height="1" Fill="#14FFFFFF" />
 
-        <!-- Row 2 — what the session is, and the knobs that change it -->
+        <!-- Row 2 — the session knobs, on their own quiet line -->
         <DockPanel LastChildFill="False">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
-                      VerticalAlignment="Center" Margin="16,0,0,0">
+                      VerticalAlignment="Center">
             <Button Content="{Binding PermissionModeLabel}" Command="{Binding CyclePermissionModeCommand}"
                     Classes="knob"
                     ToolTip.Tip="Cycle the agent's permission mode: default, plan, acceptEdits, auto, dontAsk" />
@@ -194,57 +239,17 @@
             <Button Content="compact" Command="{Binding CompactCommand}"
                     Classes="knob" ToolTip.Tip="Compact the conversation, freeing context" />
           </StackPanel>
-
-          <WrapPanel ItemSpacing="16" LineSpacing="8">
-            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                       Fill="{Binding AgentDotBrush}" Classes.pulse="{Binding IsAgentActive}" />
-              <StackPanel Spacing="1">
-                <TextBlock Text="AGENT" Classes="label" FontSize="9" />
-                <StackPanel Orientation="Horizontal" Spacing="7">
-                  <TextBlock Text="{Binding AgentStatus}" FontSize="13" FontWeight="Medium" Foreground="#E6EFFB" />
-                  <TextBlock Text="{Binding AgentState}" FontSize="13" Foreground="#7DD3FC" />
-                </StackPanel>
-              </StackPanel>
-            </StackPanel>
-
-            <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
-
-            <Button Classes="ghost" Padding="8,4" Command="{Binding PickWorkspaceCommand}"
-                    VerticalAlignment="Center" Cursor="Hand" ToolTip.Tip="{Binding WorkspacePath}">
-              <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-                <TextBlock Text="🗂" FontSize="12" VerticalAlignment="Center" Foreground="#6B84AD" />
-                <StackPanel Spacing="1">
-                  <TextBlock Text="WORKSPACE" Classes="label" FontSize="9" />
-                  <TextBlock Text="{Binding WorkspaceName}" FontSize="13" FontWeight="Medium"
-                             Foreground="#E6EFFB" TextTrimming="CharacterEllipsis" MaxWidth="150" />
-                </StackPanel>
-              </StackPanel>
-            </Button>
-
-            <Rectangle Width="1" Height="28" Fill="#14FFFFFF" VerticalAlignment="Center" />
-
-            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                       Fill="{Binding ControllerDotBrush}" Classes.pulse="{Binding IsControllerSearching}" />
-              <StackPanel Spacing="1">
-                <TextBlock Text="CONTROLLER" Classes="label" FontSize="9" />
-                <TextBlock Text="{Binding ControllerStatus}" FontSize="13" FontWeight="Medium"
-                           Foreground="#E6EFFB" TextTrimming="CharacterEllipsis" MaxWidth="240" />
-              </StackPanel>
-            </StackPanel>
-
-          </WrapPanel>
         </DockPanel>
       </StackPanel>
     </Border>
 
     <!-- ===================== COMPOSER =====================
-         One primary action, not four peers. Review and New session moved up to
-         the tool rail because they are session-level, and Interrupt appears
-         only while there is a turn to interrupt — a permanently-lit stop button
-         is noise for the 90% of the time nothing is running. -->
-    <DockPanel DockPanel.Dock="Top">
+         Docked to the BOTTOM, like every chat app: the conversation reads
+         downward and ends where the hands are. It sat under the command bar
+         at the top for a while, which meant the reply streamed in below the
+         box you were typing into. One primary action, not four peers:
+         Interrupt appears only while there is a turn to interrupt. -->
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
                   Margin="10,0,0,0" VerticalAlignment="Bottom">
         <Border Background="#33FFB020" BorderBrush="#66FFB020" BorderThickness="1"
@@ -260,6 +265,27 @@
                       L6.4,5.1 A2.6,2.6 0 0 1 9,2.5 Z
                       M4.2,9.2 A4.8,4.8 0 0 0 13.8,9.2
                       M9,14 L9,16.2 M6.4,16.2 L11.6,16.2" />
+        </Button>
+        <!-- Mic picker: which device the dictation listens on. In-app because
+             System.Speech only follows the Windows default otherwise, and
+             "change your OS sound settings" is not a feature. -->
+        <Button x:Name="MicPickButton"
+                Padding="6,9"
+                Click="OnPickMicrophone"
+                ToolTip.Tip="Choose which microphone dictation uses">
+          <Path Classes="icon" Width="10" Height="10" Data="M4,7 L9,12 L14,7" />
+          <FlyoutBase.AttachedFlyout>
+            <MenuFlyout ItemsSource="{Binding Microphones}">
+              <MenuFlyout.ItemContainerTheme>
+                <ControlTheme TargetType="MenuItem"
+                              BasedOn="{StaticResource {x:Type MenuItem}}"
+                              x:DataType="gui:MicrophoneChoice">
+                  <Setter Property="Header" Value="{Binding Label}" />
+                  <Setter Property="Command" Value="{Binding SelectCommand}" />
+                </ControlTheme>
+              </MenuFlyout.ItemContainerTheme>
+            </MenuFlyout>
+          </FlyoutBase.AttachedFlyout>
         </Button>
         <Button Command="{Binding AttachFileCommand}" Padding="12,9"
                 ToolTip.Tip="Attach files for the next prompt (LB+X on the controller)">
@@ -288,9 +314,9 @@
     </DockPanel>
 
 
-    <!-- Attached files: shown under the prompt because they are part of what
-         the next Submit sends, not a separate thing that happened. -->
-    <Border DockPanel.Dock="Top"
+    <!-- Attached files: directly above the prompt because they are part of
+         what the next Submit sends, not a separate thing that happened. -->
+    <Border DockPanel.Dock="Bottom"
             Classes="card"
             Padding="12,8"
             Margin="0,8,0,0"
@@ -301,11 +327,13 @@
                 Content="Clear"
                 FontSize="11"
                 Command="{Binding ClearAttachmentsCommand}" />
-        <TextBlock DockPanel.Dock="Left"
-                   Text="📎"
-                   FontSize="13"
-                   VerticalAlignment="Center"
-                   Margin="0,0,8,0" />
+        <Path DockPanel.Dock="Left"
+              Classes="icon"
+              Width="14" Height="14"
+              VerticalAlignment="Center"
+              Margin="0,0,8,0"
+              Data="M12.6,5.2 L6.4,11.4 A2.4,2.4 0 0 0 9.8,14.8 L15.2,9.4
+                    A4,4 0 0 0 9.6,3.8 L4.2,9.2 A5.6,5.6 0 0 0 12.2,17.2" />
         <StackPanel Spacing="3">
           <TextBlock Text="{Binding AttachmentLabel}" Classes="label" FontSize="9" />
           <ItemsControl ItemsSource="{Binding Attachments}">
@@ -331,11 +359,10 @@
       </DockPanel>
     </Border>
 
-    <!-- Approval banner: docked in the flow directly under the prompt row, so
-         it pushes content down rather than covering the controls you need to
-         answer with. It kept a hardcoded top margin when it floated, which
-         landed it on top of the prompt row at every window size. -->
-    <Border DockPanel.Dock="Top"
+    <!-- Approval banner: directly above the input area, where the eye
+         already rests between reading and typing — the same place the
+         Claude app raises its own permission prompts. -->
+    <Border DockPanel.Dock="Bottom"
             Classes="alert approvalBanner"
             Classes.show="{Binding HasPendingApproval}"
             Margin="0,12,0,0"
@@ -372,8 +399,8 @@
       </DockPanel>
     </Border>
 
-    <!-- Sessions + log + live input + bindings -->
-    <Grid ColumnDefinitions="Auto,3*,2*" Margin="0,14,0,0">
+    <!-- Sessions + conversation + controller hub fill the middle -->
+    <Grid ColumnDefinitions="Auto,3*,2*" Margin="0,14,0,10">
 
       <!-- Recents sidebar (Claude-app style): every session the agent's
            on-disk store knows for this workspace, newest first — click one to
@@ -412,7 +439,11 @@
           </DockPanel>
           <Button DockPanel.Dock="Top"
                   Content="+ New chat"
-                  Classes="accent"
+                  Classes="ghost"
+                  Foreground="#7DD3FC"
+                  BorderBrush="#3300D4FF"
+                  BorderThickness="1"
+                  CornerRadius="8"
                   HorizontalAlignment="Stretch"
                   HorizontalContentAlignment="Center"
                   Margin="0,0,0,10"
@@ -476,8 +507,12 @@
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
                       IsVisible="{Binding IsTranscriptEmpty}">
-            <Ellipse Width="34" Height="34" HorizontalAlignment="Center"
-                     Fill="#12FFFFFF" Stroke="#1FFFFFFF" StrokeThickness="1" />
+            <Path Classes="icon" Width="34" Height="34"
+                  Stroke="#3D7DD3FC" StrokeThickness="1.3"
+                  HorizontalAlignment="Center"
+                  Data="M3,4.5 H15 A1.5,1.5 0 0 1 16.5,6 V12 A1.5,1.5 0 0 1 15,13.5
+                        H8 L4.5,16.5 V13.5 H3 A1.5,1.5 0 0 1 1.5,12 V6 A1.5,1.5 0 0 1 3,4.5 Z
+                        M5.5,8 H12.5 M5.5,10.5 H10" />
             <TextBlock Text="Nothing yet"
                        FontSize="13"
                        Foreground="#7B93BC"
@@ -485,6 +520,9 @@
             <TextBlock Text="Type a prompt, or press A on the controller"
                        FontSize="11.5"
                        Foreground="#4C6A93"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       MaxWidth="260"
                        HorizontalAlignment="Center" />
           </StackPanel>
           <ListBox x:Name="ChatList"
@@ -539,55 +577,90 @@
         </DockPanel>
       </Border>
 
-      <!-- Proportional rows, not Top-docked + fill. Docked, the mirror card
-           took its full desired height first, so on a short window it ate the
-           whole column: ACTIVE BINDINGS disappeared entirely and the mirror
-           drew straight over the HAPTICS chips. Stars mean both cards always
-           get a share and the mirror scales into whatever it is given. -->
-      <Grid Grid.Column="2" Margin="9,0,0,0" RowDefinitions="3*,2*">
+      <!-- ===================== CONTROLLER HUB =====================
+           One card, one subject: the companion that coaches the pad, the pad
+           itself, and everything it can do right now. These lived in three
+           places (bot in the command bar, mirror and bindings in separate
+           cards), which meant looking around the app to answer the single
+           question "what can my controller do". Fixed rows for the bot and
+           mirror, star row for the shortcuts — the list absorbs short
+           windows instead of the mirror eating the column. -->
+      <Grid Grid.Column="2" Margin="9,0,0,0">
+        <Border Classes="card" Padding="16,14">
+          <Grid RowDefinitions="Auto,Auto,Auto,*">
 
-        <!-- Live controller mirror: every control lights up as it is used -->
-        <Border Grid.Row="0" Classes="card" Padding="16,14" Margin="0,0,0,9">
-          <DockPanel>
+            <!-- CTRL·BOT and the line it is currently coaching. DockPanel so
+                 the bubble fills what remains and can never overflow the
+                 card edge on a narrow window. -->
+            <DockPanel Grid.Row="0" Margin="4,0,0,4"
+                       DataContext="{Binding Buddy}"
+                       x:DataType="gui:AgentBuddyViewModel">
+              <Viewbox DockPanel.Dock="Left" Height="62" Stretch="Uniform" Margin="0,0,10,0">
+                <gui:BotView />
+              </Viewbox>
+              <Border Background="#7A17243E"
+                      BorderBrush="#14FFFFFF"
+                      BorderThickness="1"
+                      CornerRadius="12"
+                      Padding="12,7"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Center">
+                <TextBlock Text="{Binding Message}"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="#CFE1FF" />
+              </Border>
+            </DockPanel>
 
-            <!-- Haptic preview chips: fire a pattern on the mirrored controller -->
-            <WrapPanel DockPanel.Dock="Bottom" Margin="4,8,0,0" ItemSpacing="1" LineSpacing="2">
-              <WrapPanel.Styles>
-                <Style Selector="Button">
-                  <Setter Property="FontSize" Value="11" />
-                  <Setter Property="Padding" Value="8,3" />
-                </Style>
-              </WrapPanel.Styles>
-              <TextBlock Text="HAPTICS" Classes="label" VerticalAlignment="Center" Margin="0,0,8,0" />
-              <Button Content="Working" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="working" />
-              <Button Content="Approval" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="approval" />
-              <Button Content="Waiting" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="waiting" />
-              <Button Content="Completed" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="completed" />
-              <Button Content="Error" Classes="ghost" Command="{Binding PlayPatternCommand}" CommandParameter="error" />
-              <Button Content="Stop" Classes="ghost" Foreground="#E08496" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
-            </WrapPanel>
+            <!-- Live input: every control lights up as it is used. Elite
+                 Series 2 layout: asymmetric sticks, hybrid d-pad disc,
+                 notched stick rings, guide button, rear paddle blades. -->
+            <gui:ControllerMirrorView Grid.Row="1"
+                                      MaxHeight="185"
+                                      Margin="0,6,0,0"
+                                      DataContext="{Binding ControllerVisual}" />
 
-          <!-- DockPanel, not StackPanel: a StackPanel hands each child its
-               full desired height and never compresses, so the mirror spilled
-               over the haptics row instead of shrinking. Here it fills what is
-               left and its Viewbox scales to fit. -->
-          <DockPanel DataContext="{Binding ControllerVisual}" x:DataType="gui:ControllerVisualViewModel">
-            <TextBlock DockPanel.Dock="Top" Text="LIVE INPUT" Classes="label" Margin="4,0,0,6" />
-            <!-- Elite Series 2 layout: asymmetric Xbox sticks, hybrid d-pad
-                 disc, notched stick rings, guide button, rear paddle blades. -->
-            <gui:ControllerMirrorView MaxHeight="230" />
-          </DockPanel>
-          </DockPanel>
-        </Border>
+            <!-- Six haptic-preview chips used to sit here and wrapped into a
+                 five-row stack on a narrow window, shoving the shortcuts
+                 below the fold. Testing rumble is an occasional act; it fits
+                 in one flyout. -->
+            <StackPanel Grid.Row="2" Spacing="6" Margin="0,10,0,6">
+              <Rectangle Height="1" Fill="#14FFFFFF" />
+              <DockPanel Margin="4,4,0,0">
+                <Button DockPanel.Dock="Right"
+                        Classes="ghost"
+                        FontSize="11"
+                        Padding="8,2"
+                        Content="haptics"
+                        ToolTip.Tip="Play a haptic pattern on the connected controller">
+                  <Button.Flyout>
+                    <MenuFlyout Placement="Bottom">
+                      <MenuItem Header="Working" Command="{Binding PlayPatternCommand}" CommandParameter="working" />
+                      <MenuItem Header="Approval" Command="{Binding PlayPatternCommand}" CommandParameter="approval" />
+                      <MenuItem Header="Waiting" Command="{Binding PlayPatternCommand}" CommandParameter="waiting" />
+                      <MenuItem Header="Completed" Command="{Binding PlayPatternCommand}" CommandParameter="completed" />
+                      <MenuItem Header="Error" Command="{Binding PlayPatternCommand}" CommandParameter="error" />
+                      <MenuItem Header="Stop" Command="{Binding PlayPatternCommand}" CommandParameter="stop" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+                <Button DockPanel.Dock="Right"
+                        Classes="ghost"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="0,0,6,0"
+                        Content="view all"
+                        ToolTip.Tip="Every binding at full size (F1)"
+                        Command="{Binding ShowShortcutsCommand}" />
+                <TextBlock Text="{Binding ShortcutsHeading}" Classes="label" VerticalAlignment="Center" />
+              </DockPanel>
+            </StackPanel>
 
-        <Border Grid.Row="1" Classes="card" Padding="16,14">
-          <DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="ACTIVE BINDINGS" Classes="label" Margin="4,0,0,6" />
-            <Panel>
+            <Panel Grid.Row="3">
             <TextBlock Classes="placeholder"
                        Text="No bindings — open Profile… to add some."
                        IsVisible="{Binding IsBindingsEmpty}" />
-            <ListBox ItemsSource="{Binding Bindings}" FontSize="12">
+            <ListBox ItemsSource="{Binding VisibleBindings}" FontSize="12">
               <ListBox.Styles>
                 <Style Selector="ListBoxItem">
                   <Setter Property="Padding" Value="6,3" />
@@ -603,13 +676,20 @@
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="6,2"
-                            MinWidth="84"
+                            MinWidth="60"
                             VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Chord}"
-                                 FontFamily="Cascadia Mono,Consolas,monospace"
-                                 FontSize="11"
-                                 Foreground="#7DD3FC"
-                                 HorizontalAlignment="Center" />
+                      <Panel>
+                        <TextBlock Text="{Binding Chord}"
+                                   FontFamily="Cascadia Mono,Consolas,monospace"
+                                   FontSize="10.5"
+                                   Foreground="#7DD3FC"
+                                   HorizontalAlignment="Center"
+                                   IsVisible="{Binding !IsDPad}" />
+                        <gui:DPadIcon Width="16" Height="16"
+                                      HorizontalAlignment="Center"
+                                      Direction="{Binding DPadControl}"
+                                      IsVisible="{Binding IsDPad}" />
+                      </Panel>
                     </Border>
                     <Border DockPanel.Dock="Right"
                             Background="#33FFB020"
@@ -622,18 +702,94 @@
                     <TextBlock Text="{Binding Action}"
                                Margin="8,0"
                                VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
                                Foreground="#B9CCEF" />
                   </DockPanel>
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
             </Panel>
-          </DockPanel>
+          </Grid>
         </Border>
       </Grid>
     </Grid>
 
   </DockPanel>
+
+  <!-- ===================== ALL SHORTCUTS =====================
+       The complete controller map at desktop scale (F1, Esc closes). The
+       main window is mouse-and-keyboard-first, so the inline hub keeps a
+       compact reference and this overlay is where "show me everything"
+       lives — every binding visible at once, full height, no scrolling
+       squeezed into a sidebar. -->
+  <Border IsVisible="{Binding IsShortcutsVisible}" Background="#CC05080F">
+    <Border Classes="card"
+            Background="#F70B1424"
+            MaxWidth="640"
+            Margin="0,36"
+            Padding="24,16"
+            HorizontalAlignment="Center">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="4,0,0,12">
+          <Button DockPanel.Dock="Right" Classes="tool" Command="{Binding CloseShortcutsCommand}"
+                  ToolTip.Tip="Close (Esc)">
+            <Path Classes="icon" Width="12" Height="12"
+                  Data="M4.5,4.5 L13.5,13.5 M13.5,4.5 L4.5,13.5" />
+          </Button>
+          <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <TextBlock Text="CONTROLLER SHORTCUTS" Classes="label" VerticalAlignment="Center" />
+            <TextBlock Text="approval-tagged inputs only fire while the agent is asking"
+                       FontSize="11.5" Foreground="#5A7099" VerticalAlignment="Center" />
+          </StackPanel>
+        </DockPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Bindings}" Margin="4,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="gui:BindingRow">
+                <DockPanel Margin="0,1.5">
+                  <Border DockPanel.Dock="Left"
+                          Background="#4D0E1728"
+                          BorderBrush="#1FFFFFFF"
+                          BorderThickness="1"
+                          CornerRadius="7"
+                          Padding="8,2"
+                          MinWidth="118"
+                          VerticalAlignment="Center">
+                    <Panel>
+                      <TextBlock Text="{Binding Chord}"
+                                 FontFamily="Cascadia Mono,Consolas,monospace"
+                                 FontSize="13"
+                                 Foreground="#7DD3FC"
+                                 HorizontalAlignment="Center"
+                                 IsVisible="{Binding !IsDPad}" />
+                      <gui:DPadIcon Width="19" Height="19"
+                                    HorizontalAlignment="Center"
+                                    Direction="{Binding DPadControl}"
+                                    IsVisible="{Binding IsDPad}" />
+                    </Panel>
+                  </Border>
+                  <Border DockPanel.Dock="Right"
+                          Background="#33FFB020"
+                          CornerRadius="5"
+                          Padding="7,2"
+                          VerticalAlignment="Center"
+                          IsVisible="{Binding IsApproval}">
+                    <TextBlock Text="approval" FontSize="10" Foreground="#FFD9A0" />
+                  </Border>
+                  <TextBlock Text="{Binding Action}"
+                             Margin="12,0"
+                             FontSize="14"
+                             VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"
+                             Foreground="#D7E4FA" />
+                </DockPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Border>
 
   <!-- ===================== DIFF REVIEW =====================
        What has actually changed in the workspace, before more of it is
@@ -656,7 +812,8 @@
             <Button Classes="ghost" Content="Ask agent to review" Command="{Binding ReviewCommand}"
                     ToolTip.Tip="Have the agent critique its own changes (X on the controller)" />
             <Button Classes="tool" Command="{Binding CloseDiffCommand}" ToolTip.Tip="Close (Esc)">
-              <TextBlock Text="✕" FontSize="13" VerticalAlignment="Center" />
+              <Path Classes="icon" Width="12" Height="12"
+                    Data="M4.5,4.5 L13.5,13.5 M13.5,4.5 L4.5,13.5" />
             </Button>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">

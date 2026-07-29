@@ -118,6 +118,12 @@ public sealed class App : Application
             SetUpTrayIcon(desktop, mainWindow, icon);
             mainWindow.Show();
 
+            // The chosen capture device applies before any dictation runs and
+            // regardless of whether options came from flags or the settings
+            // file — "which microphone" is a fact about the machine.
+            SpeechToTextService.PreferredMicrophone = (savedSettings ?? GuiSettings.TryLoad())?.Microphone;
+            viewModel.MicrophoneChanged += GuiSettings.TrySaveMicrophone;
+
             viewModel.SetupCompleted += StartWithOptions;
             viewModel.MainframeRequested += ShowMainframe;
             viewModel.WorkspacePickerRequested += () => _ = ShowWorkspacePickerAsync();

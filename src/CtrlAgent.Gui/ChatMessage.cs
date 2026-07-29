@@ -15,6 +15,13 @@ public sealed class ChatMessage : ViewModelBase
 
     public required bool IsActivity { get; init; }
 
+    /// <summary>Template selectors for surfaces that render this row three
+    /// ways (activity line, user bubble, agent bubble) — compiled bindings
+    /// cannot express the boolean combination inline.</summary>
+    public bool IsUserBubble => IsUser && !IsActivity;
+
+    public bool IsAgentBubble => !IsUser && !IsActivity;
+
     public string Text
     {
         get => _text;

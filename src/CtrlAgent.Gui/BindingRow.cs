@@ -18,11 +18,29 @@ public sealed class BindingRow
     /// actionable right now — a chord's label alone cannot say that.</summary>
     public required AgentCommandKind Command { get; init; }
 
+    /// <summary>True for a plain d-pad press, which chips render as a drawn
+    /// d-pad with the arm lit (<see cref="DPadIcon"/>) — seen, not read.
+    /// Chords and gestures keep text; a picture cannot say "LB+".</summary>
+    public required bool IsDPad { get; init; }
+
+    /// <summary>The arm to light when <see cref="IsDPad"/>.</summary>
+    public required ControllerControl DPadControl { get; init; }
+
+    /// <summary>The chord as physical parts, for surfaces that draw the pad's
+    /// own buttons (Mainframe) instead of desktop keycap text.</summary>
+    public required IReadOnlyList<ChordToken> Tokens { get; init; }
+
     public static BindingRow From(InputBinding binding) => new()
     {
         Chord = ControlLabels.Chord(binding),
         Action = ControlLabels.Describe(binding),
         IsApproval = binding.RequiresPendingApproval,
         Command = binding.Command,
+        IsDPad = binding.Modifiers is not { Count: > 0 } &&
+                 binding.Gesture == InputGesture.Press &&
+                 binding.Control is ControllerControl.DPadUp or ControllerControl.DPadDown
+                     or ControllerControl.DPadLeft or ControllerControl.DPadRight,
+        DPadControl = binding.Control,
+        Tokens = ChordToken.For(binding),
     };
 }

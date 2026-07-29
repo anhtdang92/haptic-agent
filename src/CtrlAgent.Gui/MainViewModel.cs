@@ -100,6 +100,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _workspacePath = string.Empty;
     private bool _isSessionListVisible;
     private bool _isDiffVisible;
+    private bool _isShortcutsVisible;
     private bool _isDiffLoading;
     private string _diffSummary = string.Empty;
     private string _diffError = string.Empty;
@@ -168,6 +169,8 @@ public sealed class MainViewModel : ViewModelBase
             RefreshDiff();
         });
         CloseDiffCommand = new RelayCommand(_ => IsDiffVisible = false);
+        ShowShortcutsCommand = new RelayCommand(_ => IsShortcutsVisible = true);
+        CloseShortcutsCommand = new RelayCommand(_ => IsShortcutsVisible = false);
         RefreshDiffCommand = new RelayCommand(_ => RefreshDiff());
 
         if (engine is not null)
@@ -195,6 +198,15 @@ public sealed class MainViewModel : ViewModelBase
     /// -1 is toward older text. The window routes it to whichever surface is
     /// on top — the diff panel when open, the conversation otherwise.</summary>
     public event Action<int>? OutputScrollRequested;
+
+    /// <summary>
+    /// Raised when a streaming reply grows its bubble in place. The window
+    /// needs this as well as the collection events: growth adds no row, so
+    /// collection-driven auto-scroll never fires and the newest words stream
+    /// in below the fold — precisely while the user is watching the answer
+    /// arrive.
+    /// </summary>
+    public event Action? TranscriptStreamed;
 
     /// <summary>Typed "/model" with no argument: the window opens the model
     /// chip's flyout, so the command lands on the picker it means.</summary>
@@ -449,7 +461,7 @@ public sealed class MainViewModel : ViewModelBase
             if (count > QueuedPromptCount)
             {
                 AddChat(isUser: false, isActivity: true,
-                    $"⏳ Prompt queued ({count} waiting) — sends when the current turn ends.");
+                    $"Prompt queued ({count} waiting) — sends when the current turn ends.");
             }
 
             QueuedPromptCount = count;
@@ -544,6 +556,37 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Starts dictation.</summary>
     public ICommand StartVoiceCommand { get; }
+
+    /// <summary>The mic-picker rows: "System default" plus every capture
+    /// device winmm reports, rebuilt each time the flyout opens so plugging
+    /// in a headset shows up without a restart.</summary>
+    public ObservableCollection<MicrophoneChoice> Microphones { get; } = [];
+
+    /// <summary>Raised after the user picks a microphone so the host app can
+    /// persist the choice; the selection itself is already applied.</summary>
+    public event Action<string?>? MicrophoneChanged;
+
+    public void RefreshMicrophones()
+    {
+        Microphones.Clear();
+        var current = SpeechToTextService.PreferredMicrophone;
+        Microphones.Add(MicrophoneChoice.For(null, current is null, SelectMicrophone));
+        foreach (var device in MicrophoneCatalog.List())
+        {
+            Microphones.Add(MicrophoneChoice.For(
+                device.Name,
+                string.Equals(device.Name, current, StringComparison.OrdinalIgnoreCase),
+                SelectMicrophone));
+        }
+    }
+
+    private void SelectMicrophone(string? name)
+    {
+        SpeechToTextService.PreferredMicrophone = name;
+        AppendLog($"Microphone: {name ?? "system default"}");
+        MicrophoneChanged?.Invoke(name);
+        RefreshMicrophones();
+    }
 
     /// <summary>Adds picked files, ignoring ones already on the list.</summary>
     public void AddAttachments(IEnumerable<string> paths)
@@ -701,7 +744,13 @@ public sealed class MainViewModel : ViewModelBase
     public bool HasPendingApproval
     {
         get => _hasPendingApproval;
-        set => Set(ref _hasPendingApproval, value);
+        set
+        {
+            if (Set(ref _hasPendingApproval, value))
+            {
+                RebuildVisibleBindings();
+            }
+        }
     }
 
     public string PendingApprovalMessage
@@ -739,7 +788,13 @@ public sealed class MainViewModel : ViewModelBase
     public bool IsAgentActive
     {
         get => _isAgentActive;
-        set => Set(ref _isAgentActive, value);
+        set
+        {
+            if (Set(ref _isAgentActive, value))
+            {
+                RebuildVisibleBindings();
+            }
+        }
     }
 
     public bool IsLogEmpty
@@ -836,6 +891,22 @@ public sealed class MainViewModel : ViewModelBase
         get => _isDiffVisible;
         set => Set(ref _isDiffVisible, value);
     }
+
+    /// <summary>
+    /// The all-shortcuts overlay (F1). The main window is desktop-first, so
+    /// the inline hub keeps only a compact reference list; the complete map —
+    /// every binding, all visible at once — is one click or keypress away at
+    /// full height, the way a desktop app shows its shortcuts.
+    /// </summary>
+    public bool IsShortcutsVisible
+    {
+        get => _isShortcutsVisible;
+        set => Set(ref _isShortcutsVisible, value);
+    }
+
+    public ICommand ShowShortcutsCommand { get; }
+
+    public ICommand CloseShortcutsCommand { get; }
 
     /// <summary>"3 files · +120 −45", or "Reading…" while git runs.</summary>
     public string DiffSummary
@@ -1024,8 +1095,8 @@ public sealed class MainViewModel : ViewModelBase
                 }
 
                 AddChat(isUser: false, isActivity: true, history.Count > 0
-                    ? $"↩ Resumed session — {history.Count} earlier messages restored from disk."
-                    : $"↩ Resuming session {sessionId}…");
+                    ? $"Resumed session — {history.Count} earlier messages restored from disk."
+                    : $"Resuming session {sessionId}…");
             });
         });
     }
@@ -1099,7 +1170,32 @@ public sealed class MainViewModel : ViewModelBase
             }
         }
 
-        IsBindingsEmpty = Bindings.Count == 0;
+        RebuildVisibleBindings();
+    }
+
+    /// <summary>The hub's shortcut rows: only what can fire right now, the
+    /// same rule as Mainframe's HUD and the engine's approval lockout. The
+    /// full map (every binding, fireable or not) stays in <see cref="Bindings"/>
+    /// for the F1 overlay — a reference shows everything, a HUD tells the
+    /// truth about this moment.</summary>
+    public ObservableCollection<BindingRow> VisibleBindings { get; } = [];
+
+    /// <summary>"SHORTCUTS" normally; "ANSWER WITH" while an approval waits.</summary>
+    public string ShortcutsHeading => _hasPendingApproval ? "ANSWER WITH" : "SHORTCUTS";
+
+    private void RebuildVisibleBindings()
+    {
+        VisibleBindings.Clear();
+        foreach (var binding in Bindings)
+        {
+            if (BindingAvailability.IsAvailable(binding, _hasPendingApproval, _isAgentActive))
+            {
+                VisibleBindings.Add(binding);
+            }
+        }
+
+        IsBindingsEmpty = VisibleBindings.Count == 0;
+        Raise(nameof(ShortcutsHeading));
     }
 
     public void AppendLog(string message)
@@ -1142,6 +1238,7 @@ public sealed class MainViewModel : ViewModelBase
                 if (_streamingBubble is { } bubble)
                 {
                     bubble.Text = update.Text;
+                    TranscriptStreamed?.Invoke();
                 }
                 else
                 {

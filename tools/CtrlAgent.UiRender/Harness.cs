@@ -406,13 +406,6 @@ internal static class Harness
         };
         Render(new MainWindow { DataContext = blocked }, "25-setup-preflight.png");
 
-        // Guide-button confirmation before Mainframe takes the screen.
-        var mainframePrompt = new MainViewModel(null, options) { IsMainframePromptVisible = true };
-        Render(
-            new MainWindow { DataContext = mainframePrompt },
-            "15-mainframe-prompt.png",
-            expectVisibleText: "ENTER MAINFRAME?");
-
         // Startup failure. A dead host used to be indistinguishable from a
         // disconnected one, so this surface is worth a render check.
         var failed = new MainViewModel(null, options)
@@ -867,7 +860,7 @@ internal static class Harness
         // surface is deleted (say, in a merge), the shot quietly becomes a
         // picture of the window behind it and proves nothing. Pinning one
         // expected string makes the disappearance a failure. This is exactly
-        // how the Mainframe confirmation vanished unnoticed.
+        // how a since-deleted overlay's disappearance once went unnoticed.
         if (expectVisibleText is not null)
         {
             var found = window.GetVisualDescendants()

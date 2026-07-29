@@ -4,7 +4,6 @@ namespace CtrlAgent.Gui;
 
 /// <summary>Window placement and view toggles saved between launches.</summary>
 public sealed record UiState(
-    bool ChatView,
     bool ShowControllerInput,
     double WindowWidth,
     double WindowHeight,
@@ -26,7 +25,6 @@ public sealed record GuiSettings(
     string? ClaudePath,
     string? GameInputBridgePath,
     string? ProfilePath,
-    bool? ChatView = null,
     bool? ShowControllerInput = null,
     double? WindowWidth = null,
     double? WindowHeight = null,
@@ -81,7 +79,6 @@ public sealed record GuiSettings(
                 options.ClaudeExecutable,
                 options.GameInputBridgeExecutable,
                 options.ProfilePath,
-                uiState?.ChatView ?? previous?.ChatView,
                 uiState?.ShowControllerInput ?? previous?.ShowControllerInput,
                 uiState?.WindowWidth ?? previous?.WindowWidth,
                 uiState?.WindowHeight ?? previous?.WindowHeight,

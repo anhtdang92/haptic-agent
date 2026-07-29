@@ -85,7 +85,6 @@ public sealed class MainViewModel : ViewModelBase
     private SessionSettings _settings = new(null, null, null);
     private ChatMessage? _streamingBubble;
     private readonly TranscriptFolder _folder = new();
-    private bool _isChatView = true;
     private bool _isTranscriptEmpty = true;
     private int _queuedPromptCount;
     private bool _isSetupVisible;
@@ -95,7 +94,6 @@ public sealed class MainViewModel : ViewModelBase
     private string _startupError = string.Empty;
     private ControllerProfile? _profile;
     private ControllerCapabilities? _capabilities;
-    private bool _isMainframePromptVisible;
     private GuiOptions _options;
     private string _workspacePath = string.Empty;
     private bool _isSessionListVisible;
@@ -160,8 +158,6 @@ public sealed class MainViewModel : ViewModelBase
             StartupError = string.Empty;
             IsSetupVisible = true;
         });
-        ConfirmMainframeCommand = new RelayCommand(_ => ConfirmMainframe());
-        DismissMainframePromptCommand = new RelayCommand(_ => DismissMainframePrompt());
         RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
         ShowDiffCommand = new RelayCommand(_ =>
         {
@@ -373,37 +369,17 @@ public sealed class MainViewModel : ViewModelBase
         {
             ControllerVisual.Apply(inputEvent);
 
-            // While the Mainframe prompt is up the pad answers it and nothing
-            // else. Input is captured at the engine, so mapped commands are
-            // already suppressed; this just routes the answer.
-            if (IsMainframePromptVisible)
-            {
-                if (inputEvent.Kind == ControllerInputEventKind.Pressed)
-                {
-                    switch (inputEvent.Control)
-                    {
-                        case ControllerControl.A:
-                            ConfirmMainframe();
-                            break;
-                        case ControllerControl.B:
-                        case ControllerControl.Guide:
-                            DismissMainframePrompt();
-                            break;
-                    }
-                }
-
-                return;
-            }
-
-            // Xbox/PS button = ask before entering Mainframe, on the transports
-            // that report it at all (see MainframeRequested). It confirms
-            // because the guide button is easy to catch with a palm and
-            // Mainframe takes over the whole screen; the deliberate paths
-            // (double-press View, the header button, F11) go straight in.
+            // Xbox/PS button = enter Mainframe, on the transports that report
+            // it at all (see MainframeRequested). It used to raise an "enter?"
+            // confirmation, from the era when Mainframe was a side mode a palm
+            // could stumble into; now Mainframe is the coding surface, and the
+            // console-standard behavior — Guide opens the fullscreen UI — is
+            // the simpler contract. ShowMainframe is idempotent, so a repeat
+            // press just refocuses it.
             if (inputEvent.Kind == ControllerInputEventKind.Pressed &&
                 inputEvent.Control == ControllerControl.Guide)
             {
-                ShowMainframePrompt();
+                MainframeRequested?.Invoke();
             }
 
             // Double-press View = the same thing, on every transport.
@@ -623,55 +599,6 @@ public sealed class MainViewModel : ViewModelBase
 
     public ICommand DismissStartupErrorCommand { get; }
 
-    public ICommand ConfirmMainframeCommand { get; }
-
-    public ICommand DismissMainframePromptCommand { get; }
-
-    /// <summary>The "enter Mainframe?" confirmation raised by the guide button.</summary>
-    public bool IsMainframePromptVisible
-    {
-        get => _isMainframePromptVisible;
-        set => Set(ref _isMainframePromptVisible, value);
-    }
-
-    private void ShowMainframePrompt()
-    {
-        if (IsMainframePromptVisible)
-        {
-            return;
-        }
-
-        IsMainframePromptVisible = true;
-
-        // Capture so a stray A press answers the prompt instead of firing a
-        // prompt submit behind it.
-        _engine?.SetInputCapture(true);
-    }
-
-    private void DismissMainframePrompt()
-    {
-        if (!IsMainframePromptVisible)
-        {
-            return;
-        }
-
-        IsMainframePromptVisible = false;
-        _engine?.SetInputCapture(false);
-    }
-
-    private void ConfirmMainframe()
-    {
-        if (!IsMainframePromptVisible)
-        {
-            return;
-        }
-
-        // Release capture before handing over: Mainframe takes its own.
-        IsMainframePromptVisible = false;
-        _engine?.SetInputCapture(false);
-        MainframeRequested?.Invoke();
-    }
-
     public static string[] SetupAgents { get; } = ["mock", "codex", "claude"];
 
     /// <summary>
@@ -819,13 +746,6 @@ public sealed class MainViewModel : ViewModelBase
     {
         get => _isBindingsEmpty;
         set => Set(ref _isBindingsEmpty, value);
-    }
-
-    /// <summary>Conversation view vs raw event stream in the activity card.</summary>
-    public bool IsChatView
-    {
-        get => _isChatView;
-        set => Set(ref _isChatView, value);
     }
 
     /// <summary>True until the first message, so the conversation can explain

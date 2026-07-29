@@ -84,7 +84,6 @@ public sealed class App : Application
             // Restore remembered view toggles and window placement.
             if (savedSettings is not null)
             {
-                viewModel.IsChatView = savedSettings.ChatView ?? true;
                 viewModel.ShowControllerEvents = savedSettings.ShowControllerInput ?? true;
                 if (savedSettings is { WindowWidth: >= 600 and <= 8192, WindowHeight: >= 400 and <= 8192 })
                 {
@@ -618,7 +617,6 @@ public sealed class App : Application
         }
 
         GuiSettings.TrySave(_activeOptions, new UiState(
-            _viewModel.IsChatView,
             _viewModel.ShowControllerEvents,
             _mainWindow.ClientSize.Width,
             _mainWindow.ClientSize.Height,

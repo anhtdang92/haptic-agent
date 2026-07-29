@@ -509,48 +509,6 @@
     </Border>
   </Border>
 
-  <!-- Guide-button confirmation. The Xbox/PS button is easy to catch with a
-       palm and Mainframe takes the whole screen, so it asks first. A scrim,
-       not an opaque screen: the app behind is live and "Stay here" returns to
-       it instantly. While this is up the engine captures input, so A/B answer
-       the prompt instead of firing their bindings. -->
-  <Border IsVisible="{Binding IsMainframePromptVisible}" Background="#CC05080F">
-    <Border Classes="card"
-            MaxWidth="420"
-            Padding="30,26"
-            VerticalAlignment="Center"
-            HorizontalAlignment="Center">
-      <StackPanel Spacing="14">
-        <TextBlock Text="ENTER MAINFRAME?"
-                   Classes="label"
-                   FontSize="12"
-                   LetterSpacing="3"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="Fullscreen controller-first mode. Your bindings stay live; the screen becomes a HUD."
-                   FontSize="12.5"
-                   Foreground="#9FB7DF"
-                   TextWrapping="Wrap"
-                   TextAlignment="Center" />
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-          <Button Content="Enter"
-                  Classes="accent"
-                  MinWidth="120"
-                  HorizontalContentAlignment="Center"
-                  Command="{Binding ConfirmMainframeCommand}" />
-          <Button Content="Stay here"
-                  MinWidth="120"
-                  HorizontalContentAlignment="Center"
-                  Command="{Binding DismissMainframePromptCommand}" />
-        </StackPanel>
-        <TextBlock Text="A — enter · B — stay"
-                   Classes="label"
-                   FontSize="10"
-                   Opacity="0.75"
-                   HorizontalAlignment="Center" />
-      </StackPanel>
-    </Border>
-  </Border>
-
   <!-- Startup failure. Same treatment as first-run: a dead app is a screen in
        its own right, not a modal over a greyed-out UI that is not running.
        Showing the disabled app behind it invited people to poke at controls

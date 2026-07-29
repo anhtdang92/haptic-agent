@@ -44,13 +44,15 @@ public sealed partial class MainframeWindow : Window
                 {
                     _observed.FeedScrollRequested -= OnFeedScroll;
                     _observed.FocusMoved -= OnFocusMoved;
-                    _observed.Responses.CollectionChanged -= OnFeedChanged;
+                    _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
+                    _observed.Main.TranscriptStreamed -= OnFeedStreamed;
                 }
 
                 _observed = viewModel;
                 viewModel.FocusMoved += OnFocusMoved;
                 viewModel.FeedScrollRequested += OnFeedScroll;
-                viewModel.Responses.CollectionChanged += OnFeedChanged;
+                viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
+                viewModel.Main.TranscriptStreamed += OnFeedStreamed;
             }
         };
         Opened += async (_, _) =>
@@ -100,12 +102,19 @@ public sealed partial class MainframeWindow : Window
     /// </summary>
     private void OnFeedChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
     {
-        if (eventArgs.Action is not (System.Collections.Specialized.NotifyCollectionChangedAction.Add
-            or System.Collections.Specialized.NotifyCollectionChangedAction.Replace))
+        if (eventArgs.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
         {
-            return;
+            FollowFeedIfAtBottom();
         }
+    }
 
+    // A streaming reply grows its bubble in place — no collection event, so
+    // the shared transcript raises this separately (same fix as the main
+    // window's chat).
+    private void OnFeedStreamed() => FollowFeedIfAtBottom();
+
+    private void FollowFeedIfAtBottom()
+    {
         if (FeedScroller is not { } scroller ||
             scroller.Offset.Y < scroller.Extent.Height - scroller.Viewport.Height - 48)
         {

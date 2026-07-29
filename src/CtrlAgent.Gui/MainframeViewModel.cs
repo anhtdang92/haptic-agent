@@ -6,11 +6,6 @@ using CtrlAgent.Hosting;
 
 namespace CtrlAgent.Gui;
 
-/// <summary>One row of the Mainframe conversation feed. A record, not a
-/// mutable cell: streaming updates replace the last row wholesale so the
-/// feed's CollectionChanged carries every change the follow logic needs.</summary>
-public sealed record FeedRow(string Text, bool IsUser);
-
 /// <summary>One focusable tile on the Mainframe action rail.</summary>
 public sealed class MainframeTile : ViewModelBase
 {
@@ -80,16 +75,12 @@ public sealed class MainframeViewModel : ViewModelBase
     private static readonly IBrush ApproveAccent = new SolidColorBrush(Color.Parse("#34F5A4"));
     private static readonly IBrush DenyAccent = new SolidColorBrush(Color.Parse("#FF5A78"));
 
-    // Was 8. Reading back through a long reply is the point of the scroll
-    // binding, and eight messages is roughly one tool call.
-    private const int MaxResponses = 60;
     private const float StickEngage = 0.6f;
     private const float StickRelease = 0.4f;
 
     private readonly HostEngine _engine;
     private readonly SpeechToTextService _speech = new();
     private readonly Action<ControllerInputEvent> _inputHandler;
-    private readonly Action<AgentEvent> _agentHandler;
     private readonly Action<int> _scrollHandler;
 
     private int _focusIndex;
@@ -104,8 +95,6 @@ public sealed class MainframeViewModel : ViewModelBase
     private bool _hasTranscript;
     private string _voiceStatus = string.Empty;
     private string _transcript = string.Empty;
-    private bool _lastResponseWasWorking;
-    private bool _isFeedEmpty = true;
     private bool _detached;
 
     public MainframeViewModel(MainViewModel main)
@@ -114,10 +103,8 @@ public sealed class MainframeViewModel : ViewModelBase
         _engine = main.Engine ?? throw new InvalidOperationException("Mainframe needs a running engine.");
 
         _inputHandler = inputEvent => Dispatcher.UIThread.Post(() => OnControllerInput(inputEvent));
-        _agentHandler = agentEvent => Dispatcher.UIThread.Post(() => OnAgentEvent(agentEvent));
         _scrollHandler = direction => Dispatcher.UIThread.Post(() => FeedScrollRequested?.Invoke(direction));
         _engine.ControllerInputReceived += _inputHandler;
-        _engine.AgentEventReceived += _agentHandler;
         _engine.PendingApprovalChanged += OnPendingApprovalChanged;
         _engine.OutputScrollRequested += _scrollHandler;
         _speech.HypothesisChanged += text => Dispatcher.UIThread.Post(() =>
@@ -131,46 +118,9 @@ public sealed class MainframeViewModel : ViewModelBase
         // Capture stays off until something focusable is on screen.
         _engine.SetInputCapture(false);
         Main.PropertyChanged += OnMainPropertyChanged;
-        Main.Transcript.CollectionChanged += OnTranscriptMirrored;
         Main.Sessions.CollectionChanged += OnSessionsChanged;
         RebuildTiles();
         RebuildHints();
-    }
-
-    /// <summary>
-    /// Mirrors the user's own prompts into the feed, whichever surface they
-    /// were typed (or spoken) on. Without them the feed was half a
-    /// conversation — replies with no questions — which is why chatting from
-    /// Mainframe felt impossible even once it had a composer.
-    /// </summary>
-    private void OnTranscriptMirrored(
-        object? sender,
-        System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
-    {
-        if (_detached ||
-            eventArgs.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Add ||
-            eventArgs.NewItems is null)
-        {
-            return;
-        }
-
-        foreach (var item in eventArgs.NewItems)
-        {
-            if (item is ChatMessage { IsUser: true, IsActivity: false } prompt)
-            {
-                Responses.Add(new FeedRow(prompt.Text, IsUser: true));
-                while (Responses.Count > MaxResponses)
-                {
-                    Responses.RemoveAt(0);
-                }
-
-                // The next Working snapshot starts a fresh row rather than
-                // overwriting the prompt that caused it.
-                _lastResponseWasWorking = false;
-            }
-        }
-
-        IsFeedEmpty = Responses.Count == 0;
     }
 
     /// <summary>Raised when the user asks to leave Mainframe mode.</summary>
@@ -212,17 +162,6 @@ public sealed class MainframeViewModel : ViewModelBase
     {
         get => _hintHeading;
         private set => Set(ref _hintHeading, value);
-    }
-
-    /// <summary>The agent's recent messages, oldest first.</summary>
-    public ObservableCollection<FeedRow> Responses { get; } = [];
-
-    /// <summary>True until the agent says something, so the feed can explain
-    /// itself instead of showing an empty panel.</summary>
-    public bool IsFeedEmpty
-    {
-        get => _isFeedEmpty;
-        private set => Set(ref _isFeedEmpty, value);
     }
 
     public bool IsShortcutsVisible
@@ -309,10 +248,8 @@ public sealed class MainframeViewModel : ViewModelBase
 
         _detached = true;
         _engine.ControllerInputReceived -= _inputHandler;
-        _engine.AgentEventReceived -= _agentHandler;
         _engine.PendingApprovalChanged -= OnPendingApprovalChanged;
         Main.PropertyChanged -= OnMainPropertyChanged;
-        Main.Transcript.CollectionChanged -= OnTranscriptMirrored;
         Main.Sessions.CollectionChanged -= OnSessionsChanged;
         _engine.SetInputCapture(false);
         _engine.OutputScrollRequested -= _scrollHandler;
@@ -650,34 +587,6 @@ public sealed class MainframeViewModel : ViewModelBase
         _hasTranscript = false;
         Transcript = string.Empty;
         VoiceStatus = string.Empty;
-    }
-
-    private void OnAgentEvent(AgentEvent agentEvent)
-    {
-        if (string.IsNullOrWhiteSpace(agentEvent.Message))
-        {
-            return;
-        }
-
-        // Streaming turns publish rolling Working snapshots; render them in
-        // place (Claude-app style) instead of appending every snapshot.
-        if (agentEvent.State == AgentStateKind.Working &&
-            _lastResponseWasWorking &&
-            Responses.Count > 0)
-        {
-            Responses[^1] = new FeedRow(agentEvent.Message, IsUser: false);
-        }
-        else
-        {
-            Responses.Add(new FeedRow(agentEvent.Message, IsUser: false));
-            while (Responses.Count > MaxResponses)
-            {
-                Responses.RemoveAt(0);
-            }
-        }
-
-        IsFeedEmpty = Responses.Count == 0;
-        _lastResponseWasWorking = agentEvent.State == AgentStateKind.Working;
     }
 
     // Approvals are answered by paddles and chords, never by a tile, so a

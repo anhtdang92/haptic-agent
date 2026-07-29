@@ -590,24 +590,36 @@
             <StackPanel Spacing="10"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        IsVisible="{Binding IsFeedEmpty}">
-              <Ellipse Width="46" Height="46" HorizontalAlignment="Center"
-                       Fill="#12FFFFFF" Stroke="#1FFFFFFF" StrokeThickness="1" />
+                        IsVisible="{Binding Main.IsTranscriptEmpty}">
+              <Path Classes="icon" Width="44" Height="44"
+                    Stroke="#3D7DD3FC" StrokeThickness="1.2"
+                    HorizontalAlignment="Center"
+                    Data="M3,4.5 H15 A1.5,1.5 0 0 1 16.5,6 V12 A1.5,1.5 0 0 1 15,13.5
+                          H8 L4.5,16.5 V13.5 H3 A1.5,1.5 0 0 1 1.5,12 V6 A1.5,1.5 0 0 1 3,4.5 Z
+                          M5.5,8 H12.5 M5.5,10.5 H10" />
               <TextBlock Text="Nothing from the agent yet"
                          FontSize="16" Foreground="#7B93BC" HorizontalAlignment="Center" />
               <TextBlock Text="Type below, use a shortcut, or press Y to speak a prompt"
                          FontSize="13.5" Foreground="#4C6A93" HorizontalAlignment="Center" />
             </StackPanel>
+            <!-- The feed IS the transcript — the same folded rows the main
+                 window's chat shows, projected at couch scale. It used to be
+                 a parallel pipeline fed from raw agent events, which meant
+                 status lines read like prose, activity rows were missing,
+                 and the two surfaces could disagree about the conversation. -->
             <ScrollViewer x:Name="FeedScroller"
                           VerticalScrollBarVisibility="Auto"
-                          IsVisible="{Binding !IsFeedEmpty}">
-              <ItemsControl ItemsSource="{Binding Responses}">
+                          IsVisible="{Binding !Main.IsTranscriptEmpty}">
+              <ItemsControl ItemsSource="{Binding Main.Transcript}">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="gui:FeedRow">
+                  <DataTemplate x:DataType="gui:ChatMessage">
                     <Panel Margin="0,4">
-                      <!-- The user's side, unmistakably theirs: right-aligned
-                           accent bubble, same language as the main chat -->
-                      <Border IsVisible="{Binding IsUser}"
+                      <TextBlock Text="{Binding Text}"
+                                 FontSize="12.5"
+                                 Foreground="#7B93BC"
+                                 TextWrapping="Wrap"
+                                 IsVisible="{Binding IsActivity}" />
+                      <Border IsVisible="{Binding IsUserBubble}"
                               HorizontalAlignment="Right"
                               Background="#33194B66"
                               BorderBrush="#5900D4FF"
@@ -620,10 +632,7 @@
                                    FontSize="14.5"
                                    Foreground="#D8ECFF" />
                       </Border>
-                      <!-- The agent's side renders markdown, not raw
-                           asterisks — same MarkdownLite pipeline as the
-                           main window's bubbles -->
-                      <Border IsVisible="{Binding !IsUser}"
+                      <Border IsVisible="{Binding IsAgentBubble}"
                               HorizontalAlignment="Left"
                               MaxWidth="720">
                         <gui:MarkdownView Markdown="{Binding Text}" />

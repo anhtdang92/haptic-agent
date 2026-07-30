@@ -20,7 +20,8 @@ public sealed class HapticScheduler : IAsyncDisposable
 
     /// <summary>
     /// Schedules a pattern without waiting for the entire pattern to finish.
-    /// This keeps the agent event loop responsive while a repeating cue plays.
+    /// Disabled categories are ignored, and every pattern is scaled and stripped
+    /// to the motors the connected transport actually exposes before playback.
     /// </summary>
     public async ValueTask PlayAsync(
         HapticPattern pattern,
@@ -29,6 +30,19 @@ public sealed class HapticScheduler : IAsyncDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(pattern);
 
+        if (!HapticSettings.Allows(pattern))
+        {
+            return;
+        }
+
+        var adapted = pattern.Adapt(HapticSettings.MasterIntensity, _controller.Capabilities);
+        if (adapted.Frames.All(frame =>
+            frame.LowFrequency == 0f && frame.HighFrequency == 0f &&
+            frame.LeftTrigger == 0f && frame.RightTrigger == 0f))
+        {
+            return;
+        }
+
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -36,7 +50,7 @@ public sealed class HapticScheduler : IAsyncDisposable
 
             var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _activePattern = linked;
-            _activeTask = RunPatternAsync(pattern, linked.Token);
+            _activeTask = RunPatternAsync(adapted, linked.Token);
         }
         finally
         {
@@ -139,9 +153,9 @@ public sealed class HapticScheduler : IAsyncDisposable
 
 /// <summary>
 /// Routes haptic playback to the currently attached scheduler so consumers
-/// (like the agent event loop) survive controller loss and reconnection.
-/// Calls while no scheduler is attached are silent no-ops, and device-loss
-/// failures are swallowed instead of tearing down the caller.
+/// survive controller loss and reconnection. Calls while no scheduler is
+/// attached are silent no-ops, and device-loss failures are swallowed instead
+/// of tearing down the caller.
 /// </summary>
 public sealed class HapticSchedulerHub
 {
@@ -151,7 +165,6 @@ public sealed class HapticSchedulerHub
     public void Attach(HapticScheduler scheduler)
     {
         ArgumentNullException.ThrowIfNull(scheduler);
-
         lock (_sync)
         {
             _current = scheduler;
@@ -161,7 +174,6 @@ public sealed class HapticSchedulerHub
     public void Detach(HapticScheduler scheduler)
     {
         ArgumentNullException.ThrowIfNull(scheduler);
-
         lock (_sync)
         {
             if (ReferenceEquals(_current, scheduler))
@@ -174,7 +186,6 @@ public sealed class HapticSchedulerHub
     public async ValueTask PlayAsync(HapticPattern pattern, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(pattern);
-
         var scheduler = Current();
         if (scheduler is null)
         {

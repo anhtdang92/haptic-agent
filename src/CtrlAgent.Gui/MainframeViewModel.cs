@@ -350,10 +350,10 @@ public sealed class MainframeViewModel : ViewModelBase
             return;
         }
 
-        // View toggles settings from anywhere. Y opens voice. Everything else
-        // is only ours while an overlay owns the screen — with no overlay up,
-        // A/B/X and the paddles belong to the profile, and intercepting them
-        // here would shadow the user's own bindings.
+        // View toggles settings from anywhere. Everything else is only ours
+        // while an overlay owns the screen. With no overlay up, face buttons,
+        // bumpers and paddles belong exclusively to the profile mapper so a
+        // modified chord cannot also trigger its bare-button action.
         if (Main.IsDiffVisible)
         {
             switch (inputEvent.Control)
@@ -394,12 +394,6 @@ public sealed class MainframeViewModel : ViewModelBase
             return;
         }
 
-        if (inputEvent.Control == ControllerControl.Y && IsHudVisible)
-        {
-            StartVoice();
-            return;
-        }
-
         if (IsHudVisible)
         {
             return;
@@ -411,9 +405,9 @@ public sealed class MainframeViewModel : ViewModelBase
             case ControllerControl.DPadRight: MoveFocus(+1); break;
             case ControllerControl.A: Activate(); break;
             case ControllerControl.B: Back(); break;
-            // Y is no longer handled here: it is bound to StartVoicePrompt in
-            // the profile and arrives through the engine, so handling it in
-            // both places started dictation twice on a single press.
+            // Y is deliberately not handled here: bare Y and RB+Y both route
+            // through the profile mapper, which chooses the most-specific
+            // matching gesture and emits exactly one command.
         }
     }
 

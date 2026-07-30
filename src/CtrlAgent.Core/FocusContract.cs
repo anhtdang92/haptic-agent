@@ -1,10 +1,5 @@
 namespace CtrlAgent.Core;
 
-/// <summary>
-/// The amount of attention CtrlAgent may request from the user. A focus mode is
-/// not a cosmetic preset: it is the contract between autonomous agent work and
-/// the person supervising it.
-/// </summary>
 public enum FocusMode
 {
     DeepFocus,
@@ -14,7 +9,6 @@ public enum FocusMode
     Accessibility,
 }
 
-/// <summary>Semantic events evaluated by a <see cref="FocusContract"/>.</summary>
 public enum AttentionEventKind
 {
     Navigation,
@@ -30,12 +24,6 @@ public enum AttentionEventKind
     System,
 }
 
-/// <summary>
-/// Defines exactly which events are allowed to interrupt the user's focus.
-/// Critical safety events are deliberately represented separately from routine
-/// progress so a quiet mode can suppress noise without hiding approvals or
-/// failures.
-/// </summary>
 public sealed record FocusContract(
     FocusMode Mode,
     bool NotifyNavigation,
@@ -55,84 +43,20 @@ public sealed record FocusContract(
     public static FocusContract For(FocusMode mode) => mode switch
     {
         FocusMode.DeepFocus => new(
-            mode,
-            NotifyNavigation: false,
-            NotifyCommands: true,
-            NotifyProgress: false,
-            NotifyToolActivity: false,
-            NotifyWaitingForInput: true,
-            NotifyApprovals: true,
-            NotifyCompletion: true,
-            NotifyInterruptions: true,
-            NotifyErrors: true,
-            NotifyVoice: true,
-            NotifySystem: true,
-            StalledWorkThreshold: TimeSpan.FromMinutes(5),
-            IntensityMultiplier: 0.85f),
-
+            mode, false, true, false, false, true, true, true, true, true, true, true,
+            TimeSpan.FromMinutes(5), 0.85f),
         FocusMode.SilentWatch => new(
-            mode,
-            NotifyNavigation: false,
-            NotifyCommands: false,
-            NotifyProgress: false,
-            NotifyToolActivity: false,
-            NotifyWaitingForInput: false,
-            NotifyApprovals: true,
-            NotifyCompletion: false,
-            NotifyInterruptions: true,
-            NotifyErrors: true,
-            NotifyVoice: false,
-            NotifySystem: false,
-            StalledWorkThreshold: TimeSpan.FromMinutes(10),
-            IntensityMultiplier: 0.70f),
-
+            mode, false, false, false, false, false, true, false, true, true, false, false,
+            TimeSpan.FromMinutes(10), 0.70f),
         FocusMode.Couch => new(
-            mode,
-            NotifyNavigation: true,
-            NotifyCommands: true,
-            NotifyProgress: true,
-            NotifyToolActivity: true,
-            NotifyWaitingForInput: true,
-            NotifyApprovals: true,
-            NotifyCompletion: true,
-            NotifyInterruptions: true,
-            NotifyErrors: true,
-            NotifyVoice: true,
-            NotifySystem: true,
-            StalledWorkThreshold: TimeSpan.FromMinutes(3),
-            IntensityMultiplier: 1.00f),
-
+            mode, true, true, true, true, true, true, true, true, true, true, true,
+            TimeSpan.FromMinutes(3), 1.00f),
         FocusMode.Accessibility => new(
-            mode,
-            NotifyNavigation: true,
-            NotifyCommands: true,
-            NotifyProgress: true,
-            NotifyToolActivity: true,
-            NotifyWaitingForInput: true,
-            NotifyApprovals: true,
-            NotifyCompletion: true,
-            NotifyInterruptions: true,
-            NotifyErrors: true,
-            NotifyVoice: true,
-            NotifySystem: true,
-            StalledWorkThreshold: TimeSpan.FromMinutes(4),
-            IntensityMultiplier: 0.90f),
-
+            mode, true, true, true, true, true, true, true, true, true, true, true,
+            TimeSpan.FromMinutes(4), 0.90f),
         _ => new(
-            FocusMode.ActiveSupervision,
-            NotifyNavigation: true,
-            NotifyCommands: true,
-            NotifyProgress: true,
-            NotifyToolActivity: true,
-            NotifyWaitingForInput: true,
-            NotifyApprovals: true,
-            NotifyCompletion: true,
-            NotifyInterruptions: true,
-            NotifyErrors: true,
-            NotifyVoice: true,
-            NotifySystem: true,
-            StalledWorkThreshold: TimeSpan.FromMinutes(5),
-            IntensityMultiplier: 0.85f),
+            FocusMode.ActiveSupervision, true, true, true, true, true, true, true, true, true, true, true,
+            TimeSpan.FromMinutes(5), 0.85f),
     };
 
     public bool Allows(AttentionEventKind kind) => kind switch
@@ -152,24 +76,83 @@ public sealed record FocusContract(
     };
 }
 
-/// <summary>Process-wide focus policy shared by all host surfaces.</summary>
+/// <summary>Process-wide focus policy shared by all hosts and UI surfaces.</summary>
 public static class FocusContractSettings
 {
+    private static readonly FocusMode[] Cycle =
+    [
+        FocusMode.DeepFocus,
+        FocusMode.ActiveSupervision,
+        FocusMode.SilentWatch,
+        FocusMode.Couch,
+        FocusMode.Accessibility,
+    ];
+
+    private static readonly object Sync = new();
     private static FocusContract _current = FocusContract.For(FocusMode.ActiveSupervision);
+
+    public static event Action<FocusContract>? Changed;
 
     public static FocusContract Current
     {
-        get => _current;
-        set => _current = value ?? throw new ArgumentNullException(nameof(value));
+        get
+        {
+            lock (Sync)
+            {
+                return _current;
+            }
+        }
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            Action<FocusContract>? changed;
+            lock (Sync)
+            {
+                if (_current == value)
+                {
+                    return;
+                }
+                _current = value;
+                changed = Changed;
+            }
+            changed?.Invoke(value);
+        }
     }
 
+    public static IReadOnlyList<FocusMode> Modes => Cycle;
+
     public static void Select(FocusMode mode) => Current = FocusContract.For(mode);
+
+    public static FocusMode Next()
+    {
+        var current = Current.Mode;
+        var index = Array.IndexOf(Cycle, current);
+        var next = Cycle[(index + 1 + Cycle.Length) % Cycle.Length];
+        Select(next);
+        return next;
+    }
+
+    public static string Label(FocusMode mode) => mode switch
+    {
+        FocusMode.DeepFocus => "Deep Focus",
+        FocusMode.ActiveSupervision => "Active Supervision",
+        FocusMode.SilentWatch => "Silent Watch",
+        FocusMode.Couch => "Couch",
+        FocusMode.Accessibility => "Accessibility",
+        _ => mode.ToString(),
+    };
+
+    public static string Description(FocusMode mode) => mode switch
+    {
+        FocusMode.DeepFocus => "Routine progress stays quiet; approvals, completion, interruption, and errors reach you.",
+        FocusMode.ActiveSupervision => "Full tactile supervision for commands, progress, decisions, and results.",
+        FocusMode.SilentWatch => "Only approvals, interruptions, and failures request attention.",
+        FocusMode.Couch => "Comprehensive, stronger feedback for operation away from the screen.",
+        FocusMode.Accessibility => "All semantic cues remain available for explicit multimodal operation.",
+        _ => string.Empty,
+    };
 }
 
-/// <summary>
-/// Privacy-preserving counters that describe attention saved without recording
-/// prompt text, filenames, tool arguments, controller identity, or agent output.
-/// </summary>
 public sealed record AttentionMetricsSnapshot(
     long HapticNotificationsDelivered,
     long RoutineNotificationsSuppressed,
@@ -180,6 +163,12 @@ public sealed record AttentionMetricsSnapshot(
     TimeSpan AutonomousWorkObserved)
 {
     public long AvoidedRoutineInterruptions => RoutineNotificationsSuppressed;
+    public long DecisionsHandled => ApprovalResponsesHandled;
+}
+
+public static class AttentionMetricsRegistry
+{
+    public static AttentionMetrics Current { get; } = new();
 }
 
 public sealed class AttentionMetrics
@@ -193,6 +182,8 @@ public sealed class AttentionMetrics
     private long _errors;
     private DateTimeOffset? _workingSince;
     private TimeSpan _autonomousWork;
+
+    public event Action? Changed;
 
     public void RecordDecision(AttentionEventKind kind, bool delivered)
     {
@@ -211,6 +202,7 @@ public sealed class AttentionMetrics
                 _suppressed++;
             }
         }
+        Changed?.Invoke();
     }
 
     public void RecordApprovalResponse()
@@ -219,24 +211,30 @@ public sealed class AttentionMetrics
         {
             _approvalResponses++;
         }
+        Changed?.Invoke();
     }
 
     public void ObserveAgentState(AgentStateKind state, DateTimeOffset observedAt)
     {
+        var changed = false;
         lock (_sync)
         {
             if (state == AgentStateKind.Working)
             {
-                _workingSince ??= observedAt;
-                return;
+                if (_workingSince is null)
+                {
+                    _workingSince = observedAt;
+                    changed = true;
+                }
             }
-
-            if (_workingSince is { } started)
+            else if (_workingSince is { } started)
             {
                 _autonomousWork += observedAt - started;
                 _workingSince = null;
+                changed = true;
             }
         }
+        if (changed) Changed?.Invoke();
     }
 
     public AttentionMetricsSnapshot Snapshot(DateTimeOffset? now = null)
@@ -258,5 +256,21 @@ public sealed class AttentionMetrics
                 _errors,
                 observed);
         }
+    }
+
+    public void Reset()
+    {
+        lock (_sync)
+        {
+            _delivered = 0;
+            _suppressed = 0;
+            _approvalRequests = 0;
+            _approvalResponses = 0;
+            _completions = 0;
+            _errors = 0;
+            _workingSince = null;
+            _autonomousWork = TimeSpan.Zero;
+        }
+        Changed?.Invoke();
     }
 }

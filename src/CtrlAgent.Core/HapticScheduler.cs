@@ -35,7 +35,7 @@ public sealed class HapticScheduler : IAsyncDisposable
             return;
         }
 
-        var adapted = pattern.Adapt(HapticSettings.MasterIntensity, _controller.Capabilities);
+        var adapted = pattern.Adapt(HapticSettings.EffectiveIntensity, _controller.Capabilities);
         if (adapted.Frames.All(frame =>
             frame.LowFrequency == 0f && frame.HighFrequency == 0f &&
             frame.LeftTrigger == 0f && frame.RightTrigger == 0f))

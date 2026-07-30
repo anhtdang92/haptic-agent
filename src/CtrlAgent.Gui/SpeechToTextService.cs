@@ -14,6 +14,10 @@ public sealed class SpeechToTextService : IDisposable
     public static string? Vocabulary { get; set; }
     public static TimeSpan MaximumRecordingDuration { get; set; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>Process-wide lifecycle events consumed by the haptic coordinator.</summary>
+    public static event Action? AttemptStarted;
+    public static event Action<SpeechTranscriptionResult>? ResultAvailable;
+
     public event Action<string>? HypothesisChanged;
 
     public string? UnavailableReason { get; private set; }
@@ -37,6 +41,14 @@ public sealed class SpeechToTextService : IDisposable
     }
 
     public async Task<SpeechTranscriptionResult> RecognizeDetailedAsync()
+    {
+        AttemptStarted?.Invoke();
+        var result = await RecognizeCoreAsync().ConfigureAwait(false);
+        ResultAvailable?.Invoke(result);
+        return result;
+    }
+
+    private async Task<SpeechTranscriptionResult> RecognizeCoreAsync()
     {
         if (!EnsureInitialized())
         {

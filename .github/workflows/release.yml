@@ -3,9 +3,8 @@ name: release
 on:
   push:
     tags: ['v*']
-  # Manual releases: run the workflow and give it the version to cut. This
-  # creates the tag and release from the current default branch, so no local
-  # tag push is required.
+  # Manual releases create the requested tag and release from the current
+  # default branch after the exact artifacts pass qualification.
   workflow_dispatch:
     inputs:
       version:
@@ -17,14 +16,21 @@ permissions:
   contents: write
 
 env:
-  # Tag pushes carry the version in the ref; manual runs pass it as an input.
   RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
 
 jobs:
   package:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^v\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
+            throw "Invalid release version '$env:RELEASE_VERSION'. Expected vMAJOR.MINOR.PATCH."
+          }
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -34,10 +40,22 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Restore
+        shell: pwsh
+        run: |
+          dotnet restore CtrlAgent.sln
+          exit $LASTEXITCODE
+
+      - name: Build managed solution
+        shell: pwsh
+        run: |
+          dotnet build CtrlAgent.sln --configuration Release --no-restore
+          exit $LASTEXITCODE
+
       - name: Run tests
         shell: pwsh
         run: |
-          dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release
+          dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release --no-build
           exit $LASTEXITCODE
 
       - name: Publish console host
@@ -64,7 +82,7 @@ jobs:
           msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
           exit $LASTEXITCODE
 
-      - name: Assemble package
+      - name: Assemble portable package
         shell: pwsh
         run: |
           $name = "CtrlAgent-$($env:RELEASE_VERSION)-win-x64"
@@ -90,22 +108,37 @@ jobs:
             installer\CtrlAgent.iss
           exit $LASTEXITCODE
 
-      - name: Upload artifact
+      - name: Qualify exact release artifacts
+        shell: pwsh
+        run: |
+          ./tools/Test-ReleaseReadiness.ps1 `
+            -Version $env:RELEASE_VERSION `
+            -PortableZip "$env:PACKAGE_NAME.zip" `
+            -Installer "CtrlAgent-Setup-$env:RELEASE_VERSION.exe" `
+            -ReportPath release-readiness-report.json
+
+      - name: Upload qualified artifacts and evidence
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PACKAGE_NAME }}
+          if-no-files-found: error
           path: |
             ${{ env.PACKAGE_NAME }}.zip
             CtrlAgent-Setup-*.exe
+            SHA256SUMS.txt
+            release-readiness-report.json
 
+      # Publication is deliberately last. A failed build, test, package check,
+      # install rehearsal, uninstall rehearsal, or checksum step prevents the
+      # tag/release from being created by a manual run.
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          # Explicit tag so manual runs create the tag themselves; on a tag
-          # push this is the same ref the workflow already ran for.
           tag_name: ${{ env.RELEASE_VERSION }}
           name: CtrlAgent ${{ env.RELEASE_VERSION }}
           files: |
             ${{ env.PACKAGE_NAME }}.zip
             CtrlAgent-Setup-*.exe
+            SHA256SUMS.txt
+            release-readiness-report.json
           generate_release_notes: true

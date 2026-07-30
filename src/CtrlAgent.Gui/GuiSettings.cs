@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CtrlAgent.Core;
 
 namespace CtrlAgent.Gui;
 
@@ -28,7 +29,8 @@ public sealed record GuiSettings(
     string? OpenAiSpeechModel = null,
     string? WhisperExecutable = null,
     string? WhisperModel = null,
-    string? SpeechLanguage = null)
+    string? SpeechLanguage = null,
+    string? FocusMode = null)
 {
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -81,7 +83,8 @@ public sealed record GuiSettings(
                 previous?.OpenAiSpeechModel,
                 previous?.WhisperExecutable,
                 previous?.WhisperModel,
-                previous?.SpeechLanguage);
+                previous?.SpeechLanguage,
+                previous?.FocusMode);
             Write(settings);
         }
         catch (Exception) { }
@@ -136,6 +139,26 @@ public sealed record GuiSettings(
                 WhisperModel = whisperModel,
                 SpeechLanguage = language,
             });
+        }
+        catch (Exception) { }
+    }
+
+    public static void ApplyFocusSettings()
+    {
+        var settings = TryLoad();
+        if (Enum.TryParse<FocusMode>(settings?.FocusMode, true, out var mode))
+        {
+            FocusContractSettings.Select(mode);
+        }
+    }
+
+    public static void TrySaveFocusMode(FocusMode mode)
+    {
+        try
+        {
+            var previous = TryLoad() ?? new GuiSettings(null, null, null, null, null, null, null);
+            Write(previous with { FocusMode = mode.ToString() });
+            FocusContractSettings.Select(mode);
         }
         catch (Exception) { }
     }

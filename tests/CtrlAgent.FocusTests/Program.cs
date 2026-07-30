@@ -102,18 +102,26 @@ static Task TestFocusCycleAsync()
 static Task TestMetricsAsync()
 {
     var metrics = new AttentionMetrics();
-    var start = DateTimeOffset.UtcNow;
-    metrics.RecordDecision(AttentionEventKind.RoutineProgress, delivered: false);
-    metrics.RecordDecision(AttentionEventKind.ApprovalRequired, delivered: true);
-    metrics.RecordApprovalResponse();
-    metrics.ObserveAgentState(AgentStateKind.Working, start);
-    metrics.ObserveAgentState(AgentStateKind.Completed, start.AddMinutes(3));
+    metrics.Reset();
+    try
+    {
+        var start = DateTimeOffset.UtcNow;
+        metrics.RecordDecision(AttentionEventKind.RoutineProgress, delivered: false);
+        metrics.RecordDecision(AttentionEventKind.ApprovalRequired, delivered: true);
+        metrics.RecordApprovalResponse();
+        metrics.ObserveAgentState(AgentStateKind.Working, start);
+        metrics.ObserveAgentState(AgentStateKind.Completed, start.AddMinutes(3));
 
-    var snapshot = metrics.Snapshot(start.AddMinutes(3));
-    AssertEqual(1L, snapshot.RoutineNotificationsSuppressed);
-    AssertEqual(1L, snapshot.ApprovalRequestsSurfaced);
-    AssertEqual(1L, snapshot.ApprovalResponsesHandled);
-    AssertEqual(TimeSpan.FromMinutes(3), snapshot.AutonomousWorkObserved);
+        var snapshot = metrics.Snapshot(start.AddMinutes(3));
+        AssertEqual(1L, snapshot.RoutineNotificationsSuppressed);
+        AssertEqual(1L, snapshot.ApprovalRequestsSurfaced);
+        AssertEqual(1L, snapshot.ApprovalResponsesHandled);
+        AssertEqual(TimeSpan.FromMinutes(3), snapshot.AutonomousWorkObserved);
+    }
+    finally
+    {
+        metrics.Reset();
+    }
     return Task.CompletedTask;
 }
 

@@ -11,12 +11,18 @@ namespace CtrlAgent.Gui;
 /// </summary>
 public sealed class HapticEventCoordinator
 {
+    private const float FocusTriggerThreshold = 0.80f;
+    private const float FocusTriggerRearmThreshold = 0.50f;
+
     private static readonly ConditionalWeakTable<HostEngine, HapticEventCoordinator> Attached = new();
     private static readonly object VoiceSync = new();
     private static WeakReference<HostEngine>? _voiceEngine;
     private readonly HostEngine _engine;
     private readonly FeedbackRouter _router = new();
     private int _lastQueueCount;
+    private float _leftTrigger;
+    private float _rightTrigger;
+    private bool _focusGestureArmed = true;
 
     static HapticEventCoordinator()
     {
@@ -57,8 +63,39 @@ public sealed class HapticEventCoordinator
         }
         if (inputEvent.Kind == ControllerInputEventKind.Disconnected)
         {
+            _leftTrigger = 0f;
+            _rightTrigger = 0f;
+            _focusGestureArmed = true;
             Play(HapticPatternCatalog.Disconnected);
             return;
+        }
+
+        if (inputEvent.Kind == ControllerInputEventKind.ValueChanged)
+        {
+            switch (inputEvent.Control)
+            {
+                case ControllerControl.LeftTrigger:
+                    _leftTrigger = inputEvent.Value;
+                    break;
+                case ControllerControl.RightTrigger:
+                    _rightTrigger = inputEvent.Value;
+                    break;
+            }
+
+            if (!_focusGestureArmed &&
+                (_leftTrigger < FocusTriggerRearmThreshold || _rightTrigger < FocusTriggerRearmThreshold))
+            {
+                _focusGestureArmed = true;
+            }
+            else if (_focusGestureArmed &&
+                     _leftTrigger >= FocusTriggerThreshold &&
+                     _rightTrigger >= FocusTriggerThreshold)
+            {
+                _focusGestureArmed = false;
+                var next = FocusContractSettings.Next();
+                GuiSettings.TrySaveFocusMode(next);
+                Play(HapticPatternCatalog.CommandAccepted);
+            }
         }
 
         // UI navigation is not dispatched as an agent command while input is

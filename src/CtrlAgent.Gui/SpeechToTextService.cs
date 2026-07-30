@@ -1,46 +1,28 @@
-using System.Speech.AudioFormat;
+using System.Globalization;
 using System.Speech.Recognition;
 
 namespace CtrlAgent.Gui;
 
-/// <summary>
-/// Single-shot Windows dictation for Mainframe voice prompts, built on the
-/// in-box System.Speech recognizer: offline, no cloud account, no package
-/// identity requirements. Initialization is lazy and failure is a state, not
-/// an exception — no microphone or no recognizer simply reports unavailable.
-/// Events are raised on recognizer threads; callers marshal to the UI.
-/// </summary>
 public sealed class SpeechToTextService : IDisposable
 {
-    private SpeechRecognitionEngine? _recognizer;
-    private WaveInStream? _capture;
-    private TaskCompletionSource<string?>? _pending;
+    private readonly SpeechAudioRecorder _recorder = new();
+    private CancellationTokenSource? _active;
     private bool _disposed;
 
-    /// <summary>
-    /// The capture device to listen on, by winmm name; null follows the
-    /// Windows default. App-global on purpose: the main window and Mainframe
-    /// each own a service instance, and "which microphone" is one fact about
-    /// the machine, not one per window. A remembered device that is unplugged
-    /// falls back to the default rather than failing.
-    /// </summary>
     public static string? PreferredMicrophone { get; set; }
+    public static string? Language { get; set; }
+    public static string? Vocabulary { get; set; }
+    public static TimeSpan MaximumRecordingDuration { get; set; } = TimeSpan.FromSeconds(15);
 
-    /// <summary>Partial text while the user is still speaking.</summary>
     public event Action<string>? HypothesisChanged;
 
-    /// <summary>Why initialization failed, or null while unattempted/healthy.</summary>
     public string? UnavailableReason { get; private set; }
 
     public bool EnsureInitialized()
     {
-        if (_recognizer is not null)
+        if (_disposed)
         {
-            return true;
-        }
-
-        if (_disposed || UnavailableReason is not null)
-        {
+            UnavailableReason = "Speech service has been disposed.";
             return false;
         }
 
@@ -50,86 +32,91 @@ public sealed class SpeechToTextService : IDisposable
             return false;
         }
 
-        try
-        {
-            var recognizer = new SpeechRecognitionEngine();
-            recognizer.LoadGrammar(new DictationGrammar());
-
-            // System.Speech has no device selection of its own — "default" or
-            // "a stream" are the only inputs it accepts. A chosen microphone
-            // therefore means capturing from that device ourselves and
-            // feeding the recognizer PCM.
-            var preferred = PreferredMicrophone;
-            var device = preferred is null
-                ? null
-                : MicrophoneCatalog.List().FirstOrDefault(candidate =>
-                    string.Equals(candidate.Name, preferred, StringComparison.OrdinalIgnoreCase));
-            if (device is not null)
-            {
-                _capture = new WaveInStream(device.Index);
-                recognizer.SetInputToAudioStream(
-                    _capture,
-                    new SpeechAudioFormatInfo(16000, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
-            }
-            else
-            {
-                recognizer.SetInputToDefaultAudioDevice();
-            }
-            recognizer.SpeechHypothesized += (_, eventArgs) =>
-                HypothesisChanged?.Invoke(eventArgs.Result.Text);
-            recognizer.SpeechRecognized += (_, eventArgs) =>
-                _pending?.TrySetResult(eventArgs.Result.Text);
-            // Fires on silence timeout, cancellation, and audio problems alike.
-            recognizer.RecognizeCompleted += (_, eventArgs) =>
-                _pending?.TrySetResult(eventArgs.Result?.Text);
-
-            _recognizer = recognizer;
-            return true;
-        }
-        catch (Exception exception)
-        {
-            UnavailableReason = exception.Message;
-            return false;
-        }
+        UnavailableReason = null;
+        return true;
     }
 
-    /// <summary>
-    /// Listens for one utterance and returns its text, or null on silence,
-    /// cancellation, or an unavailable recognizer.
-    /// </summary>
-    public Task<string?> RecognizeOnceAsync()
+    public async Task<SpeechTranscriptionResult> RecognizeDetailedAsync()
     {
-        if (!EnsureInitialized() || _recognizer is null)
+        if (!EnsureInitialized())
         {
-            return Task.FromResult<string?>(null);
+            return new(SpeechResultKind.Unavailable, Message: UnavailableReason);
         }
 
-        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending = completion;
+        CancelRecognition();
+        _active = new CancellationTokenSource();
+        var token = _active.Token;
+
+        var recorded = await _recorder.RecordAsync(
+            PreferredMicrophone,
+            MaximumRecordingDuration,
+            token).ConfigureAwait(false);
+
+        if (recorded.Kind is SpeechResultKind.Cancelled or SpeechResultKind.CaptureFailed or SpeechResultKind.Unavailable)
+        {
+            return recorded;
+        }
+
+        if (string.IsNullOrWhiteSpace(recorded.Text))
+        {
+            return new(SpeechResultKind.NoSpeech, Message: recorded.Message ?? "No audio was recorded.");
+        }
+
+        byte[] waveAudio;
         try
         {
-            _recognizer.RecognizeAsync(RecognizeMode.Single);
+            waveAudio = Convert.FromBase64String(recorded.Text);
         }
-        catch (Exception exception)
+        catch (FormatException)
         {
-            UnavailableReason = exception.Message;
-            completion.TrySetResult(null);
+            return new(SpeechResultKind.CaptureFailed, Message: "Recorded audio was invalid.");
         }
 
-        return completion.Task;
+        var provider = CreateProvider();
+        try
+        {
+            var unavailable = await provider.CheckAvailabilityAsync(token).ConfigureAwait(false);
+            if (unavailable is not null)
+            {
+                return new(SpeechResultKind.Unavailable, Message: unavailable);
+            }
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(45));
+            return await provider.TranscribeAsync(
+                waveAudio,
+                new SpeechProviderOptions(Language, Vocabulary, TimeSpan.FromSeconds(45)),
+                timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            return new(SpeechResultKind.TimedOut, Message: "Transcription timed out.");
+        }
+        finally
+        {
+            await provider.DisposeAsync().ConfigureAwait(false);
+        }
     }
+
+    public async Task<string?> RecognizeOnceAsync()
+    {
+        var result = await RecognizeDetailedAsync().ConfigureAwait(false);
+        UnavailableReason = result.Succeeded ? null : result.Message;
+        return result.Text;
+    }
+
+    private static ISpeechToTextProvider CreateProvider() => SpeechProviderSettings.Provider switch
+    {
+        SpeechProviderKind.OpenAi => new OpenAiSpeechToTextProvider(),
+        SpeechProviderKind.LocalWhisper => new LocalWhisperSpeechToTextProvider(),
+        _ => new WindowsSpeechToTextProvider(),
+    };
 
     public void CancelRecognition()
     {
-        try
-        {
-            _recognizer?.RecognizeAsyncCancel();
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
-        _pending?.TrySetResult(null);
+        try { _active?.Cancel(); } catch (ObjectDisposedException) { }
+        _active?.Dispose();
+        _active = null;
     }
 
     public void Dispose()
@@ -141,9 +128,98 @@ public sealed class SpeechToTextService : IDisposable
 
         _disposed = true;
         CancelRecognition();
-        _recognizer?.Dispose();
-        _recognizer = null;
-        _capture?.Dispose();
-        _capture = null;
     }
+}
+
+public sealed class WindowsSpeechToTextProvider : ISpeechToTextProvider
+{
+    public SpeechProviderKind Kind => SpeechProviderKind.Windows;
+    public string DisplayName => "Windows Speech";
+
+    public Task<string?> CheckAvailabilityAsync(CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.FromResult<string?>("Windows Speech is only available on Windows.");
+        }
+
+        try
+        {
+            var recognizers = SpeechRecognitionEngine.InstalledRecognizers();
+            if (recognizers.Count == 0)
+            {
+                return Task.FromResult<string?>(
+                    "No Windows speech recognizer is installed. Install a Speech language pack or choose OpenAI/Local Whisper.");
+            }
+            return Task.FromResult<string?>(null);
+        }
+        catch (Exception exception)
+        {
+            return Task.FromResult<string?>(exception.Message);
+        }
+    }
+
+    public async Task<SpeechTranscriptionResult> TranscribeAsync(
+        byte[] waveAudio,
+        SpeechProviderOptions options,
+        CancellationToken cancellationToken)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CtrlAgent-windows-speech-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var wavePath = Path.Combine(root, "input.wav");
+        await File.WriteAllBytesAsync(wavePath, waveAudio, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            var recognizers = SpeechRecognitionEngine.InstalledRecognizers();
+            var requestedCulture = ParseCulture(options.Language);
+            var recognizerInfo = requestedCulture is null
+                ? recognizers.FirstOrDefault(info => info.Culture.Equals(CultureInfo.CurrentUICulture)) ?? recognizers.FirstOrDefault()
+                : recognizers.FirstOrDefault(info => info.Culture.Name.Equals(requestedCulture.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (recognizerInfo is null)
+            {
+                return new(SpeechResultKind.Unavailable,
+                    Message: requestedCulture is null
+                        ? "No compatible Windows speech recognizer is installed."
+                        : $"No Windows speech recognizer is installed for {requestedCulture.DisplayName}.");
+            }
+
+            return await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var recognizer = new SpeechRecognitionEngine(recognizerInfo);
+                recognizer.LoadGrammar(new DictationGrammar());
+                recognizer.SetInputToWaveFile(wavePath);
+                var result = recognizer.Recognize(TimeSpan.FromSeconds(30));
+                return string.IsNullOrWhiteSpace(result?.Text)
+                    ? new SpeechTranscriptionResult(SpeechResultKind.NoSpeech, Message: "Windows Speech did not recognize an utterance.")
+                    : new SpeechTranscriptionResult(SpeechResultKind.Recognized, result.Text.Trim());
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return new(SpeechResultKind.Cancelled, Message: "Windows transcription was cancelled.");
+        }
+        catch (Exception exception)
+        {
+            return new(SpeechResultKind.TranscriptionFailed, Message: exception.Message);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (Exception) { }
+        }
+    }
+
+    private static CultureInfo? ParseCulture(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language) || language.Equals("auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        try { return CultureInfo.GetCultureInfo(language); }
+        catch (CultureNotFoundException) { return null; }
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

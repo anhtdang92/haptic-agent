@@ -3,34 +3,40 @@ name: release
 on:
   push:
     tags: ['v*']
-  # Manual releases create the requested tag and release from the current
-  # default branch after the exact artifacts pass qualification.
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag to create (e.g. v0.1.0)'
+        description: 'Release version tag to create (for example v0.9.0-beta.1)'
         required: true
         type: string
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+  WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+  WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
 
 jobs:
-  package:
-    runs-on: windows-latest
-    timeout-minutes: 45
+  signed-release:
+    runs-on: windows-2025
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate release version
+      - name: Validate and normalize version
         shell: pwsh
         run: |
-          if ($env:RELEASE_VERSION -notmatch '^v\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
-            throw "Invalid release version '$env:RELEASE_VERSION'. Expected vMAJOR.MINOR.PATCH."
+          if ($env:RELEASE_VERSION -notmatch '^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?<suffix>[.-][0-9A-Za-z.-]+)?$') {
+            throw "Invalid release version '$env:RELEASE_VERSION'."
           }
+          $packageVersion = "$($Matches.major).$($Matches.minor).$($Matches.patch).0"
+          "PACKAGE_VERSION=$packageVersion" >> $env:GITHUB_ENV
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -40,105 +46,84 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Restore, compile, and test
         shell: pwsh
         run: |
           dotnet restore CtrlAgent.sln
-          exit $LASTEXITCODE
-
-      - name: Build managed solution
-        shell: pwsh
-        run: |
+          dotnet restore tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj
           dotnet build CtrlAgent.sln --configuration Release --no-restore
-          exit $LASTEXITCODE
-
-      - name: Run tests
-        shell: pwsh
-        run: |
+          dotnet build tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj --configuration Release --no-restore
           dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release --no-build
-          exit $LASTEXITCODE
+          dotnet run --project tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj --configuration Release --no-build
 
-      - name: Publish console host
+      - name: Build rollback rehearsal installer
         shell: pwsh
         run: |
-          dotnet publish src/CtrlAgent.App/CtrlAgent.App.csproj `
-            --configuration Release --runtime win-x64 --self-contained `
-            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-            --output staging/app
-          exit $LASTEXITCODE
+          ./tools/release/Build-ReleaseArtifacts.ps1 `
+            -DisplayVersion 'v0.0.1-rollback-fixture' `
+            -PackageVersion '0.0.1.0' `
+            -OutputRoot 'artifacts/previous'
 
-      - name: Publish desktop GUI
+      - name: Build and sign exact release artifacts
         shell: pwsh
         run: |
-          dotnet publish src/CtrlAgent.Gui/CtrlAgent.Gui.csproj `
-            --configuration Release --runtime win-x64 --self-contained `
-            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-            --output staging/gui
-          exit $LASTEXITCODE
+          ./tools/release/Build-ReleaseArtifacts.ps1 `
+            -DisplayVersion $env:RELEASE_VERSION `
+            -PackageVersion $env:PACKAGE_VERSION `
+            -OutputRoot 'artifacts/current' `
+            -RequireSigning
 
-      - name: Build GameInput bridge
-        shell: pwsh
-        run: |
-          msbuild native/CtrlAgent.GameInputBridge/CtrlAgent.GameInputBridge.vcxproj /restore /m /p:Configuration=Release /p:Platform=x64
-          exit $LASTEXITCODE
-
-      - name: Assemble portable package
-        shell: pwsh
-        run: |
-          $name = "CtrlAgent-$($env:RELEASE_VERSION)-win-x64"
-          New-Item -ItemType Directory -Path "package/$name" | Out-Null
-          Copy-Item staging/app/CtrlAgent.App.exe "package/$name/"
-          Copy-Item staging/gui/CtrlAgent.Gui.exe "package/$name/"
-          Copy-Item native/CtrlAgent.GameInputBridge/x64/Release/CtrlAgent.GameInputBridge.exe "package/$name/"
-          Copy-Item README.md, LICENSE "package/$name/"
-          Copy-Item docs "package/$name/docs" -Recurse
-          Compress-Archive -Path "package/$name" -DestinationPath "$name.zip"
-          echo "PACKAGE_NAME=$name" >> $env:GITHUB_ENV
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          choco install innosetup --no-progress -y
-          $name = "CtrlAgent-$($env:RELEASE_VERSION)-win-x64"
-          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" `
-            /DAppVersion=$env:RELEASE_VERSION `
-            /DStagingDir="$PWD\package\$name" `
-            /DRepoRoot="$PWD" `
-            /O"$PWD" `
-            installer\CtrlAgent.iss
-          exit $LASTEXITCODE
-
-      - name: Qualify exact release artifacts
+      - name: Qualify exact signed release
         shell: pwsh
         run: |
           ./tools/Test-ReleaseReadiness.ps1 `
             -Version $env:RELEASE_VERSION `
-            -PortableZip "$env:PACKAGE_NAME.zip" `
-            -Installer "CtrlAgent-Setup-$env:RELEASE_VERSION.exe" `
-            -ReportPath release-readiness-report.json
+            -PortableZip "artifacts/current/CtrlAgent-$env:RELEASE_VERSION-win-x64.zip" `
+            -Installer "artifacts/current/installer/CtrlAgent-Setup-$env:RELEASE_VERSION-win-x64.exe" `
+            -PreviousInstaller 'artifacts/previous/installer/CtrlAgent-Setup-v0.0.1-rollback-fixture-win-x64.exe' `
+            -PreviousVersion 'v0.0.1-rollback-fixture' `
+            -ReportPath 'artifacts/current/release-readiness-report.json' `
+            -RequireSignature
+          Copy-Item SHA256SUMS.txt artifacts/current/SHA256SUMS.txt -Force
+
+      - name: Attest portable archive
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/current/CtrlAgent-${{ env.RELEASE_VERSION }}-win-x64.zip
+
+      - name: Attest installer
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/current/installer/CtrlAgent-Setup-${{ env.RELEASE_VERSION }}-win-x64.exe
 
       - name: Upload qualified artifacts and evidence
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PACKAGE_NAME }}
+          name: CtrlAgent-${{ env.RELEASE_VERSION }}-win-x64
           if-no-files-found: error
+          retention-days: 30
           path: |
-            ${{ env.PACKAGE_NAME }}.zip
-            CtrlAgent-Setup-*.exe
-            SHA256SUMS.txt
-            release-readiness-report.json
+            artifacts/current/CtrlAgent-${{ env.RELEASE_VERSION }}-win-x64.zip
+            artifacts/current/installer/CtrlAgent-Setup-${{ env.RELEASE_VERSION }}-win-x64.exe
+            artifacts/current/SHA256SUMS.txt
+            artifacts/current/release-readiness-report.json
+            artifacts/current/logs/**
 
-      # Publication is deliberately last. A failed build, test, package check,
-      # install rehearsal, uninstall rehearsal, or checksum step prevents the
-      # tag/release from being created by a manual run.
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
           name: CtrlAgent ${{ env.RELEASE_VERSION }}
-          files: |
-            ${{ env.PACKAGE_NAME }}.zip
-            CtrlAgent-Setup-*.exe
-            SHA256SUMS.txt
-            release-readiness-report.json
+          prerelease: ${{ contains(env.RELEASE_VERSION, '-') }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/current/CtrlAgent-${{ env.RELEASE_VERSION }}-win-x64.zip
+            artifacts/current/installer/CtrlAgent-Setup-${{ env.RELEASE_VERSION }}-win-x64.exe
+            artifacts/current/SHA256SUMS.txt
+            artifacts/current/release-readiness-report.json
+            tools/release/Invoke-CtrlAgentRollback.ps1

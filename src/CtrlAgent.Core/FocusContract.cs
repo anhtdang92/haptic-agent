@@ -76,7 +76,6 @@ public sealed record FocusContract(
     };
 }
 
-/// <summary>Process-wide focus policy shared by all hosts and UI surfaces.</summary>
 public static class FocusContractSettings
 {
     private static readonly FocusMode[] Cycle =
@@ -171,23 +170,33 @@ public static class AttentionMetricsRegistry
     public static AttentionMetrics Current { get; } = new();
 }
 
+/// <summary>
+/// Every instance is a view over one process-wide, privacy-preserving metric
+/// store. This lets independent HostEngine/FeedbackRouter instances contribute
+/// to the same Mission Control and Mainframe dashboard.
+/// </summary>
 public sealed class AttentionMetrics
 {
-    private readonly object _sync = new();
-    private long _delivered;
-    private long _suppressed;
-    private long _approvalRequests;
-    private long _approvalResponses;
-    private long _completions;
-    private long _errors;
-    private DateTimeOffset? _workingSince;
-    private TimeSpan _autonomousWork;
+    private static readonly object Sync = new();
+    private static long _delivered;
+    private static long _suppressed;
+    private static long _approvalRequests;
+    private static long _approvalResponses;
+    private static long _completions;
+    private static long _errors;
+    private static DateTimeOffset? _workingSince;
+    private static TimeSpan _autonomousWork;
+    private static event Action? GlobalChanged;
 
-    public event Action? Changed;
+    public event Action? Changed
+    {
+        add => GlobalChanged += value;
+        remove => GlobalChanged -= value;
+    }
 
     public void RecordDecision(AttentionEventKind kind, bool delivered)
     {
-        lock (_sync)
+        lock (Sync)
         {
             if (delivered)
             {
@@ -202,22 +211,22 @@ public sealed class AttentionMetrics
                 _suppressed++;
             }
         }
-        Changed?.Invoke();
+        GlobalChanged?.Invoke();
     }
 
     public void RecordApprovalResponse()
     {
-        lock (_sync)
+        lock (Sync)
         {
             _approvalResponses++;
         }
-        Changed?.Invoke();
+        GlobalChanged?.Invoke();
     }
 
     public void ObserveAgentState(AgentStateKind state, DateTimeOffset observedAt)
     {
         var changed = false;
-        lock (_sync)
+        lock (Sync)
         {
             if (state == AgentStateKind.Working)
             {
@@ -234,12 +243,12 @@ public sealed class AttentionMetrics
                 changed = true;
             }
         }
-        if (changed) Changed?.Invoke();
+        if (changed) GlobalChanged?.Invoke();
     }
 
     public AttentionMetricsSnapshot Snapshot(DateTimeOffset? now = null)
     {
-        lock (_sync)
+        lock (Sync)
         {
             var observed = _autonomousWork;
             if (_workingSince is { } started)
@@ -260,7 +269,7 @@ public sealed class AttentionMetrics
 
     public void Reset()
     {
-        lock (_sync)
+        lock (Sync)
         {
             _delivered = 0;
             _suppressed = 0;
@@ -271,6 +280,6 @@ public sealed class AttentionMetrics
             _workingSince = null;
             _autonomousWork = TimeSpan.Zero;
         }
-        Changed?.Invoke();
+        GlobalChanged?.Invoke();
     }
 }

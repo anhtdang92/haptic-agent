@@ -9,9 +9,9 @@ CtrlAgent may be described as **release-ready** only when the exact artifacts of
 | Development build | Local or CI output. No user-facing reliability claim. |
 | Prerelease | Packaged build for testing. Known limitations may remain and must be listed. |
 | Release candidate | Exact installer and portable archive intended for stable publication; all automated gates pass. |
-| Stable release | A release candidate that also has completed human smoke evidence and an approved rollback plan. |
+| Stable release | A release candidate with completed smoke, documentation, accessibility, and rollback evidence. |
 
-The words **stable**, **production-ready**, and **release-ready** must not be used for an artifact that skipped installer rehearsal.
+The words **stable**, **production-ready**, and **release-ready** must not be used for an artifact that skipped installer rehearsal or required human evidence.
 
 ## Automated blocking gates
 
@@ -45,7 +45,7 @@ Run locally on Windows:
 
 ## Human release-candidate evidence
 
-Before promoting the first stable release, test the exact downloaded artifacts on a clean supported Windows installation and record:
+Before promoting a stable release, test the exact downloaded artifacts on a clean supported Windows installation and record:
 
 - portable archive extracts and launches;
 - installer presents correct publisher, version, icon, destination, and tasks;
@@ -61,6 +61,18 @@ Before promoting the first stable release, test the exact downloaded artifacts o
 - portable archive remains a working recovery path if installation fails.
 
 Evidence belongs under `validation/releases/<version>/` and must not contain usernames, machine names, access tokens, home-directory paths, controller serial numbers, or Bluetooth addresses.
+
+## Documentation gate
+
+The shipped documentation must allow a new user to install, launch, use, troubleshoot, recover, and uninstall the exact release candidate without undocumented maintainer knowledge. Verify that links resolve, commands work as written, keyboard and controller routes are covered, limitations and signing status are explicit, and verified, experimental, unsupported, and planned claims remain distinct.
+
+A stale or misleading instruction affecting installation, approval safety, recovery, or uninstall is a release blocker. Use [`README.md`](README.md) as the documentation hub.
+
+## Accessibility gate
+
+Complete a versioned report from `validation/accessibility/accessibility-report.template.md` using the exact downloaded release candidate. Stable publication requires keyboard-only, Windows Narrator, high-contrast, 200% scaling and Magnifier, reduced-motion, and color-independent semantic-state checks to pass for all critical workflows.
+
+Any accessibility failure preventing setup, prompt submission, diff review, approval, interruption, recovery, or exit is a release blocker. See [`accessibility.md`](accessibility.md) for the complete standard.
 
 ## Rollback gate
 
@@ -90,7 +102,9 @@ Release readiness reaches 10/10 only after:
 - the automated workflow passes on the exact release commit;
 - the installer and portable archive are downloaded from GitHub and independently smoke-tested;
 - install, launch, core mock workflow, uninstall, and recovery all pass;
+- documentation is current, navigable, link-checked, and exercised as written;
+- accessibility evidence passes for all critical workflows;
 - checksums and readiness evidence are attached to the release;
-- release notes clearly separate verified, experimental, and planned capabilities;
+- release notes clearly separate verified, experimental, unsupported, and planned capabilities;
 - rollback instructions are complete;
 - at least one real release rehearsal has been completed without relying on repository-local build outputs.

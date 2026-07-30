@@ -25,11 +25,42 @@ function Invoke-Installer([string] $Path, [string] $Directory, [string] $Log) {
     $process = Start-Process $Path -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$Directory","/LOG=$Log") -Wait -PassThru
     Require ($process.ExitCode -eq 0) "Install $([IO.Path]::GetFileName($Path))" "Exit code 0." "Exit code $($process.ExitCode)."
 }
-function Test-Launch([string] $Exe, [string] $Name) {
-    $process = Start-Process $Exe -PassThru
+function Test-Launch([string] $Exe, [string] $Name, [string] $EvidenceDirectory) {
+    New-Item -ItemType Directory -Path $EvidenceDirectory -Force | Out-Null
+    $startupLog = Join-Path $EvidenceDirectory 'installed-gui-startup.log'
+    $eventLog = Join-Path $EvidenceDirectory 'installed-gui-eventlog.txt'
+    Remove-Item $startupLog,$eventLog -Force -ErrorAction SilentlyContinue
+
+    $startedUtc = [DateTime]::UtcNow
+    $startInfo = [Diagnostics.ProcessStartInfo]::new($Exe)
+    $startInfo.UseShellExecute = $false
+    $startInfo.Environment['CTRLAGENT_STARTUP_LOG'] = $startupLog
+    $process = [Diagnostics.Process]::Start($startInfo)
     Start-Sleep -Seconds 4
-    $healthy = -not $process.HasExited -or $process.ExitCode -eq 0
-    Require $healthy $Name 'Process launched without an immediate nonzero exit.' "Process exited with $($process.ExitCode)."
+
+    $exitCode = if ($process.HasExited) { $process.ExitCode } else { $null }
+    $healthy = -not $process.HasExited -or $exitCode -eq 0
+    $diagnostic = if (Test-Path $startupLog) { (Get-Content $startupLog -Raw).Trim() } else { 'No CtrlAgent startup log was produced.' }
+
+    if (-not $healthy) {
+        try {
+            $events = Get-WinEvent -FilterHashtable @{ LogName='Application'; StartTime=$startedUtc.AddSeconds(-2) } -ErrorAction Stop |
+                Where-Object { $_.ProviderName -in @('.NET Runtime','Application Error','Windows Error Reporting') -or $_.Message -match 'CtrlAgent' } |
+                Select-Object -First 20 TimeCreated,ProviderName,Id,LevelDisplayName,Message
+            $events | Format-List | Out-String | Set-Content $eventLog -Encoding utf8
+        }
+        catch {
+            "Unable to collect Windows Application events: $($_.Exception)" | Set-Content $eventLog -Encoding utf8
+        }
+    }
+
+    $detail = if ($healthy) {
+        'Process launched without an immediate nonzero exit.'
+    }
+    else {
+        "Process exited with $exitCode. Startup diagnostics: $diagnostic"
+    }
+    Require $healthy $Name 'Process launched without an immediate nonzero exit.' $detail
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
 }
 function Test-Signature([string] $Path, [string] $Name) {
@@ -50,9 +81,11 @@ Require ($null -ne $installerPath) 'Installer exists' $Installer 'Installer was 
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("CtrlAgent-release-" + [guid]::NewGuid().ToString('N'))
 $extractRoot = Join-Path $tempRoot 'portable'
 $installRoot = Join-Path $tempRoot 'installed'
+$reportDirectory = Split-Path ([IO.Path]::GetFullPath($ReportPath)) -Parent
+$evidenceDirectory = Join-Path $reportDirectory 'logs'
 $settingsRoot = Join-Path $env:APPDATA 'CtrlAgent'
 $sentinelPath = Join-Path $settingsRoot 'release-qualification-sentinel.json'
-New-Item -ItemType Directory -Path $extractRoot,$settingsRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $extractRoot,$settingsRoot,$evidenceDirectory -Force | Out-Null
 $sentinel = [ordered]@{ id = [guid]::NewGuid().ToString(); createdUtc = [DateTime]::UtcNow.ToString('o') }
 $sentinel | ConvertTo-Json | Set-Content $sentinelPath -Encoding utf8
 
@@ -123,7 +156,7 @@ try {
         $installedVersion = if ($installedProperty) { $installedProperty.InstalledVersion } else { $null }
         Require ($installedVersion -eq $normalizedVersion) 'Installed version registry' "$installedVersion" "Expected $normalizedVersion, got $installedVersion."
         Require (Test-Path $sentinelPath) 'Settings survive upgrade' 'Qualification sentinel preserved.' 'AppData settings were removed during upgrade.'
-        Test-Launch (Join-Path $installRoot 'CtrlAgent.Gui.exe') 'Installed GUI launch smoke test'
+        Test-Launch (Join-Path $installRoot 'CtrlAgent.Gui.exe') 'Installed GUI launch smoke test' $evidenceDirectory
 
         if ($previousInstallerPath) {
             & (Join-Path $PSScriptRoot 'release\Invoke-CtrlAgentRollback.ps1') -TargetInstaller $previousInstallerPath -ExpectedVersion $PreviousVersion -InstallDirectory $installRoot -SkipLaunchCheck
@@ -155,7 +188,7 @@ try {
     $failed = @($checks | Where-Object { -not $_.passed })
     $qualified = $failed.Count -eq 0 -and -not $SkipInstallerRehearsal
     [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         generatedUtc = [DateTime]::UtcNow.ToString('o')
         version = $normalizedVersion
         previousVersion = $PreviousVersion
@@ -163,6 +196,7 @@ try {
         signatureRequired = [bool]$RequireSignature
         runner = [ordered]@{ os = [Environment]::OSVersion.VersionString; machine = $env:COMPUTERNAME; powershell = $PSVersionTable.PSVersion.ToString() }
         artifacts = $artifacts
+        diagnosticFiles = @(Get-ChildItem $evidenceDirectory -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
         checks = $checks
     } | ConvertTo-Json -Depth 10 | Set-Content $ReportPath -Encoding utf8
 

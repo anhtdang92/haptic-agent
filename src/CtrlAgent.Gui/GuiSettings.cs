@@ -125,7 +125,7 @@ public sealed record GuiSettings(
         }
         SpeechProviderSettings.WhisperExecutable = settings.WhisperExecutable;
         SpeechProviderSettings.WhisperModel = settings.WhisperModel;
-        SpeechToTextService.Language = settings.SpeechLanguage;
+        SpeechLanguageSettings.Language = settings.SpeechLanguage;
     }
 
     public static void TrySaveSpeechSettings(
@@ -146,6 +146,7 @@ public sealed record GuiSettings(
                 WhisperModel = whisperModel,
                 SpeechLanguage = language,
             });
+            SpeechLanguageSettings.Language = language;
         }
         catch (Exception) { }
     }

@@ -129,8 +129,8 @@ public static class FocusModeOverlay
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Child = cardBody,
+            ZIndex = 10000,
         };
-        Panel.SetZIndex(card, 10000);
 
         var root = new Grid();
         root.Children.Add(original);

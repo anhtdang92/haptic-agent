@@ -69,8 +69,10 @@ public sealed record HapticPattern(
 }
 
 /// <summary>
-/// App-wide haptic preferences. These are intentionally transport-neutral;
-/// device capability adaptation happens immediately before playback.
+/// App-wide haptic preferences. These are transport-neutral; device capability
+/// adaptation happens immediately before playback. The selected Focus Contract
+/// applies a second multiplier so Couch and Deep Focus can feel deliberately
+/// different without rewriting the tactile vocabulary.
 /// </summary>
 public static class HapticSettings
 {
@@ -80,6 +82,11 @@ public static class HapticSettings
     public static bool ProgressEnabled { get; set; } = true;
     public static bool ApprovalRemindersEnabled { get; set; } = true;
 
+    public static float EffectiveIntensity => Math.Clamp(
+        MasterIntensity * FocusContractSettings.Current.IntensityMultiplier,
+        0f,
+        1f);
+
     public static bool Allows(HapticPattern pattern) =>
         Enabled &&
         (pattern.Category != HapticCategory.Navigation || NavigationEnabled) &&
@@ -88,9 +95,9 @@ public static class HapticSettings
 }
 
 /// <summary>
-/// CtrlAgent's tactile language. Patterns are designed as recognizable shapes,
-/// not arbitrary vibration: rising means progress, falling means cancellation,
-/// alternating sides means a decision, and a heavy sustained pulse means failure.
+/// CtrlAgent's tactile language. Patterns are recognizable shapes, not arbitrary
+/// vibration: rising means progress, falling means cancellation, alternating
+/// sides means a decision, and a heavy sustained pulse means failure.
 /// </summary>
 public static class HapticPatternCatalog
 {
@@ -194,41 +201,87 @@ public static class HapticPatternCatalog
     ], Category: HapticCategory.Error, Priority: 100);
 }
 
-/// <summary>Maps agent and command semantics onto the tactile language.</summary>
+/// <summary>
+/// Maps agent and command semantics onto the tactile language, then applies the
+/// active Focus Contract. This is the single attention-policy boundary shared by
+/// every adapter and UI surface.
+/// </summary>
 public sealed class FeedbackRouter
 {
+    public AttentionMetrics Metrics { get; } = new();
+
     public HapticPattern? Route(AgentEvent agentEvent)
     {
+        Metrics.ObserveAgentState(agentEvent.State, agentEvent.Timestamp);
         var message = agentEvent.Message ?? string.Empty;
-        return agentEvent.State switch
+
+        var routed = agentEvent.State switch
         {
-            AgentStateKind.Working when Contains(message, "thinking") => HapticPatternCatalog.Thinking,
+            AgentStateKind.Working when Contains(message, "thinking") =>
+                (HapticPatternCatalog.Thinking, AttentionEventKind.RoutineProgress),
             AgentStateKind.Working when ContainsAny(message, "tool", "reading", "searching", "running", "executing") =>
-                HapticPatternCatalog.ToolStarted,
-            AgentStateKind.Working => HapticPatternCatalog.Working,
-            AgentStateKind.ApprovalRequired => HapticPatternCatalog.ApprovalRequired,
-            AgentStateKind.WaitingForInput => HapticPatternCatalog.WaitingForInput,
-            AgentStateKind.Completed when ContainsAny(message, "interrupt", "cancel") => HapticPatternCatalog.Interrupted,
-            AgentStateKind.Completed => HapticPatternCatalog.Completed,
-            AgentStateKind.Error => HapticPatternCatalog.Error,
-            _ => null,
+                (HapticPatternCatalog.ToolStarted, AttentionEventKind.ToolActivity),
+            AgentStateKind.Working =>
+                (HapticPatternCatalog.Working, AttentionEventKind.RoutineProgress),
+            AgentStateKind.ApprovalRequired =>
+                (HapticPatternCatalog.ApprovalRequired, AttentionEventKind.ApprovalRequired),
+            AgentStateKind.WaitingForInput =>
+                (HapticPatternCatalog.WaitingForInput, AttentionEventKind.WaitingForInput),
+            AgentStateKind.Completed when ContainsAny(message, "interrupt", "cancel") =>
+                (HapticPatternCatalog.Interrupted, AttentionEventKind.Interrupted),
+            AgentStateKind.Completed =>
+                (HapticPatternCatalog.Completed, AttentionEventKind.Completed),
+            AgentStateKind.Error =>
+                (HapticPatternCatalog.Error, AttentionEventKind.Error),
+            _ => ((HapticPattern?)null, AttentionEventKind.System),
         };
+
+        return Decide(routed.Item1, routed.Item2);
     }
 
-    public HapticPattern? Route(AgentCommandKind command) => command switch
+    public HapticPattern? Route(AgentCommandKind command)
     {
-        AgentCommandKind.ApproveOnce => HapticPatternCatalog.ApprovedOnce,
-        AgentCommandKind.ApproveForSession => HapticPatternCatalog.ApprovedSession,
-        AgentCommandKind.Decline => HapticPatternCatalog.Declined,
-        AgentCommandKind.Cancel or AgentCommandKind.Interrupt => HapticPatternCatalog.Interrupted,
-        AgentCommandKind.StartVoicePrompt => HapticPatternCatalog.VoiceListening,
-        AgentCommandKind.ScrollOutputUp or AgentCommandKind.ScrollOutputDown => HapticPatternCatalog.NavigationTick,
-        AgentCommandKind.SubmitPrompt or AgentCommandKind.NewSession or AgentCommandKind.ReviewChanges or
-        AgentCommandKind.SetModel or AgentCommandKind.SetEffort or AgentCommandKind.SetPermissionMode or
-        AgentCommandKind.CompactContext or AgentCommandKind.AttachFile or AgentCommandKind.ResumeSession or
-        AgentCommandKind.NextSession or AgentCommandKind.PreviousSession => HapticPatternCatalog.CommandAccepted,
-        _ => null,
-    };
+        var routed = command switch
+        {
+            AgentCommandKind.ApproveOnce =>
+                (HapticPatternCatalog.ApprovedOnce, AttentionEventKind.CommandAcknowledgement),
+            AgentCommandKind.ApproveForSession =>
+                (HapticPatternCatalog.ApprovedSession, AttentionEventKind.CommandAcknowledgement),
+            AgentCommandKind.Decline =>
+                (HapticPatternCatalog.Declined, AttentionEventKind.CommandAcknowledgement),
+            AgentCommandKind.Cancel or AgentCommandKind.Interrupt =>
+                (HapticPatternCatalog.Interrupted, AttentionEventKind.Interrupted),
+            AgentCommandKind.StartVoicePrompt =>
+                (HapticPatternCatalog.VoiceListening, AttentionEventKind.Voice),
+            AgentCommandKind.ScrollOutputUp or AgentCommandKind.ScrollOutputDown =>
+                (HapticPatternCatalog.NavigationTick, AttentionEventKind.Navigation),
+            AgentCommandKind.SubmitPrompt or AgentCommandKind.NewSession or AgentCommandKind.ReviewChanges or
+            AgentCommandKind.SetModel or AgentCommandKind.SetEffort or AgentCommandKind.SetPermissionMode or
+            AgentCommandKind.CompactContext or AgentCommandKind.AttachFile or AgentCommandKind.ResumeSession or
+            AgentCommandKind.NextSession or AgentCommandKind.PreviousSession =>
+                (HapticPatternCatalog.CommandAccepted, AttentionEventKind.CommandAcknowledgement),
+            _ => ((HapticPattern?)null, AttentionEventKind.CommandAcknowledgement),
+        };
+
+        if (command is AgentCommandKind.ApproveOnce or AgentCommandKind.ApproveForSession or AgentCommandKind.Decline)
+        {
+            Metrics.RecordApprovalResponse();
+        }
+
+        return Decide(routed.Item1, routed.Item2);
+    }
+
+    private HapticPattern? Decide(HapticPattern? pattern, AttentionEventKind kind)
+    {
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        var delivered = FocusContractSettings.Current.Allows(kind) && HapticSettings.Allows(pattern);
+        Metrics.RecordDecision(kind, delivered);
+        return delivered ? pattern : null;
+    }
 
     private static bool Contains(string value, string token) =>
         value.Contains(token, StringComparison.OrdinalIgnoreCase);

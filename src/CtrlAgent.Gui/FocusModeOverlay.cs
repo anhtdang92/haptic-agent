@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -12,13 +13,17 @@ namespace CtrlAgent.Gui;
 /// </summary>
 public static class FocusModeOverlay
 {
+    private static readonly ConditionalWeakTable<Window, object> Attached = new();
+
     public static void Attach(Window window, bool mainframe = false)
     {
         ArgumentNullException.ThrowIfNull(window);
-        if (window.Content is not Control original || original.Parent is not null)
+        if (Attached.TryGetValue(window, out _) ||
+            window.Content is not Control original || original.Parent is not null)
         {
             return;
         }
+        Attached.Add(window, new object());
 
         var dashboard = new StackPanel
         {
@@ -124,8 +129,8 @@ public static class FocusModeOverlay
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Child = cardBody,
-            ZIndex = 10000,
         };
+        Panel.SetZIndex(card, 10000);
 
         var root = new Grid();
         root.Children.Add(original);
@@ -143,8 +148,7 @@ public static class FocusModeOverlay
         void RefreshMetrics()
         {
             var snapshot = AttentionMetricsRegistry.Current.Snapshot();
-            var work = snapshot.AutonomousWorkObserved;
-            workText.Text = $"Autonomous work observed · {FormatDuration(work)}";
+            workText.Text = $"Autonomous work observed · {FormatDuration(snapshot.AutonomousWorkObserved)}";
             protectedText.Text = $"Routine interruptions suppressed · {snapshot.AvoidedRoutineInterruptions}";
             decisionsText.Text = $"Agent decisions handled · {snapshot.DecisionsHandled}";
             outcomesText.Text = $"Surfaced outcomes · {snapshot.CompletionsSurfaced} complete · {snapshot.ErrorsSurfaced} errors";
@@ -156,7 +160,11 @@ public static class FocusModeOverlay
             RefreshMode(FocusContractSettings.Current);
         }
 
-        cycle.Click += (_, _) => Select(FocusContractSettings.Next());
+        cycle.Click += (_, _) =>
+        {
+            var next = FocusContractSettings.Next();
+            GuiSettings.TrySaveFocusMode(next);
+        };
         expand.Click += (_, _) =>
         {
             dashboard.IsVisible = !dashboard.IsVisible;

@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using CtrlAgent.Core;
 
 namespace CtrlAgent.Gui;
 
@@ -16,11 +17,11 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        FocusModeOverlay.Attach(this);
         DataContextChanged += (_, _) => ObserveLog();
 
-        // Mission control's keyboard: F1 shortcuts map, Ctrl+N new session,
-        // F11 Mainframe, Esc closes the shortcuts overlay. Everything about
-        // coding — prompts, diff review, approvals — lives in Mainframe.
+        // Mission control's keyboard: F1 shortcuts map, F2 focus mode,
+        // Ctrl+N new session, F11 Mainframe, Esc closes shortcuts.
         KeyDown += (_, eventArgs) =>
         {
             if (DataContext is not MainViewModel viewModel)
@@ -40,6 +41,11 @@ public sealed partial class MainWindow : Window
                     viewModel.IsShortcutsVisible = !viewModel.IsShortcutsVisible;
                     break;
 
+                case Key.F2:
+                    eventArgs.Handled = true;
+                    GuiSettings.TrySaveFocusMode(FocusContractSettings.Next());
+                    break;
+
                 case Key.N when eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control):
                     eventArgs.Handled = true;
                     viewModel.NewSessionCommand.Execute(null);
@@ -53,11 +59,6 @@ public sealed partial class MainWindow : Window
         };
     }
 
-    /// <summary>
-    /// Pages the event stream when a binding scrolls the output while this
-    /// window has the screen — the conversation the scroll bindings usually
-    /// page lives in Mainframe.
-    /// </summary>
     private void OnOutputScroll(int direction)
     {
         if (EventStream.Scroll is not ScrollViewer scroll)
@@ -73,7 +74,6 @@ public sealed partial class MainWindow : Window
         scroll.Offset = scroll.Offset.WithY(target);
     }
 
-    // Keeps the event stream pinned to the newest entry.
     private void ObserveLog()
     {
         if (DataContext is not MainViewModel viewModel || ReferenceEquals(viewModel, _observedViewModel))
@@ -87,12 +87,8 @@ public sealed partial class MainWindow : Window
         viewModel.ModelPickerRequested += OnModelPickerRequested;
     }
 
-    // Typed "/model" means "show me the picker" — open the chip's flyout
-    // exactly as if it had been clicked.
     private void OnModelPickerRequested() => ModelKnob.Flyout?.ShowAt(ModelKnob);
 
-    // Rebuilt on every open so a headset plugged in mid-session appears
-    // without a restart.
     private void OnPickMicrophone(object? sender, RoutedEventArgs eventArgs)
     {
         if (DataContext is MainViewModel viewModel)
@@ -106,13 +102,6 @@ public sealed partial class MainWindow : Window
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
         StickToBottom(EventStream, eventArgs);
 
-    /// <summary>
-    /// Follows new items only while the view is already at the bottom. It used
-    /// to follow unconditionally, so scrolling up to read what the agent did
-    /// two minutes ago was undone by the next event — and during a busy turn
-    /// that is several times a second, which made the history unreadable
-    /// exactly when you most wanted to read it. Scrolling back down re-arms it.
-    /// </summary>
     private static void StickToBottom(ListBox list, NotifyCollectionChangedEventArgs eventArgs)
     {
         if (eventArgs.Action != NotifyCollectionChangedAction.Add || list.ItemCount == 0)
@@ -120,8 +109,6 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // Measured before layout runs for the new item, so the extent is still
-        // the pre-add one. The tolerance covers partially-visible last rows.
         if (list.Scroll is { } scroll &&
             scroll.Offset.Y < scroll.Extent.Height - scroll.Viewport.Height - 32)
         {
@@ -184,8 +171,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    // The hero band is the drag handle now that the client area covers the
-    // title bar. Buttons inside it swallow their own pointer events first.
     private void OnHeroPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
         if (eventArgs.GetCurrentPoint(this).Properties.IsLeftButtonPressed)

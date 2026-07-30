@@ -49,9 +49,16 @@ public sealed record GuiSettings(
         try
         {
             var path = SettingsPath;
-            return File.Exists(path)
+            var settings = File.Exists(path)
                 ? JsonSerializer.Deserialize<GuiSettings>(File.ReadAllText(path), Options)
                 : null;
+
+            if (Enum.TryParse<FocusMode>(settings?.FocusMode, true, out var mode))
+            {
+                FocusContractSettings.Select(mode);
+            }
+
+            return settings;
         }
         catch (Exception)
         {

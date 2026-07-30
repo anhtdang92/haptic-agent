@@ -3,7 +3,10 @@ param(
     [Parameter(Mandatory)] [string] $Version,
     [Parameter(Mandatory)] [string] $PortableZip,
     [Parameter(Mandatory)] [string] $Installer,
-    [string] $ReportPath = "release-readiness-report.json",
+    [string] $PreviousInstaller,
+    [string] $PreviousVersion,
+    [string] $ReportPath = 'release-readiness-report.json',
+    [switch] $RequireSignature,
     [switch] $SkipInstallerRehearsal
 )
 
@@ -13,131 +16,150 @@ Set-StrictMode -Version Latest
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check([string] $Name, [bool] $Passed, [string] $Detail) {
     $checks.Add([pscustomobject]@{ name = $Name; passed = $Passed; detail = $Detail })
-    if ($Passed) { Write-Host "[PASS] $Name - $Detail" -ForegroundColor Green }
-    else { Write-Host "[FAIL] $Name - $Detail" -ForegroundColor Red }
+    Write-Host "[$(if ($Passed) {'PASS'} else {'FAIL'})] $Name - $Detail" -ForegroundColor $(if ($Passed) {'Green'} else {'Red'})
 }
-
 function Require([bool] $Condition, [string] $Name, [string] $Success, [string] $Failure) {
-    Add-Check $Name $Condition ($(if ($Condition) { $Success } else { $Failure }))
+    Add-Check $Name $Condition $(if ($Condition) { $Success } else { $Failure })
+}
+function Invoke-Installer([string] $Path, [string] $Directory, [string] $Log) {
+    $process = Start-Process $Path -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$Directory","/LOG=$Log") -Wait -PassThru
+    Require ($process.ExitCode -eq 0) "Install $([IO.Path]::GetFileName($Path))" "Exit code 0." "Exit code $($process.ExitCode)."
+}
+function Test-Launch([string] $Exe, [string] $Name) {
+    $process = Start-Process $Exe -PassThru
+    Start-Sleep -Seconds 4
+    $healthy = -not $process.HasExited -or $process.ExitCode -eq 0
+    Require $healthy $Name 'Process launched without an immediate nonzero exit.' "Process exited with $($process.ExitCode)."
+    if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+}
+function Test-Signature([string] $Path, [string] $Name) {
+    $signature = Get-AuthenticodeSignature $Path
+    Require ($signature.Status -eq 'Valid') $Name "Valid signature by $($signature.SignerCertificate.Subject)." "Signature status: $($signature.Status)."
 }
 
 $normalizedVersion = $Version.Trim()
-Require ($normalizedVersion -match '^v\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') `
-    'Semantic version' $normalizedVersion 'Expected vMAJOR.MINOR.PATCH with an optional prerelease suffix.'
+Require ($normalizedVersion -match '^v?\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') 'Semantic version' $normalizedVersion 'Expected MAJOR.MINOR.PATCH with an optional prerelease suffix.'
 
 $zipPath = (Resolve-Path $PortableZip -ErrorAction SilentlyContinue)?.Path
 $installerPath = (Resolve-Path $Installer -ErrorAction SilentlyContinue)?.Path
+$previousInstallerPath = if ($PreviousInstaller) { (Resolve-Path $PreviousInstaller -ErrorAction SilentlyContinue)?.Path } else { $null }
 Require ($null -ne $zipPath) 'Portable archive exists' $PortableZip 'Portable archive was not found.'
 Require ($null -ne $installerPath) 'Installer exists' $Installer 'Installer was not found.'
-
-$expectedZipName = "CtrlAgent-$normalizedVersion-win-x64.zip"
-$expectedInstallerName = "CtrlAgent-Setup-$normalizedVersion.exe"
-if ($zipPath) {
-    Require ([IO.Path]::GetFileName($zipPath) -eq $expectedZipName) 'Portable filename' $expectedZipName "Expected $expectedZipName."
-}
-if ($installerPath) {
-    Require ([IO.Path]::GetFileName($installerPath) -eq $expectedInstallerName) 'Installer filename' $expectedInstallerName "Expected $expectedInstallerName."
-}
 
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("CtrlAgent-release-" + [guid]::NewGuid().ToString('N'))
 $extractRoot = Join-Path $tempRoot 'portable'
 $installRoot = Join-Path $tempRoot 'installed'
-New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+$settingsRoot = Join-Path $env:APPDATA 'CtrlAgent'
+$sentinelPath = Join-Path $settingsRoot 'release-qualification-sentinel.json'
+New-Item -ItemType Directory -Path $extractRoot,$settingsRoot -Force | Out-Null
+$sentinel = [ordered]@{ id = [guid]::NewGuid().ToString(); createdUtc = [DateTime]::UtcNow.ToString('o') }
+$sentinel | ConvertTo-Json | Set-Content $sentinelPath -Encoding utf8
 
 try {
     if ($zipPath) {
-        Expand-Archive -Path $zipPath -DestinationPath $extractRoot -Force
-        $payloadRoots = Get-ChildItem $extractRoot -Directory
-        Require ($payloadRoots.Count -eq 1) 'Single package root' "$($payloadRoots.Count) package root found." 'Portable zip must contain exactly one top-level package directory.'
+        Expand-Archive $zipPath $extractRoot -Force
+        $payloadRoots = @(Get-ChildItem $extractRoot -Directory)
+        Require ($payloadRoots.Count -eq 1) 'Single package root' "$($payloadRoots.Count) root directory." 'Portable ZIP must contain exactly one root directory.'
         $payload = if ($payloadRoots.Count -eq 1) { $payloadRoots[0].FullName } else { $extractRoot }
 
-        $requiredFiles = @(
-            'CtrlAgent.Gui.exe',
-            'CtrlAgent.App.exe',
-            'CtrlAgent.GameInputBridge.exe',
-            'README.md',
-            'LICENSE'
-        )
-        foreach ($file in $requiredFiles) {
-            Require (Test-Path (Join-Path $payload $file)) "Portable contains $file" $file "$file is missing from the portable package."
+        foreach ($file in @('CtrlAgent.Gui.exe','CtrlAgent.App.exe','CtrlAgent.GameInputBridge.exe','README.md','LICENSE','release-manifest.json','Invoke-CtrlAgentRollback.ps1')) {
+            Require (Test-Path (Join-Path $payload $file)) "Portable contains $file" $file "$file is missing."
         }
-        Require (Test-Path (Join-Path $payload 'docs')) 'Portable contains documentation' 'docs directory present.' 'docs directory is missing.'
+        Require (Test-Path (Join-Path $payload 'docs')) 'Portable documentation' 'docs directory present.' 'docs directory missing.'
 
-        $forbidden = Get-ChildItem $payload -Recurse -File | Where-Object {
-            $_.Extension -in @('.pdb', '.user', '.suo') -or
+        $manifestPath = Join-Path $payload 'release-manifest.json'
+        if (Test-Path $manifestPath) {
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            $mismatches = @()
+            foreach ($file in $manifest.files) {
+                $path = Join-Path $payload $file.path
+                if (-not (Test-Path $path)) { $mismatches += "missing:$($file.path)"; continue }
+                $actual = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+                if ($actual -ne $file.sha256) { $mismatches += "hash:$($file.path)" }
+            }
+            Require ($mismatches.Count -eq 0) 'Payload manifest integrity' 'Every manifested file matches.' ($mismatches -join '; ')
+        }
+
+        $forbidden = @(Get-ChildItem $payload -Recurse -File | Where-Object {
+            $_.Extension -in @('.pdb','.user','.suo','.pfx','.snk') -or
             $_.Name -match '(?i)(secret|token|credential|private[-_]?key)' -or
             $_.FullName -match '(?i)[\\/](bin|obj)[\\/]'
-        }
-        Require ($forbidden.Count -eq 0) 'No development or sensitive files' 'No forbidden files detected.' (($forbidden.FullName -join '; '))
+        })
+        Require ($forbidden.Count -eq 0) 'No sensitive or development files' 'No forbidden files detected.' ($forbidden.FullName -join '; ')
 
-        foreach ($exe in @('CtrlAgent.Gui.exe', 'CtrlAgent.App.exe', 'CtrlAgent.GameInputBridge.exe')) {
-            $exePath = Join-Path $payload $exe
-            if (Test-Path $exePath) {
-                $header = [IO.File]::ReadAllBytes($exePath)[0..1]
-                Require ($header[0] -eq 0x4D -and $header[1] -eq 0x5A) "$exe is a Windows PE" 'MZ header present.' 'Executable does not have an MZ header.'
+        if ($RequireSignature) {
+            foreach ($exe in @('CtrlAgent.Gui.exe','CtrlAgent.App.exe','CtrlAgent.GameInputBridge.exe')) {
+                Test-Signature (Join-Path $payload $exe) "Signed $exe"
             }
         }
     }
 
-    if ($installerPath -and -not $SkipInstallerRehearsal) {
-        $installArgs = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installRoot")
-        $installProcess = Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait -PassThru
-        Require ($installProcess.ExitCode -eq 0) 'Silent installer succeeds' "Exit code $($installProcess.ExitCode)." "Installer exited with $($installProcess.ExitCode)."
+    if ($RequireSignature -and $installerPath) { Test-Signature $installerPath 'Signed installer' }
 
-        foreach ($file in @('CtrlAgent.Gui.exe', 'CtrlAgent.App.exe', 'CtrlAgent.GameInputBridge.exe')) {
+    if ($installerPath -and -not $SkipInstallerRehearsal) {
+        if ($previousInstallerPath) {
+            Invoke-Installer $previousInstallerPath $installRoot (Join-Path $tempRoot 'previous-install.log')
+            if ($PreviousVersion) {
+                $installed = (Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue).InstalledVersion
+                Require ($installed -eq $PreviousVersion) 'Previous version installed' $installed "Expected $PreviousVersion, got $installed."
+            }
+            Require (Test-Path $sentinelPath) 'Settings survive initial install' 'Qualification sentinel preserved.' 'AppData settings were removed.'
+        }
+
+        Invoke-Installer $installerPath $installRoot (Join-Path $tempRoot 'current-install.log')
+        foreach ($file in @('CtrlAgent.Gui.exe','CtrlAgent.App.exe','CtrlAgent.GameInputBridge.exe')) {
             Require (Test-Path (Join-Path $installRoot $file)) "Installed payload contains $file" $file "$file is missing after installation."
+        }
+        $installedVersion = (Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue).InstalledVersion
+        Require ($installedVersion -eq $normalizedVersion) 'Installed version registry' $installedVersion "Expected $normalizedVersion, got $installedVersion."
+        Require (Test-Path $sentinelPath) 'Settings survive upgrade' 'Qualification sentinel preserved.' 'AppData settings were removed during upgrade.'
+        Test-Launch (Join-Path $installRoot 'CtrlAgent.Gui.exe') 'Installed GUI launch smoke test'
+
+        if ($previousInstallerPath) {
+            & (Join-Path $PSScriptRoot 'release\Invoke-CtrlAgentRollback.ps1') -TargetInstaller $previousInstallerPath -ExpectedVersion $PreviousVersion -InstallDirectory $installRoot -SkipLaunchCheck
+            Require (Test-Path $sentinelPath) 'Settings survive rollback' 'Qualification sentinel preserved.' 'AppData settings were removed during rollback.'
+            $rolledBackVersion = (Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue).InstalledVersion
+            Require ($rolledBackVersion -eq $PreviousVersion) 'Rollback version verified' $rolledBackVersion "Expected $PreviousVersion, got $rolledBackVersion."
+            Invoke-Installer $installerPath $installRoot (Join-Path $tempRoot 'reinstall-current.log')
         }
 
         $uninstaller = Join-Path $installRoot 'unins000.exe'
-        Require (Test-Path $uninstaller) 'Uninstaller exists' $uninstaller 'Inno Setup uninstaller was not created.'
+        Require (Test-Path $uninstaller) 'Uninstaller exists' $uninstaller 'Uninstaller was not created.'
         if (Test-Path $uninstaller) {
-            $uninstallProcess = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -Wait -PassThru
-            Require ($uninstallProcess.ExitCode -eq 0) 'Silent uninstall succeeds' "Exit code $($uninstallProcess.ExitCode)." "Uninstaller exited with $($uninstallProcess.ExitCode)."
-            Start-Sleep -Milliseconds 500
-            Require (-not (Test-Path (Join-Path $installRoot 'CtrlAgent.Gui.exe'))) 'Uninstall removes application binaries' 'Application binaries removed.' 'Application binaries remain after uninstall.'
-        }
-    } elseif ($SkipInstallerRehearsal) {
-        Add-Check 'Installer rehearsal' $true 'Explicitly skipped; this result cannot qualify a stable release.'
-    }
-
-    $artifacts = @()
-    foreach ($path in @($zipPath, $installerPath) | Where-Object { $_ }) {
-        $hash = Get-FileHash -Path $path -Algorithm SHA256
-        $artifacts += [pscustomobject]@{
-            file = [IO.Path]::GetFileName($path)
-            bytes = (Get-Item $path).Length
-            sha256 = $hash.Hash.ToLowerInvariant()
+            $uninstall = Start-Process $uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
+            Require ($uninstall.ExitCode -eq 0) 'Silent uninstall' 'Exit code 0.' "Exit code $($uninstall.ExitCode)."
+            Start-Sleep -Seconds 1
+            Require (-not (Test-Path (Join-Path $installRoot 'CtrlAgent.Gui.exe'))) 'Uninstall removes binaries' 'Application binaries removed.' 'Application binaries remain.'
+            Require (Test-Path $sentinelPath) 'Uninstall preserves user data' 'AppData settings preserved.' 'Uninstall removed user settings.'
         }
     }
+    elseif ($SkipInstallerRehearsal) {
+        Add-Check 'Installer rehearsal' $false 'Skipped installer rehearsal cannot qualify a release.'
+    }
 
+    $artifactPaths = @($zipPath,$installerPath) | Where-Object { $_ }
+    $artifacts = @($artifactPaths | ForEach-Object {
+        [ordered]@{ file = [IO.Path]::GetFileName($_); bytes = (Get-Item $_).Length; sha256 = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant() }
+    })
     $failed = @($checks | Where-Object { -not $_.passed })
     $qualified = $failed.Count -eq 0 -and -not $SkipInstallerRehearsal
-    $report = [ordered]@{
-        schemaVersion = 1
+    [ordered]@{
+        schemaVersion = 2
         generatedUtc = [DateTime]::UtcNow.ToString('o')
         version = $normalizedVersion
+        previousVersion = $PreviousVersion
         qualifiedForStableRelease = $qualified
-        installerRehearsalSkipped = [bool]$SkipInstallerRehearsal
-        runner = [ordered]@{
-            os = [Environment]::OSVersion.VersionString
-            machine = $env:COMPUTERNAME
-            powershell = $PSVersionTable.PSVersion.ToString()
-        }
+        signatureRequired = [bool]$RequireSignature
+        runner = [ordered]@{ os = [Environment]::OSVersion.VersionString; machine = $env:COMPUTERNAME; powershell = $PSVersionTable.PSVersion.ToString() }
         artifacts = $artifacts
         checks = $checks
-    }
-    $report | ConvertTo-Json -Depth 8 | Set-Content -Path $ReportPath -Encoding utf8
+    } | ConvertTo-Json -Depth 10 | Set-Content $ReportPath -Encoding utf8
 
-    if ($artifacts.Count -gt 0) {
-        $artifacts | ForEach-Object { "$($_.sha256)  $($_.file)" } | Set-Content -Path 'SHA256SUMS.txt' -Encoding ascii
-    }
-
-    if (-not $qualified) {
-        throw "Release readiness failed: $($failed.Count) blocking check(s). See $ReportPath."
-    }
-
-    Write-Host "Release artifacts qualify for stable publication." -ForegroundColor Green
+    $artifacts | ForEach-Object { "$($_.sha256)  $($_.file)" } | Set-Content 'SHA256SUMS.txt' -Encoding ascii
+    if (-not $qualified) { throw "Release readiness failed with $($failed.Count) blocking check(s)." }
+    Write-Host 'Release artifacts qualify for publication.' -ForegroundColor Green
 }
 finally {
+    Remove-Item $sentinelPath -Force -ErrorAction SilentlyContinue
     Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

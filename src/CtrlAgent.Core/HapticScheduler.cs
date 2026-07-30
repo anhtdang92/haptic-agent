@@ -61,7 +61,7 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
     }
 
-    /// <summary>Clears only the persistent state and stops all physical output.</summary>
+    /// <summary>Clears the persistent state and stops all physical output.</summary>
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -162,30 +162,15 @@ public sealed class HapticScheduler : IAsyncDisposable
             await _controller.PlayAsync(transient, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
-            HapticPattern? persistent;
-            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
+            // No scheduler gate here: PlayAsync/StopAsync cancel this task while
+            // holding that gate. Waiting for the gate here would deadlock a new
+            // cue against the transient it is replacing.
+            var persistent = generation == Volatile.Read(ref _generation)
+                ? _persistentPattern
+                : null;
+            if (persistent is not null && !_disposed)
             {
-                if (_disposed || generation != _generation)
-                {
-                    return;
-                }
-
-                persistent = _persistentPattern;
-                if (persistent is null)
-                {
-                    _activePlayback = null;
-                    _activeTask = null;
-                    return;
-                }
-
-                var resumed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                _activePlayback = resumed;
-                _activeTask = RunPatternAsync(persistent, generation, resumed.Token);
-            }
-            finally
-            {
-                _gate.Release();
+                await _controller.PlayAsync(persistent, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -208,7 +193,7 @@ public sealed class HapticScheduler : IAsyncDisposable
         cancellation.Cancel();
         try
         {
-            if (task is not null && task.Id != Task.CurrentId)
+            if (task is not null)
             {
                 await task.ConfigureAwait(false);
             }
@@ -236,7 +221,7 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
         finally
         {
-            if (generation == _generation && !pattern.Loop)
+            if (generation == Volatile.Read(ref _generation) && !pattern.Loop)
             {
                 try
                 {

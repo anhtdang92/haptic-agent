@@ -1,3 +1,4 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -12,66 +13,218 @@ namespace CtrlAgent.Gui;
 /// </summary>
 public sealed partial class MainframeWindow : Window
 {
+    private static bool _bootSequencePlayed;
+    private MainframeViewModel? _observed;
+    private double _windowedWidth = 1440;
+    private double _windowedHeight = 860;
+
     /// <summary>Lets the app start dictation here when this window owns the
     /// screen, so a controller binding reaches the large voice overlay rather
     /// than quietly typing into a prompt box nobody can see.</summary>
     public void StartVoiceFromBinding() =>
         (DataContext as MainframeViewModel)?.StartVoiceFromBinding();
 
-    private MainframeViewModel? _observed;
-
     public MainframeWindow()
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
+        Closed += OnClosed;
+        SizeChanged += (_, _) => ApplyResponsiveLayout();
 
-        // Same Enter-sends contract as the main window's prompt box, and for
-        // the same reason: AcceptsReturn means the TextBox consumes Enter
-        // before any bubbling handler sees it, so the submit hook must tunnel.
-        MainframePromptBox.AddHandler(KeyDownEvent, OnPromptKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // Enter sends while Shift+Enter inserts a line break. Tunnel because
+        // AcceptsReturn causes the TextBox to consume Enter before bubbling.
+        MainframePromptBox.AddHandler(
+            KeyDownEvent,
+            OnPromptKeyDown,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
-        // The reticle pointer: this mode is meant to be driven from a couch,
-        // but a mouse should feel deliberate here rather than borrowed from
-        // the desktop. Null means the backend refused it — keep the default.
         if (MainframeCursor.Reticle is { } reticle)
         {
             Cursor = reticle;
         }
-        DataContextChanged += (_, _) =>
-        {
-            if (DataContext is MainframeViewModel viewModel && !ReferenceEquals(viewModel, _observed))
-            {
-                if (_observed is not null)
-                {
-                    _observed.FeedScrollRequested -= OnFeedScroll;
-                    _observed.FocusMoved -= OnFocusMoved;
-                    _observed.ControllerPressed -= SkipIntro;
-                    _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
-                    _observed.Main.TranscriptStreamed -= OnFeedStreamed;
-                    _observed.Main.DiffJumpRequested -= OnDiffJump;
-                }
 
-                _observed = viewModel;
-                viewModel.FocusMoved += OnFocusMoved;
-                viewModel.FeedScrollRequested += OnFeedScroll;
-                viewModel.ControllerPressed += SkipIntro;
-                viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
-                viewModel.Main.TranscriptStreamed += OnFeedStreamed;
-                viewModel.Main.DiffJumpRequested += OnDiffJump;
-            }
-        };
-        // Any input dismisses the boot intro: it is a moment, not a gate, and
-        // the second visit's 2.6 seconds is friction. Tunnel the pointer so a
-        // click lands even when the overlay sits over an interactive control.
-        AddHandler(PointerPressedEvent, (_, _) => SkipIntro(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        DataContextChanged += (_, _) => ObserveViewModel();
+
+        // Any pointer input dismisses the cinematic immediately. The intro is
+        // atmosphere, never a gate between the user and their work.
+        AddHandler(
+            PointerPressedEvent,
+            (_, _) => SkipIntro(),
+            Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
         Opened += async (_, _) =>
         {
-            // Steam-style boot moment: chime + badge/ring animation, then the
-            // overlay collapses out of the way of input rendering.
+            ApplyResponsiveLayout();
+
+            // The full power-on sequence is memorable once, but repeat entries
+            // should feel instant. Keep it once per app session and preserve the
+            // existing input-to-skip behavior for the first showing.
+            if (_bootSequencePlayed)
+            {
+                IntroOverlay.IsVisible = false;
+                FocusPromptWhenReady();
+                return;
+            }
+
+            _bootSequencePlayed = true;
             BootChime.Play();
             await Task.Delay(TimeSpan.FromSeconds(2.6));
             IntroOverlay.IsVisible = false;
+            FocusPromptWhenReady();
         };
+    }
+
+    private void ObserveViewModel()
+    {
+        if (DataContext is not MainframeViewModel viewModel || ReferenceEquals(viewModel, _observed))
+        {
+            return;
+        }
+
+        DetachObservedViewModel();
+        _observed = viewModel;
+        viewModel.FocusMoved += OnFocusMoved;
+        viewModel.FeedScrollRequested += OnFeedScroll;
+        viewModel.ControllerPressed += SkipIntro;
+        viewModel.Main.Transcript.CollectionChanged += OnFeedChanged;
+        viewModel.Main.TranscriptStreamed += OnFeedStreamed;
+        viewModel.Main.DiffJumpRequested += OnDiffJump;
+    }
+
+    private void DetachObservedViewModel()
+    {
+        if (_observed is null)
+        {
+            return;
+        }
+
+        _observed.FeedScrollRequested -= OnFeedScroll;
+        _observed.FocusMoved -= OnFocusMoved;
+        _observed.ControllerPressed -= SkipIntro;
+        _observed.Main.Transcript.CollectionChanged -= OnFeedChanged;
+        _observed.Main.TranscriptStreamed -= OnFeedStreamed;
+        _observed.Main.DiffJumpRequested -= OnDiffJump;
+        _observed = null;
+    }
+
+    private void OnClosed(object? sender, EventArgs eventArgs)
+    {
+        DetachObservedViewModel();
+        KeyDown -= OnKeyDown;
+        Closed -= OnClosed;
+    }
+
+    /// <summary>
+    /// Keeps the conversation visually dominant at every supported window
+    /// width. Large screens retain the controller cockpit; narrower windows
+    /// reduce chrome, compact the status strip, and give the feed more room.
+    /// </summary>
+    private void ApplyResponsiveLayout()
+    {
+        if (Bounds.Width <= 0)
+        {
+            return;
+        }
+
+        var shell = this.GetVisualDescendants()
+            .OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("mainframeContent"));
+        if (shell is null)
+        {
+            return;
+        }
+
+        var stage = shell.Children
+            .OfType<Grid>()
+            .FirstOrDefault(grid => Grid.GetRow(grid) == 1 && grid.ColumnDefinitions.Count >= 2);
+        var topStrip = shell.Children
+            .OfType<DockPanel>()
+            .FirstOrDefault(panel => Grid.GetRow(panel) == 0);
+
+        var compact = Bounds.Width < 1600;
+        var narrow = Bounds.Width < 1220;
+
+        shell.Margin = narrow
+            ? new Thickness(20, 16, 20, 16)
+            : compact
+                ? new Thickness(32, 22, 32, 20)
+                : new Thickness(48, 28, 48, 24);
+
+        if (stage is not null)
+        {
+            stage.Margin = narrow
+                ? new Thickness(0, 10)
+                : new Thickness(0, 14);
+
+            // The original 2:3 split made supporting hardware UI nearly as
+            // prominent as the work itself. Conversation now owns the canvas.
+            stage.ColumnDefinitions[0].Width = narrow
+                ? new GridLength(0.78, GridUnitType.Star)
+                : compact
+                    ? new GridLength(0.95, GridUnitType.Star)
+                    : new GridLength(1.1, GridUnitType.Star);
+            stage.ColumnDefinitions[1].Width = narrow
+                ? new GridLength(2.22, GridUnitType.Star)
+                : compact
+                    ? new GridLength(2.15, GridUnitType.Star)
+                    : new GridLength(2.4, GridUnitType.Star);
+
+            var controllerHub = stage.Children
+                .OfType<Grid>()
+                .FirstOrDefault(grid => Grid.GetColumn(grid) == 0);
+            if (controllerHub is not null)
+            {
+                controllerHub.MaxWidth = narrow ? 300 : compact ? 360 : 420;
+            }
+
+            var feedCard = stage.Children
+                .OfType<Border>()
+                .FirstOrDefault(border => Grid.GetColumn(border) == 1);
+            if (feedCard is not null)
+            {
+                feedCard.Margin = new Thickness(narrow ? 14 : compact ? 18 : 24, 0, 0, 0);
+                feedCard.Padding = new Thickness(narrow ? 18 : compact ? 21 : 24);
+            }
+        }
+
+        if (topStrip?.Children
+                .OfType<StackPanel>()
+                .FirstOrDefault(panel => DockPanel.GetDock(panel) == Dock.Right) is { } statusItems)
+        {
+            statusItems.Spacing = narrow ? 12 : compact ? 16 : 24;
+
+            // Profile, model and effort remain available in Settings. Hiding
+            // their duplicate labels prevents the toolbar from wrapping or
+            // competing with the live agent and workspace states.
+            var secondaryLabels = statusItems.Children.OfType<TextBlock>().ToList();
+            if (secondaryLabels.Count >= 4)
+            {
+                secondaryLabels[0].IsVisible = !compact;
+                secondaryLabels[2].IsVisible = !compact;
+                secondaryLabels[3].IsVisible = !compact;
+            }
+        }
+    }
+
+    /// <summary>Moves keyboard users directly to the primary action after the
+    /// intro clears without stealing focus while a modal surface is open.</summary>
+    private void FocusPromptWhenReady()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (DataContext is MainframeViewModel viewModel &&
+                    !viewModel.IsSettingsVisible &&
+                    !viewModel.IsShortcutsVisible &&
+                    !viewModel.IsVoiceVisible &&
+                    !viewModel.IsSessionsVisible &&
+                    !viewModel.Main.IsDiffVisible)
+                {
+                    MainframePromptBox.Focus();
+                    MainframePromptBox.CaretIndex = MainframePromptBox.Text?.Length ?? 0;
+                }
+            },
+            Avalonia.Threading.DispatcherPriority.Background);
     }
 
     /// <summary>Collapses the boot intro early — a keypress, click, or any
@@ -81,22 +234,12 @@ public sealed partial class MainframeWindow : Window
         if (IntroOverlay.IsVisible)
         {
             IntroOverlay.IsVisible = false;
+            FocusPromptWhenReady();
         }
     }
 
-    /// <summary>
-    /// Pages the agent feed from a controller binding.
-    /// <para>
-    /// Pages rather than lines: a flick of the stick should move a readable
-    /// amount, and line-by-line scrolling from across a room is unusable. The
-    /// page is a fraction of the viewport so a couple of lines carry over and
-    /// you can tell where you were.
-    /// </para>
-    /// </summary>
     private void OnFeedScroll(int direction)
     {
-        // The surface on top gets the stick: the diff overlay while it is
-        // open, the conversation feed otherwise.
         var scroller = DataContext is MainframeViewModel { Main.IsDiffVisible: true }
             ? MainframeDiffScroller
             : FeedScroller;
@@ -111,11 +254,6 @@ public sealed partial class MainframeWindow : Window
         scroller.Offset = scroller.Offset.WithY(Math.Clamp(target, 0, highest));
     }
 
-    /// <summary>
-    /// Scrolls the diff overlay to a file's header row when the d-pad steps
-    /// between files. Same measured-position approach as the main window:
-    /// rows vary in height, so estimating from the index would drift.
-    /// </summary>
     private void OnDiffJump(int rowIndex)
     {
         if (MainframeDiffList.ContainerFromIndex(rowIndex) is not Control container ||
@@ -125,19 +263,15 @@ public sealed partial class MainframeWindow : Window
         }
 
         var highest = Math.Max(
-            0, MainframeDiffScroller.Extent.Height - MainframeDiffScroller.Viewport.Height);
-        MainframeDiffScroller.Offset = MainframeDiffScroller.Offset.WithY(Math.Clamp(point.Y, 0, highest));
+            0,
+            MainframeDiffScroller.Extent.Height - MainframeDiffScroller.Viewport.Height);
+        MainframeDiffScroller.Offset = MainframeDiffScroller.Offset.WithY(
+            Math.Clamp(point.Y, 0, highest));
     }
 
-    /// <summary>
-    /// Follows new and streaming feed text while already at the bottom, same
-    /// rules as the main window's conversation: stickiness is decided before
-    /// layout absorbs the change, the scroll runs after it, and paging back
-    /// with the stick disarms following until the user returns to the bottom.
-    /// Replace matters as much as Add here — a streaming turn rewrites the
-    /// last row in place.
-    /// </summary>
-    private void OnFeedChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
+    private void OnFeedChanged(
+        object? sender,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs eventArgs)
     {
         if (eventArgs.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
         {
@@ -145,9 +279,6 @@ public sealed partial class MainframeWindow : Window
         }
     }
 
-    // A streaming reply grows its bubble in place — no collection event, so
-    // the shared transcript raises this separately (same fix as the main
-    // window's chat).
     private void OnFeedStreamed() => FollowFeedIfAtBottom();
 
     private void FollowFeedIfAtBottom()
@@ -163,8 +294,6 @@ public sealed partial class MainframeWindow : Window
             Avalonia.Threading.DispatcherPriority.Background);
     }
 
-    // Enter sends, Shift+Enter breaks the line — the habit every chat client
-    // teaches, kept identical across both windows.
     private void OnPromptKeyDown(object? sender, KeyEventArgs eventArgs)
     {
         if (eventArgs.Key != Key.Enter || eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
@@ -176,10 +305,10 @@ public sealed partial class MainframeWindow : Window
         if (DataContext is MainframeViewModel viewModel)
         {
             viewModel.Main.SubmitPromptCommand.Execute(null);
+            FocusPromptWhenReady();
         }
     }
 
-    /// <summary>Keeps the focused settings tile on screen.</summary>
     private void OnFocusMoved(int index)
     {
         if (TileRail.ContainerFromIndex(index) is Control container)
@@ -188,8 +317,6 @@ public sealed partial class MainframeWindow : Window
         }
     }
 
-    /// <summary>Hovering a settings tile moves focus to it, so the pointer and
-    /// the d-pad drive the same highlight rather than competing ones.</summary>
     private void OnTilePointerEntered(object? sender, PointerEventArgs eventArgs)
     {
         if (DataContext is MainframeViewModel viewModel &&
@@ -199,7 +326,6 @@ public sealed partial class MainframeWindow : Window
         }
     }
 
-    /// <summary>Clicking a settings tile runs it — the same path A takes.</summary>
     private void OnTilePointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
         if (DataContext is MainframeViewModel viewModel &&
@@ -211,28 +337,38 @@ public sealed partial class MainframeWindow : Window
         }
     }
 
-    private void OnToggleSettings(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
+    private void OnToggleSettings(
+        object? sender,
+        Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
         (DataContext as MainframeViewModel)?.ToggleSettings();
 
-    private void OnMinimize(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
+    private void OnMinimize(
+        object? sender,
+        Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
         WindowState = WindowState.Minimized;
 
-    /// <summary>
-    /// Fullscreen is Mainframe's home, not its cage: windowed mode gets real
-    /// system decorations so the OS provides move/resize/minimize, and going
-    /// back to fullscreen drops them again for the clean couch look.
-    /// </summary>
-    private void OnToggleFullscreen(object? sender, Avalonia.Interactivity.RoutedEventArgs eventArgs)
+    private void OnToggleFullscreen(
+        object? sender,
+        Avalonia.Interactivity.RoutedEventArgs eventArgs) =>
+        ToggleFullscreen();
+
+    private void ToggleFullscreen()
     {
         if (WindowState == WindowState.FullScreen)
         {
             SystemDecorations = SystemDecorations.Full;
             WindowState = WindowState.Normal;
-            Width = 1440;
-            Height = 860;
+            Width = _windowedWidth;
+            Height = _windowedHeight;
         }
         else
         {
+            if (WindowState == WindowState.Normal)
+            {
+                _windowedWidth = Math.Max(960, Width);
+                _windowedHeight = Math.Max(640, Height);
+            }
+
             SystemDecorations = SystemDecorations.None;
             WindowState = WindowState.FullScreen;
         }
@@ -242,6 +378,57 @@ public sealed partial class MainframeWindow : Window
     {
         SkipIntro();
         if (DataContext is not MainframeViewModel viewModel)
+        {
+            return;
+        }
+
+        // Standard desktop affordances should work independently of the
+        // controller navigation vocabulary.
+        if (eventArgs.Key == Key.F11 ||
+            (eventArgs.Key == Key.Enter && eventArgs.KeyModifiers.HasFlag(KeyModifiers.Alt)))
+        {
+            eventArgs.Handled = true;
+            ToggleFullscreen();
+            return;
+        }
+
+        if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            switch (eventArgs.Key)
+            {
+                case Key.L:
+                    eventArgs.Handled = true;
+                    FocusPromptWhenReady();
+                    return;
+                case Key.OemComma:
+                    eventArgs.Handled = true;
+                    viewModel.ToggleSettings();
+                    return;
+                case Key.M:
+                    eventArgs.Handled = true;
+                    WindowState = WindowState.Minimized;
+                    return;
+                case Key.O:
+                    eventArgs.Handled = true;
+                    viewModel.Main.AttachFileCommand.Execute(null);
+                    return;
+                case Key.N:
+                    eventArgs.Handled = true;
+                    viewModel.Main.NewSessionCommand.Execute(null);
+                    return;
+                case Key.Space when eventArgs.KeyModifiers.HasFlag(KeyModifiers.Alt):
+                    eventArgs.Handled = true;
+                    viewModel.Main.StartVoiceCommand.Execute(null);
+                    return;
+            }
+        }
+
+        // Editing the prompt must feel like a normal desktop text editor. In
+        // particular, arrow keys belong to the caret while a TextBox owns
+        // focus; letting them bubble into controller navigation made multiline
+        // prompts jump the HUD instead of moving through text.
+        if (eventArgs.Source is TextBox ||
+            FocusManager?.GetFocusedElement() is TextBox)
         {
             return;
         }
@@ -259,7 +446,6 @@ public sealed partial class MainframeWindow : Window
             Key.F2 => "F2",
             Key.F3 => "F3",
             Key.F4 => "F4",
-            Key.F11 => "F11",
             _ => null,
         };
 

@@ -1,3 +1,4 @@
+using System.Text;
 using CtrlAgent.Core;
 
 namespace CtrlAgent.Presentation;
@@ -16,6 +17,110 @@ public abstract record TranscriptAction
 
     /// <summary>Add a dim status row between bubbles.</summary>
     public sealed record AddActivity(string Text) : TranscriptAction;
+}
+
+/// <summary>
+/// Cleans process- and terminal-originated text before it reaches Avalonia.
+/// It strips ANSI control sequences and non-printing C0 controls while keeping
+/// line breaks, tabs, accents, non-Latin scripts, and ordinary Unicode prose.
+/// Known activity glyphs are converted to words because the bundled Inter font
+/// does not contain them and Windows fallback can display boxes or blobs.
+/// </summary>
+public static class TranscriptText
+{
+    public static string Clean(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var source = value
+            .Replace("→ ⚠ ", "Warning — ", StringComparison.Ordinal)
+            .Replace("→ ", string.Empty, StringComparison.Ordinal)
+            .Replace("✓", "Done", StringComparison.Ordinal)
+            .Replace("✕", "Error", StringComparison.Ordinal)
+            .Replace("🔒", "Approval", StringComparison.Ordinal)
+            .Normalize(NormalizationForm.FormC);
+
+        var result = new StringBuilder(source.Length);
+        for (var index = 0; index < source.Length; index++)
+        {
+            var current = source[index];
+
+            if (current == '\u001b')
+            {
+                index = SkipEscapeSequence(source, index);
+                continue;
+            }
+
+            if (current < ' ' && current is not '\r' and not '\n' and not '\t')
+            {
+                continue;
+            }
+
+            if (current == '\u007f')
+            {
+                continue;
+            }
+
+            result.Append(current);
+        }
+
+        return result.ToString();
+    }
+
+    private static int SkipEscapeSequence(string text, int escapeIndex)
+    {
+        var index = escapeIndex + 1;
+        if (index >= text.Length)
+        {
+            return escapeIndex;
+        }
+
+        // CSI: ESC [ parameters/intermediates final-byte
+        if (text[index] == '[')
+        {
+            index++;
+            while (index < text.Length)
+            {
+                var value = text[index];
+                if (value is >= '\u0040' and <= '\u007e')
+                {
+                    return index;
+                }
+
+                index++;
+            }
+
+            return text.Length - 1;
+        }
+
+        // OSC: ESC ] ... BEL, or ESC ] ... ESC \
+        if (text[index] == ']')
+        {
+            index++;
+            while (index < text.Length)
+            {
+                if (text[index] == '\a')
+                {
+                    return index;
+                }
+
+                if (text[index] == '\u001b' && index + 1 < text.Length && text[index + 1] == '\\')
+                {
+                    return index + 1;
+                }
+
+                index++;
+            }
+
+            return text.Length - 1;
+        }
+
+        // A two-byte ANSI escape such as ESC c.
+        return index;
+    }
 }
 
 /// <summary>
@@ -47,7 +152,7 @@ public sealed class TranscriptFolder
     {
         ArgumentNullException.ThrowIfNull(agentEvent);
 
-        var message = agentEvent.Message;
+        var message = TranscriptText.Clean(agentEvent.Message);
         if (string.IsNullOrWhiteSpace(message))
         {
             return new TranscriptAction.None();

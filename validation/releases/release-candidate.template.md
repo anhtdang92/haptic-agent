@@ -49,6 +49,32 @@ Do not record usernames, machine names, tokens, controller serial numbers, Bluet
 | Program files and shortcuts are removed |  |  |
 | User-settings behavior matches release notes |  |  |
 
+## Documentation qualification
+
+| Check | Result | Notes |
+|---|---|---|
+| Documentation hub links resolve |  |  |
+| Installation and first-run instructions match the artifact |  |  |
+| Keyboard and controller routes are documented |  |  |
+| Troubleshooting includes recovery actions |  |  |
+| Verified, experimental, and planned claims are distinct |  |  |
+| Known limitations and signing status are explicit |  |  |
+| Release notes describe upgrade, settings, and rollback behavior |  |  |
+| Commands and paths were copied and exercised as written |  |  |
+
+## Accessibility qualification
+
+- Versioned accessibility report:
+- Keyboard-only critical workflows: `PASS` / `FAIL`
+- Windows Narrator critical workflows: `PASS` / `FAIL`
+- High contrast: `PASS` / `FAIL`
+- 200% scaling and Magnifier: `PASS` / `FAIL`
+- Reduced motion: `PASS` / `FAIL`
+- Color-independent semantic states: `PASS` / `FAIL`
+- Critical accessibility defects open: `YES` / `NO`
+
+The detailed report must be created from `validation/accessibility/accessibility-report.template.md` using the exact downloaded release candidate.
+
 ## Upgrade and recovery
 
 - Previous stable version:
@@ -71,6 +97,8 @@ Do not record usernames, machine names, tokens, controller serial numbers, Bluet
 
 - Automated artifact gate: `PASS` / `FAIL`
 - Human smoke gate: `PASS` / `FAIL`
+- Documentation gate: `PASS` / `FAIL`
+- Accessibility gate: `PASS` / `FAIL`
 - Rollback gate: `PASS` / `FAIL`
 - Hardware/support language accurate: `PASS` / `FAIL`
 - Stable publication approved: `YES` / `NO`

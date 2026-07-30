@@ -34,7 +34,8 @@ function Test-Launch([string] $Exe, [string] $Name) {
 }
 function Test-Signature([string] $Path, [string] $Name) {
     $signature = Get-AuthenticodeSignature $Path
-    Require ($signature.Status -eq 'Valid') $Name "Valid signature by $($signature.SignerCertificate.Subject)." "Signature status: $($signature.Status)."
+    $signer = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { 'no signer' }
+    Require ($signature.Status -eq 'Valid') $Name "Valid signature by $signer." "Signature status: $($signature.Status); signer: $signer."
 }
 
 $normalizedVersion = $Version.Trim()
@@ -77,7 +78,8 @@ try {
                 $actual = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
                 if ($actual -ne $file.sha256) { $mismatches += "hash:$($file.path)" }
             }
-            Require ($mismatches.Count -eq 0) 'Payload manifest integrity' 'Every manifested file matches.' ($mismatches -join '; ')
+            $mismatchDetail = if ($mismatches.Count -gt 0) { $mismatches -join '; ' } else { 'No manifest mismatches.' }
+            Require ($mismatches.Count -eq 0) 'Payload manifest integrity' 'Every manifested file matches.' $mismatchDetail
         }
 
         $forbidden = @(Get-ChildItem $payload -Recurse -File | Where-Object {
@@ -85,7 +87,13 @@ try {
             $_.Name -match '(?i)(secret|token|credential|private[-_]?key)' -or
             $_.FullName -match '(?i)[\\/](bin|obj)[\\/]'
         })
-        Require ($forbidden.Count -eq 0) 'No sensitive or development files' 'No forbidden files detected.' ($forbidden.FullName -join '; ')
+        $forbiddenDetail = if ($forbidden.Count -gt 0) {
+            (($forbidden | ForEach-Object { $_.FullName }) -join '; ')
+        }
+        else {
+            'No forbidden files detected.'
+        }
+        Require ($forbidden.Count -eq 0) 'No sensitive or development files' 'No forbidden files detected.' $forbiddenDetail
 
         if ($RequireSignature) {
             foreach ($exe in @('CtrlAgent.Gui.exe','CtrlAgent.App.exe','CtrlAgent.GameInputBridge.exe')) {
@@ -100,8 +108,9 @@ try {
         if ($previousInstallerPath) {
             Invoke-Installer $previousInstallerPath $installRoot (Join-Path $tempRoot 'previous-install.log')
             if ($PreviousVersion) {
-                $installed = (Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue).InstalledVersion
-                Require ($installed -eq $PreviousVersion) 'Previous version installed' $installed "Expected $PreviousVersion, got $installed."
+                $installedProperty = Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue
+                $installed = if ($installedProperty) { $installedProperty.InstalledVersion } else { $null }
+                Require ($installed -eq $PreviousVersion) 'Previous version installed' "$installed" "Expected $PreviousVersion, got $installed."
             }
             Require (Test-Path $sentinelPath) 'Settings survive initial install' 'Qualification sentinel preserved.' 'AppData settings were removed.'
         }
@@ -110,16 +119,18 @@ try {
         foreach ($file in @('CtrlAgent.Gui.exe','CtrlAgent.App.exe','CtrlAgent.GameInputBridge.exe')) {
             Require (Test-Path (Join-Path $installRoot $file)) "Installed payload contains $file" $file "$file is missing after installation."
         }
-        $installedVersion = (Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue).InstalledVersion
-        Require ($installedVersion -eq $normalizedVersion) 'Installed version registry' $installedVersion "Expected $normalizedVersion, got $installedVersion."
+        $installedProperty = Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue
+        $installedVersion = if ($installedProperty) { $installedProperty.InstalledVersion } else { $null }
+        Require ($installedVersion -eq $normalizedVersion) 'Installed version registry' "$installedVersion" "Expected $normalizedVersion, got $installedVersion."
         Require (Test-Path $sentinelPath) 'Settings survive upgrade' 'Qualification sentinel preserved.' 'AppData settings were removed during upgrade.'
         Test-Launch (Join-Path $installRoot 'CtrlAgent.Gui.exe') 'Installed GUI launch smoke test'
 
         if ($previousInstallerPath) {
             & (Join-Path $PSScriptRoot 'release\Invoke-CtrlAgentRollback.ps1') -TargetInstaller $previousInstallerPath -ExpectedVersion $PreviousVersion -InstallDirectory $installRoot -SkipLaunchCheck
             Require (Test-Path $sentinelPath) 'Settings survive rollback' 'Qualification sentinel preserved.' 'AppData settings were removed during rollback.'
-            $rolledBackVersion = (Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue).InstalledVersion
-            Require ($rolledBackVersion -eq $PreviousVersion) 'Rollback version verified' $rolledBackVersion "Expected $PreviousVersion, got $rolledBackVersion."
+            $rollbackProperty = Get-ItemProperty 'HKCU:\Software\CtrlAgent' -ErrorAction SilentlyContinue
+            $rolledBackVersion = if ($rollbackProperty) { $rollbackProperty.InstalledVersion } else { $null }
+            Require ($rolledBackVersion -eq $PreviousVersion) 'Rollback version verified' "$rolledBackVersion" "Expected $PreviousVersion, got $rolledBackVersion."
             Invoke-Installer $installerPath $installRoot (Join-Path $tempRoot 'reinstall-current.log')
         }
 

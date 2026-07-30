@@ -1,16 +1,20 @@
 namespace CtrlAgent.Core;
 
 /// <summary>
-/// Owns the currently active haptic cue. Starting a new cue cancels and drains
-/// the previous one before the replacement begins, while returning control to
-/// the caller immediately after the new cue has been scheduled.
+/// Owns two semantic haptic layers: one persistent state (working, approval,
+/// waiting, voice listening) and one transient notification. A transient cue
+/// temporarily interrupts the persistent state and automatically resumes it
+/// when finished. This prevents a navigation tick or command acknowledgement
+/// from permanently silencing an approval reminder.
 /// </summary>
 public sealed class HapticScheduler : IAsyncDisposable
 {
     private readonly IControllerDevice _controller;
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private CancellationTokenSource? _activePattern;
+    private CancellationTokenSource? _activePlayback;
     private Task? _activeTask;
+    private HapticPattern? _persistentPattern;
+    private long _generation;
     private bool _disposed;
 
     public HapticScheduler(IControllerDevice controller)
@@ -19,9 +23,9 @@ public sealed class HapticScheduler : IAsyncDisposable
     }
 
     /// <summary>
-    /// Schedules a pattern without waiting for the entire pattern to finish.
-    /// Disabled categories are ignored, and every pattern is scaled and stripped
-    /// to the motors the connected transport actually exposes before playback.
+    /// Looping patterns become the persistent layer. Non-looping patterns play
+    /// as transients and then resume the latest persistent layer. The caller is
+    /// released after playback has been scheduled, not after the cue completes.
     /// </summary>
     public async ValueTask PlayAsync(
         HapticPattern pattern,
@@ -30,15 +34,8 @@ public sealed class HapticScheduler : IAsyncDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(pattern);
 
-        if (!HapticSettings.Allows(pattern))
-        {
-            return;
-        }
-
-        var adapted = pattern.Adapt(HapticSettings.EffectiveIntensity, _controller.Capabilities);
-        if (adapted.Frames.All(frame =>
-            frame.LowFrequency == 0f && frame.HighFrequency == 0f &&
-            frame.LeftTrigger == 0f && frame.RightTrigger == 0f))
+        var adapted = AdaptOrNull(pattern);
+        if (adapted is null)
         {
             return;
         }
@@ -46,11 +43,17 @@ public sealed class HapticScheduler : IAsyncDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await CancelActivePatternAsync().ConfigureAwait(false);
+            var generation = ++_generation;
+            if (adapted.Loop)
+            {
+                _persistentPattern = adapted;
+                await CancelActivePlaybackAsync().ConfigureAwait(false);
+                StartPlayback(adapted, generation, cancellationToken);
+                return;
+            }
 
-            var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _activePattern = linked;
-            _activeTask = RunPatternAsync(adapted, linked.Token);
+            await CancelActivePlaybackAsync().ConfigureAwait(false);
+            StartTransient(adapted, generation, cancellationToken);
         }
         finally
         {
@@ -58,6 +61,7 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
     }
 
+    /// <summary>Clears only the persistent state and stops all physical output.</summary>
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -65,7 +69,9 @@ public sealed class HapticScheduler : IAsyncDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await CancelActivePatternAsync().ConfigureAwait(false);
+            ++_generation;
+            _persistentPattern = null;
+            await CancelActivePlaybackAsync().ConfigureAwait(false);
             await _controller.StopHapticsAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -90,7 +96,9 @@ public sealed class HapticScheduler : IAsyncDisposable
             }
 
             _disposed = true;
-            await CancelActivePatternAsync().ConfigureAwait(false);
+            ++_generation;
+            _persistentPattern = null;
+            await CancelActivePlaybackAsync().ConfigureAwait(false);
 
             try
             {
@@ -109,11 +117,87 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
     }
 
-    private async Task CancelActivePatternAsync()
+    private HapticPattern? AdaptOrNull(HapticPattern pattern)
     {
-        var cancellation = _activePattern;
+        if (!HapticSettings.Allows(pattern))
+        {
+            return null;
+        }
+
+        var adapted = pattern.Adapt(HapticSettings.EffectiveIntensity, _controller.Capabilities);
+        return adapted.Frames.All(frame =>
+            frame.LowFrequency == 0f && frame.HighFrequency == 0f &&
+            frame.LeftTrigger == 0f && frame.RightTrigger == 0f)
+            ? null
+            : adapted;
+    }
+
+    private void StartPlayback(
+        HapticPattern pattern,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activePlayback = linked;
+        _activeTask = RunPatternAsync(pattern, generation, linked.Token);
+    }
+
+    private void StartTransient(
+        HapticPattern transient,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activePlayback = linked;
+        _activeTask = RunTransientAndResumeAsync(transient, generation, linked.Token);
+    }
+
+    private async Task RunTransientAndResumeAsync(
+        HapticPattern transient,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _controller.PlayAsync(transient, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            HapticPattern? persistent;
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (_disposed || generation != _generation)
+                {
+                    return;
+                }
+
+                persistent = _persistentPattern;
+                if (persistent is null)
+                {
+                    _activePlayback = null;
+                    _activeTask = null;
+                    return;
+                }
+
+                var resumed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                _activePlayback = resumed;
+                _activeTask = RunPatternAsync(persistent, generation, resumed.Token);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task CancelActivePlaybackAsync()
+    {
+        var cancellation = _activePlayback;
         var task = _activeTask;
-        _activePattern = null;
+        _activePlayback = null;
         _activeTask = null;
 
         if (cancellation is null)
@@ -124,7 +208,7 @@ public sealed class HapticScheduler : IAsyncDisposable
         cancellation.Cancel();
         try
         {
-            if (task is not null)
+            if (task is not null && task.Id != Task.CurrentId)
             {
                 await task.ConfigureAwait(false);
             }
@@ -138,7 +222,10 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
     }
 
-    private async Task RunPatternAsync(HapticPattern pattern, CancellationToken cancellationToken)
+    private async Task RunPatternAsync(
+        HapticPattern pattern,
+        long generation,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -146,7 +233,19 @@ public sealed class HapticScheduler : IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Expected when a newer cue replaces this one or haptics are stopped.
+        }
+        finally
+        {
+            if (generation == _generation && !pattern.Loop)
+            {
+                try
+                {
+                    await _controller.StopHapticsAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+            }
         }
     }
 }

@@ -10,11 +10,9 @@ public sealed class SpeechToTextService : IDisposable
     private bool _disposed;
 
     public static string? PreferredMicrophone { get; set; }
-    public static string? Language { get; set; }
     public static string? Vocabulary { get; set; }
     public static TimeSpan MaximumRecordingDuration { get; set; } = TimeSpan.FromSeconds(15);
 
-    /// <summary>Process-wide lifecycle events consumed by the haptic coordinator.</summary>
     public static event Action? AttemptStarted;
     public static event Action<SpeechTranscriptionResult>? ResultAvailable;
 
@@ -29,13 +27,11 @@ public sealed class SpeechToTextService : IDisposable
             UnavailableReason = "Speech service has been disposed.";
             return false;
         }
-
         if (!OperatingSystem.IsWindows())
         {
             UnavailableReason = "Speech recognition requires Windows.";
             return false;
         }
-
         UnavailableReason = null;
         return true;
     }
@@ -68,7 +64,6 @@ public sealed class SpeechToTextService : IDisposable
         {
             return recorded;
         }
-
         if (string.IsNullOrWhiteSpace(recorded.Text))
         {
             return new(SpeechResultKind.NoSpeech, Message: recorded.Message ?? "No audio was recorded.");
@@ -97,7 +92,7 @@ public sealed class SpeechToTextService : IDisposable
             timeout.CancelAfter(TimeSpan.FromSeconds(45));
             return await provider.TranscribeAsync(
                 waveAudio,
-                new SpeechProviderOptions(Language, Vocabulary, TimeSpan.FromSeconds(45)),
+                new SpeechProviderOptions(SpeechLanguageSettings.Language, Vocabulary, TimeSpan.FromSeconds(45)),
                 timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
@@ -133,11 +128,7 @@ public sealed class SpeechToTextService : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) return;
         _disposed = true;
         CancelRecognition();
     }
@@ -158,12 +149,10 @@ public sealed class WindowsSpeechToTextProvider : ISpeechToTextProvider
         try
         {
             var recognizers = SpeechRecognitionEngine.InstalledRecognizers();
-            if (recognizers.Count == 0)
-            {
-                return Task.FromResult<string?>(
-                    "No Windows speech recognizer is installed. Install a Speech language pack or choose OpenAI/Local Whisper.");
-            }
-            return Task.FromResult<string?>(null);
+            return recognizers.Count == 0
+                ? Task.FromResult<string?>(
+                    "No Windows speech recognizer is installed. Install a Speech language pack or choose OpenAI/Local Whisper.")
+                : Task.FromResult<string?>(null);
         }
         catch (Exception exception)
         {

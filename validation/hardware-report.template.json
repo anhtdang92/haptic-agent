@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-07-30T00:00:00Z",
+  "device": {
+    "family": "Xbox",
+    "model": "Elite Wireless Controller Series 2",
+    "firmwareVersion": "REPLACE_ME"
+  },
+  "environment": {
+    "windowsBuild": "REPLACE_ME",
+    "applicationVersion": "REPLACE_ME",
+    "driverStack": "XInput | GameInput | raw HID",
+    "gameInputVersion": "not-applicable",
+    "notes": "Do not include serial numbers, Bluetooth addresses, account names, or machine names."
+  },
+  "transport": {
+    "kind": "usb | bluetooth | xbox-wireless-adapter",
+    "cableOrAdapter": "REPLACE_ME"
+  },
+  "tests": {
+    "discoveryBeforeLaunch": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Observed behavior and reproduction details."
+    },
+    "discoveryAfterLaunch": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Observed behavior and reproduction details."
+    },
+    "identityStable": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Describe the stable, non-unique identity fields used."
+    },
+    "standardControls": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Confirm each control independently and record any dead zone or inversion anomaly.",
+      "controls": {
+        "a": false,
+        "b": false,
+        "x": false,
+        "y": false,
+        "menu": false,
+        "view": false,
+        "dpadUp": false,
+        "dpadDown": false,
+        "dpadLeft": false,
+        "dpadRight": false,
+        "leftShoulder": false,
+        "rightShoulder": false,
+        "leftStickClick": false,
+        "rightStickClick": false,
+        "leftTrigger": false,
+        "rightTrigger": false,
+        "leftStickX": false,
+        "leftStickY": false,
+        "rightStickX": false,
+        "rightStickY": false
+      }
+    },
+    "simultaneousInput": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Test chords, trigger-plus-button, stick-plus-button, and release without stuck state."
+    },
+    "hapticsDistinct": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Confirm at least two cues are reliably distinguishable at 0.25, 0.50, 0.75, and 1.00 intensity."
+    },
+    "hapticsStopCleanly": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Confirm stop after normal completion, interrupt, disconnect, process exit, and reconnect."
+    },
+    "disconnectReconnect": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Confirm input and haptics recover without restarting CtrlAgent."
+    },
+    "focusBackgroundBehaviorDocumented": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Record foreground, background, tray, overlay, and lock-screen behavior."
+    },
+    "soakTest": {
+      "status": "pass | fail | blocked | not-applicable",
+      "evidence": "Record crashes, stuck controls, haptic shutdown, memory behavior, and reconnect recovery.",
+      "durationMinutes": 0,
+      "hapticCueCount": 0,
+      "reconnectCount": 0
+    },
+    "capabilities": {
+      "guideButton": false,
+      "independentPaddles": false,
+      "mainRumble": false,
+      "triggerRumble": false,
+      "adaptiveTriggers": false,
+      "lightbar": false,
+      "evidence": "Explain how each reported capability was verified or why it is unavailable."
+    }
+  },
+  "privacy": {
+    "containsUniqueDeviceIdentifiers": false,
+    "reviewedBy": "REPLACE_WITH_GITHUB_USERNAME_OR_ROLE"
+  },
+  "knownAnomalies": [],
+  "recommendation": "qualified | experimental | unsupported"
+}

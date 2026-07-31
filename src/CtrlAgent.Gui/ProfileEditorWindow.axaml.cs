@@ -17,6 +17,7 @@ public sealed partial class ProfileEditorWindow : Window
         InitializeComponent();
         _viewModel = new ProfileEditorViewModel(ControllerProfile.Default);
         DataContext = _viewModel;
+        FocusBindingEditorOverlay.Attach(this);
     }
 
     public ProfileEditorWindow(HostEngine engine)

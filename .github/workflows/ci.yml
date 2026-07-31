@@ -23,18 +23,23 @@ jobs:
         shell: pwsh
         run: |
           dotnet restore CtrlAgent.sln 2>&1 | Tee-Object managed-restore.log
+          dotnet restore tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj 2>&1 | Tee-Object focus-restore.log
           exit $LASTEXITCODE
 
       - name: Build
         shell: pwsh
         run: |
           dotnet build CtrlAgent.sln --configuration Release --no-restore 2>&1 | Tee-Object managed-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj --configuration Release --no-restore 2>&1 | Tee-Object focus-build.log
           exit $LASTEXITCODE
 
       - name: Run tests
         shell: pwsh
         run: |
           dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release --no-build 2>&1 | Tee-Object managed-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj --configuration Release --no-build 2>&1 | Tee-Object focus-tests.log
           exit $LASTEXITCODE
 
       - name: Upload managed logs
@@ -42,7 +47,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: managed-build-logs
-          path: managed-*.log
+          path: |
+            managed-*.log
+            focus-*.log
 
   ui-render:
     # The GUI targets net10.0-windows and cannot be launched on a build agent,

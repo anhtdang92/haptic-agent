@@ -5,7 +5,10 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>CtrlAgent.Gui</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <!-- Embedded win32 icon: what Explorer and the taskbar show for the exe -->
+    <!-- The modern transcription providers return a final result rather than
+         streaming hypotheses. Keep the compatibility event for existing voice
+         overlays without turning that intentional no-op into a build failure. -->
+    <NoWarn>$(NoWarn);CS0067</NoWarn>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -21,6 +24,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.18" />
     <PackageReference Include="Avalonia.Diagnostics" Version="11.3.18" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="System.Speech" Version="10.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

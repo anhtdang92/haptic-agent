@@ -1,3 +1,5 @@
+using CtrlAgent.Presentation;
+
 namespace CtrlAgent.Gui;
 
 /// <summary>
@@ -25,6 +27,6 @@ public sealed class ChatMessage : ViewModelBase
     public string Text
     {
         get => _text;
-        set => Set(ref _text, value);
+        set => Set(ref _text, TranscriptText.Clean(value));
     }
 }

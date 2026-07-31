@@ -1,0 +1,87 @@
+name: release-qualification
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release*.yml'
+      - 'installer/**'
+      - 'tools/release/**'
+      - 'tools/Test-ReleaseReadiness.ps1'
+      - 'src/**'
+      - 'native/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-windows-vm:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Restore, build, and test
+        shell: pwsh
+        run: |
+          dotnet restore CtrlAgent.sln
+          dotnet restore tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj
+          dotnet build CtrlAgent.sln --configuration Release --no-restore
+          dotnet build tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj --configuration Release --no-restore
+          dotnet run --project tests/CtrlAgent.Tests/CtrlAgent.Tests.csproj --configuration Release --no-build
+          dotnet run --project tests/CtrlAgent.FocusTests/CtrlAgent.FocusTests.csproj --configuration Release --no-build
+
+      - name: Build synthetic previous installer
+        shell: pwsh
+        run: |
+          ./tools/release/Build-ReleaseArtifacts.ps1 `
+            -DisplayVersion 'v0.0.1-ci' `
+            -PackageVersion '0.0.1.0' `
+            -OutputRoot 'artifacts/previous'
+
+      - name: Build current release candidate
+        shell: pwsh
+        run: |
+          ./tools/release/Build-ReleaseArtifacts.ps1 `
+            -DisplayVersion 'v0.0.2-ci' `
+            -PackageVersion '0.0.2.0' `
+            -OutputRoot 'artifacts/current'
+
+      - name: Install, launch, upgrade, rollback, and uninstall
+        shell: pwsh
+        run: |
+          ./tools/Test-ReleaseReadiness.ps1 `
+            -Version 'v0.0.2-ci' `
+            -PortableZip 'artifacts/current/CtrlAgent-v0.0.2-ci-win-x64.zip' `
+            -Installer 'artifacts/current/installer/CtrlAgent-Setup-v0.0.2-ci-win-x64.exe' `
+            -PreviousInstaller 'artifacts/previous/installer/CtrlAgent-Setup-v0.0.1-ci-win-x64.exe' `
+            -PreviousVersion 'v0.0.1-ci' `
+            -ReportPath 'artifacts/current/release-readiness-report.json'
+
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-qualification-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            artifacts/current/**/*.zip
+            artifacts/current/installer/*.exe
+            artifacts/current/**/*.json
+            artifacts/current/**/*.txt
+            artifacts/current/logs/**
+            artifacts/previous/installer/*.exe
+            artifacts/previous/logs/**
